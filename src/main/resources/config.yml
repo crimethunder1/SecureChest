@@ -1,0 +1,47 @@
+worlds:
+  enabled:
+    - world
+
+sounds:
+  enabled: true
+
+particles:
+  enabled: true
+
+ui:
+  confirm_timeout_seconds: 15
+  undo_seconds: 20
+  trust_nearby_radius: 32.0
+
+auto_lock:
+  enabled: false
+  require_key: true
+  sneak_only: false
+
+admin:
+  logs:
+    book_entries: 200
+    teleport_enabled: false
+
+recipes:
+  chest_key:
+    enabled: true
+    shape:
+      - "NDN"
+      - "DHD"
+      - "NDN"
+    ingredients:
+      N: "NETHERITE_INGOT"
+      D: "DIAMOND"
+      H: "TRIPWIRE_HOOK"
+
+  secure_hopper:
+    enabled: true
+    shape:
+      - " I "
+      - "HKH"
+      - " I "
+    ingredients:
+      I: "IRON_BLOCK"
+      H: "HOPPER"
+      K: "CHEST_KEY"  # special: exact Chest Key item
