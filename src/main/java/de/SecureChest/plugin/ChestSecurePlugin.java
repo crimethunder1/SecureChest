@@ -38,7 +38,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private UndoManager undoManager;
     private UiStateStore uiState;
 
-    // Chat input flows (trust add / global unlock)
+    
     private final Map<UUID, PendingChatAction> pendingChat = new ConcurrentHashMap<>();
 
     @Override
@@ -56,7 +56,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         this.undoManager = new UndoManager();
         this.uiState = new UiStateStore();
 
-        // DB
+        
         this.database = new DatabaseManager(this);
         if (!database.init()) {
             getLogger().severe("Failed to initialize database. Disabling plugin.");
@@ -66,14 +66,14 @@ public final class ChestSecurePlugin extends JavaPlugin {
 
         this.lockService = new SqlLockService(this, database);
 
-        // Recipes
+        
         this.recipes = new RecipeRegistry(this);
         this.recipes.registerAll();
 
-        // GUI
+        
         this.gui = new GuiManager(this);
 
-        // Command: ONLY /cs
+        
         PluginCommand cmd = getCommand("chestsecure");
         if (cmd != null) {
             cmd.setExecutor(new ChestSecureCommand(this));
@@ -81,7 +81,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
             getLogger().warning("Command 'chestsecure' not found in plugin.yml - /cs will not work.");
         }
 
-        // Listeners
+        
         getServer().getPluginManager().registerEvents(new ProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
         getServer().getPluginManager().registerEvents(new TrustChatListener(this), this);

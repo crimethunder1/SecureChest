@@ -44,4 +44,4 @@ recipes:
     ingredients:
       I: "IRON_BLOCK"
       H: "HOPPER"
-      K: "CHEST_KEY"  # special: exact Chest Key item
+      K: "CHEST_KEY"

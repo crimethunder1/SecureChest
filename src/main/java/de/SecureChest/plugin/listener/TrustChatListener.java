@@ -27,8 +27,8 @@ public final class TrustChatListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onChat(AsyncChatEvent e) {
-        // AsyncChatEvent runs asynchronously. We cancel and then hand off to the main thread
-        // to avoid unsafe Bukkit calls (OfflinePlayer lookup, GUI operations, etc.).
+        
+        
         final UUID uuid = e.getPlayer().getUniqueId();
         final PendingChatAction action = plugin.pendingChat().get(uuid);
         if (action == null) return;
@@ -47,7 +47,7 @@ public final class TrustChatListener implements Listener {
         Player p = Bukkit.getPlayer(uuid);
         if (p == null) return;
 
-        // Action might have been cleared between async and sync.
+        
         PendingChatAction action = plugin.pendingChat().get(uuid);
         if (action == null) return;
 
@@ -65,7 +65,7 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
-            // Resolve player safely on main thread.
+            
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayer(msg);
 

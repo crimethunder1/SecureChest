@@ -5,9 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Stores a single undo snapshot per player.
- */
+
+
+
 public final class UndoManager {
 
     private final Map<UUID, UndoSnapshot> snapshots = new ConcurrentHashMap<>();
@@ -26,9 +26,9 @@ public final class UndoManager {
         return Optional.of(s);
     }
 
-    /**
-     * Returns and clears the current snapshot.
-     */
+    
+
+
     public Optional<UndoSnapshot> consume(UUID player) {
         Optional<UndoSnapshot> s = get(player);
         snapshots.remove(player);

@@ -46,7 +46,7 @@ public final class ProtectionListener implements Listener {
         this.worlds = new Worlds(plugin);
     }
 
-    // -------- Lock / Open --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent e) {
@@ -58,12 +58,12 @@ public final class ProtectionListener implements Listener {
         if (!LockUtil.isLockable(b)) return;
 
         boolean isChestKey = plugin.items().is(e.getItem(), Items.Type.CHEST_KEY);
-        // Admin key should only have an effect for admins.
+        
         boolean isAdminKey = e.getPlayer().hasPermission("chestsecure.admin")
                 && plugin.items().is(e.getItem(), Items.Type.ADMIN_KEY);
 
-        // Admin Inspect Mode (sneak + right click, EMPTY HAND only)
-        // Must check emptyHand first to avoid blocking normal item usage (eating, placing, etc.)
+        
+        
         boolean inspectMode = plugin.ui().inspect(e.getPlayer().getUniqueId());
         ItemStack handItem = e.getItem();
         boolean emptyHand = (handItem == null || handItem.getType().isAir());
@@ -73,14 +73,14 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Prevent locking Secure Hoppers as regular locks
+        
         if (isChestKey && b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             e.setCancelled(true);
             feedbackFail(e.getPlayer(), "Secure Hopper is already protected.");
             return;
         }
 
-        // Chest Key logic: lock/unlock
+        
         if (isChestKey) {
             e.setCancelled(true);
 
@@ -95,7 +95,7 @@ public final class ProtectionListener implements Listener {
                 return;
             }
 
-            // Already locked => unlock (only owner/admin, and only if quick remove enabled OR sneaking)
+            
             boolean quickRemove = plugin.locks().getQuickRemove(e.getPlayer().getUniqueId());
             if (e.getPlayer().isSneaking() || quickRemove) {
                 boolean ok = plugin.locks().unlock(e.getPlayer(), b);
@@ -108,9 +108,9 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Quick Lock: if enabled, right-click with empty hand locks if you own a Chest Key anywhere
+        
         boolean quickLock = plugin.locks().getQuickLock(e.getPlayer().getUniqueId());
-        // Also guard against accidentally locking a Secure Hopper as a regular lock
+        
         boolean isSecureHopper = b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b);
         if (quickLock && emptyHand && !plugin.locks().isLocked(b) && !isSecureHopper && hasChestKey(e.getPlayer())) {
             e.setCancelled(true);
@@ -120,7 +120,7 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Not holding chest key -> open check (regular lock)
+        
         if (plugin.locks().isLocked(b)) {
             boolean allowed = plugin.locks().canOpen(e.getPlayer(), b, isAdminKey);
             if (!allowed) {
@@ -130,8 +130,8 @@ public final class ProtectionListener implements Listener {
             }
         }
 
-        // Secure Hopper access protection: only owner (or admin with Admin Key) can open its inventory
-        // Admin-Key requirement is consistent with locked containers (see canOpen()).
+        
+        
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             SecureHopperEntry shEntry = plugin.locks().getSecureHopper(b).orElse(null);
             if (shEntry != null) {
@@ -147,10 +147,10 @@ public final class ProtectionListener implements Listener {
     }
 
 
-    // -------- Admin Inspect Mode helpers --------
+    
 
     private void sendInspectInfo(Player p, Block b) {
-        // Secure Hopper
+        
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             Optional<SecureHopperEntry> shOpt = plugin.locks().getSecureHopper(b);
             if (shOpt.isEmpty()) {
@@ -167,7 +167,7 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Regular lock
+        
         if (!plugin.locks().isLocked(b)) {
             p.sendMessage(Component.text("[Inspect] Not locked.", NamedTextColor.YELLOW));
             return;
@@ -193,7 +193,7 @@ public final class ProtectionListener implements Listener {
         return op.getName() != null ? op.getName() : uuid.toString();
     }
 
-    // -------- Secure Hopper placement --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
@@ -204,7 +204,7 @@ public final class ProtectionListener implements Listener {
         ItemStack inHand = e.getItemInHand();
         if (!plugin.items().is(inHand, Items.Type.SECURE_HOPPER)) return;
 
-        // Determine facing (hopper pushes into facing direction)
+        
         BlockData data = placed.getBlockData();
         if (!(data instanceof Hopper hopperData)) {
             e.setCancelled(true);
@@ -220,7 +220,7 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Must own the lock
+        
         Optional<LockEntry> lock = plugin.locks().getLock(bound);
         if (lock.isEmpty() || !lock.get().owner().equals(e.getPlayer().getUniqueId())) {
             e.setCancelled(true);
@@ -245,7 +245,7 @@ public final class ProtectionListener implements Listener {
         if (!plugin.getConfig().getBoolean("auto_lock.enabled", false)) return;
         if (!LockUtil.isLockable(placed)) return;
 
-        // Skip Secure Hopper special item (handled by Secure Hopper placement)
+        
         if (placed.getType() == Material.HOPPER && plugin.items().is(e.getItemInHand(), Items.Type.SECURE_HOPPER)) return;
 
         boolean sneakOnly = plugin.getConfig().getBoolean("auto_lock.sneak_only", false);
@@ -261,7 +261,7 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    // -------- Break / Damage --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamage(BlockDamageEvent e) {
@@ -294,7 +294,7 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Admin break logging (only if breaking someone else's locked block / secure hopper)
+        
         if (e.getPlayer().hasPermission("chestsecure.admin")) {
             if (locked) {
                 LockEntry le = plugin.locks().getLock(b).orElse(null);
@@ -309,7 +309,7 @@ public final class ProtectionListener implements Listener {
             }
         }
 
-        // Unlock / remove secure hopper record + drop correct item
+        
         if (locked) {
             plugin.locks().unlock(e.getPlayer(), b);
         }
@@ -322,7 +322,7 @@ public final class ProtectionListener implements Listener {
         feedbackOk(e.getPlayer(), "Removed.");
     }
 
-    // -------- Explosion / Fire / Entity damage --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent e) {
@@ -377,7 +377,7 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    // -------- Piston protection --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent e) {
@@ -401,7 +401,7 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    // -------- Hopper bypass protection --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMoveItem(InventoryMoveItemEvent e) {
@@ -416,7 +416,7 @@ public final class ProtectionListener implements Listener {
 
         if (!sourceLocked && !destLocked) return;
 
-        // Find moving hopper (source or destination holder)
+        
         InventoryHolder sh = source.getHolder();
         InventoryHolder dh = dest.getHolder();
 
@@ -426,25 +426,25 @@ public final class ProtectionListener implements Listener {
         } else if (dh instanceof org.bukkit.block.Hopper bh) {
             hopperBlock = bh.getBlock();
         } else if (sh instanceof HopperMinecart || dh instanceof HopperMinecart) {
-            // Hopper minecarts can never be secure: block them near locked containers
+            
             e.setCancelled(true);
             return;
         }
 
         if (hopperBlock == null) {
-            // Unknown mover: be safe
+            
             e.setCancelled(true);
             return;
         }
 
-        // Must be Secure Hopper
+        
         SecureHopperEntry shEntry = plugin.locks().getSecureHopper(hopperBlock).orElse(null);
         if (shEntry == null) {
             e.setCancelled(true);
             return;
         }
 
-        // Must match owner and bound lock
+        
         if (sourceLocked) {
             LockKey lk = LockUtil.canonicalKey(sourceBlock);
             if (!lk.asId().equals(shEntry.boundLock().asId())) {
@@ -470,7 +470,7 @@ public final class ProtectionListener implements Listener {
         return w.getBlockAt(loc);
     }
 
-    // -------- VIEW restriction (no item moving) --------
+    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInvClick(InventoryClickEvent e) {
@@ -486,22 +486,22 @@ public final class ProtectionListener implements Listener {
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
         if (level != AccessLevel.VIEW) return;
 
-        // VIEW: cancel ALL click actions — this closes every known bypass vector:
-        //  - Direct clicks in the container (top inventory)
-        //  - Shift-clicks from bottom inventory into container
-        //  - COLLECT_TO_CURSOR (double-click) which can pull items from any open inventory
-        //  - Hotbar-swap (number keys) targeting container slots
-        //  - DROP actions on container slots
-        // Using a whitelist approach: only actions that exclusively affect the bottom
-        // (player) inventory are permitted. Everything else is cancelled.
+        
+        
+        
+        
+        
+        
+        
+        
         InventoryAction action = e.getAction();
         boolean affectsTop =
-                e.getClickedInventory() == top                          // direct click in container
-                || e.isShiftClick()                                     // shift-click can move into container
-                || action == InventoryAction.COLLECT_TO_CURSOR          // double-click pulls from all slots
-                || action == InventoryAction.MOVE_TO_OTHER_INVENTORY    // explicit cross-inventory move
-                || action == InventoryAction.HOTBAR_SWAP                // number key swap to container slot
-                || action == InventoryAction.HOTBAR_MOVE_AND_READD;    // hotbar variant
+                e.getClickedInventory() == top                          
+                || e.isShiftClick()                                     
+                || action == InventoryAction.COLLECT_TO_CURSOR          
+                || action == InventoryAction.MOVE_TO_OTHER_INVENTORY    
+                || action == InventoryAction.HOTBAR_SWAP                
+                || action == InventoryAction.HOTBAR_MOVE_AND_READD;    
 
         if (affectsTop) {
             e.setCancelled(true);
@@ -522,7 +522,7 @@ public final class ProtectionListener implements Listener {
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
         if (level != AccessLevel.VIEW) return;
 
-        // If any dragged slot is in top inventory -> cancel
+        
         int topSize = top.getSize();
         for (int rawSlot : e.getRawSlots()) {
             if (rawSlot < topSize) {
@@ -540,7 +540,7 @@ public final class ProtectionListener implements Listener {
         return plugin.items().is(p.getInventory().getItemInOffHand(), Items.Type.CHEST_KEY);
     }
 
-// -------- Feedback --------
+
 
     private void feedbackOk(Player p, String msg) {
         p.sendMessage(Component.text(msg, NamedTextColor.GREEN));
@@ -548,7 +548,7 @@ public final class ProtectionListener implements Listener {
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.5f);
         }
         if (plugin.getConfig().getBoolean("particles.enabled", true)) {
-            // In modern Bukkit/Paper this is Particle.HAPPY_VILLAGER (not VILLAGER_HAPPY).
+            
             p.spawnParticle(Particle.HAPPY_VILLAGER, p.getLocation().add(0, 1.0, 0), 8, 0.2, 0.4, 0.2, 0.01);
         }
     }

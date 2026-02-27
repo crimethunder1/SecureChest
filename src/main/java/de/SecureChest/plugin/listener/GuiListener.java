@@ -165,7 +165,7 @@ public final class GuiListener implements Listener {
                 ));
             }
             case "confirm_remove_trust" -> {
-                // ctx = lockId|uuid
+                
                 int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
                 long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
                 String lockId = ctx.contains("|") ? ctx.split("\\|", 2)[0] : "";
@@ -183,7 +183,7 @@ public final class GuiListener implements Listener {
             }
             case "open_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
             case "add_trust_name" -> {
-                // ctx = LEVEL|lockId
+                
                 String[] parts = ctx.split("\\|", 2);
                 if (parts.length != 2) return;
                 String level = parts[0];
@@ -195,7 +195,7 @@ public final class GuiListener implements Listener {
             }
 
             case "open_trust_role" -> {
-                // ctx = lockId|uuid
+                
                 String[] parts = ctx.split("\\|", 2);
                 if (parts.length != 2) return;
                 try {
@@ -206,7 +206,7 @@ public final class GuiListener implements Listener {
             }
             case "back_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
             case "set_trust_role" -> {
-                // ctx = LEVEL|lockId|uuid
+                
                 String[] parts = ctx.split("\\|", 3);
                 if (parts.length != 3) return;
                 String level = parts[0];
@@ -306,7 +306,7 @@ public final class GuiListener implements Listener {
                     p.sendMessage(Component.text("Compass set to log location.", NamedTextColor.AQUA));
                 }
 
-                // Shift click -> teleport confirm (OP only)
+                
                 if (e.getClick() == ClickType.SHIFT_LEFT || e.getClick() == ClickType.SHIFT_RIGHT) {
                     if (!p.isOp()) {
                         p.sendMessage(Component.text("Teleport requires OP.", NamedTextColor.RED));
@@ -348,7 +348,7 @@ public final class GuiListener implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent e) {
-        // no-op (we intentionally keep confirm/undo pending until expire/decision)
+        
     }
 
     private void handleConfirm(Player p, boolean yes) {

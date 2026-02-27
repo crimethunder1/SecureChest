@@ -23,21 +23,21 @@ public interface LockService {
 
     boolean unlockById(Player caller, String lockId);
 
-    /**
-     * Unlock a single lock and create an undo snapshot for the actor.
-     */
+    
+
+
     boolean unlockByIdWithUndo(Player actor, String lockId);
 
     boolean unlockAll(UUID owner);
 
-    /**
-     * Unlock all locks & secure hoppers of the target owner and create an undo snapshot for the actor.
-     */
+    
+
+
     boolean unlockAllWithUndo(Player actor, UUID owner);
 
-    /**
-     * Restore the last undo snapshot of the actor (UNLOCK only).
-     */
+    
+
+
     boolean restoreUndo(Player actor);
 
     boolean hasUndo(Player actor);
@@ -58,7 +58,7 @@ public interface LockService {
 
     List<Location> listLocks(UUID owner);
 
-    // Secure Hopper
+    
     boolean isSecureHopper(Block hopperBlock);
 
     Optional<SecureHopperEntry> getSecureHopper(Block hopperBlock);
@@ -69,19 +69,19 @@ public interface LockService {
 
     List<Location> listSecureHoppers(UUID owner);
 
-    // Player settings
+    
     boolean getQuickLock(UUID player);
     boolean getQuickRemove(UUID player);
     void setQuickLock(UUID player, boolean value);
     void setQuickRemove(UUID player, boolean value);
 
-    // Logs
+    
     void logUnauthorizedBreak(Player actor, Block target);
     void logAdminBreak(Player actor, Block target);
 
     ItemStack createLogsBook(int maxEntries);
 
-    // Logs UI
+    
     List<LogRecord> listLogs(String actionFilter, long minCreatedAt, String actorNameLike, int offset, int limit);
     int countLogs(String actionFilter, long minCreatedAt, String actorNameLike);
     Optional<LogRecord> getLogById(long id);

@@ -26,11 +26,11 @@ public final class SqlLockService implements LockService {
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
 
-    // cache lockId -> entry (includes trusted map)
+    
     private final Map<String, LockEntry> lockCache = new ConcurrentHashMap<>();
-    // cache secure hopper id -> entry
+    
     private final Map<String, SecureHopperEntry> hopperCache = new ConcurrentHashMap<>();
-    // settings cache
+    
     private final Map<UUID, Boolean> quickLockCache = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> quickRemoveCache = new ConcurrentHashMap<>();
 
@@ -41,7 +41,7 @@ public final class SqlLockService implements LockService {
     }
 
     private void warmCachesAsync() {
-        // Load caches async to avoid startup lag on huge DBs
+        
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 loadAllLocks();
@@ -70,7 +70,7 @@ public final class SqlLockService implements LockService {
             }
         }
 
-        // load trusted
+        
         try (Connection c = db.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("SELECT world_uuid,x,y,z,target_uuid,level FROM trusted")) {
@@ -99,14 +99,14 @@ public final class SqlLockService implements LockService {
         }
     }
 
-    // -------- Locks --------
+    
 
     @Override
     public boolean isLocked(Block block) {
         if (!LockUtil.isLockable(block)) return false;
         String id = LockUtil.canonicalKey(block).asId();
         if (lockCache.containsKey(id)) return true;
-        // fallback DB if not warmed yet
+        
         return getLock(block).isPresent();
     }
 
@@ -142,7 +142,7 @@ public final class SqlLockService implements LockService {
                 long createdAt = rs.getLong(3);
                 LockEntry entry = new LockEntry(key, type == null ? Material.CHEST : type, owner, createdAt);
 
-                // trusted
+                
                 try (PreparedStatement ps2 = c.prepareStatement("SELECT target_uuid,level FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
                     ps2.setString(1, key.worldUuid().toString());
                     ps2.setInt(2, key.x());
@@ -174,7 +174,7 @@ public final class SqlLockService implements LockService {
         if (lockCache.containsKey(id)) return false;
 
         long now = Instant.now().toEpochMilli();
-        // Optimistic write-through: update cache immediately, persist async
+        
         LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
         lockCache.put(id, entry);
 
@@ -194,7 +194,7 @@ public final class SqlLockService implements LockService {
                 ps.executeUpdate();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB lock persist failed", ex);
-                lockCache.remove(id); // rollback cache on failure
+                lockCache.remove(id); 
             }
         });
         return true;
@@ -239,7 +239,7 @@ public final class SqlLockService implements LockService {
         int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
         long expiresAt = now + (ttlSeconds * 1000L);
 
-        // Snapshot lock row + trust rows
+        
         UndoSnapshot snapshot;
         try {
             snapshot = snapshotForSingleLock(key, entry);
@@ -257,7 +257,7 @@ public final class SqlLockService implements LockService {
                 ps.setInt(4, key.z());
                 ps.executeUpdate();
             }
-            // trusted rows cascade
+            
             c.commit();
             lockCache.remove(id);
         } catch (SQLException ex) {
@@ -285,7 +285,7 @@ public final class SqlLockService implements LockService {
         boolean allowed = caller.hasPermission("chestsecure.admin") || entry.owner().equals(caller.getUniqueId());
         if (!allowed) return false;
 
-        // Optimistic write-through: remove from cache immediately, persist delete async
+        
         lockCache.remove(id);
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection();
@@ -298,7 +298,7 @@ public final class SqlLockService implements LockService {
                 ps.executeUpdate();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB unlock persist failed", ex);
-                // Note: cache already cleared; DB inconsistency logged above
+                
             }
         });
         return true;
@@ -306,12 +306,12 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean unlockAll(UUID owner) {
-        // Check if there's anything to delete (cache-only check, fast)
+        
         boolean hasLocks = lockCache.values().stream().anyMatch(e -> e.owner().equals(owner));
         boolean hasHoppers = hopperCache.values().stream().anyMatch(e -> e.owner().equals(owner));
         if (!hasLocks && !hasHoppers) return false;
 
-        // Optimistic write-through: purge cache immediately
+        
         lockCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
         hopperCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
 
@@ -341,7 +341,7 @@ public final class SqlLockService implements LockService {
         int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
         long expiresAt = now + (ttlSeconds * 1000L);
 
-        // Snapshot must happen before cache purge so we capture current state
+        
         UndoSnapshot snapshot;
         try {
             snapshot = snapshotForOwner(owner, now, expiresAt);
@@ -356,7 +356,7 @@ public final class SqlLockService implements LockService {
             return false;
         }
 
-        // Optimistic write-through: purge cache immediately
+        
         lockCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
         hopperCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
 
@@ -391,7 +391,7 @@ public final class SqlLockService implements LockService {
         UndoSnapshot snapshot = snapOpt.get();
         if (snapshot.locks().isEmpty() && snapshot.secureHoppers().isEmpty()) return false;
 
-        // Optimistic write-through: restore cache immediately so player sees result at once
+        
         for (UndoSnapshot.LockRow lr : snapshot.locks()) {
             Material type = Material.matchMaterial(lr.blockType());
             LockEntry le = new LockEntry(lr.key(), type == null ? Material.CHEST : type, lr.owner(), lr.createdAt());
@@ -408,12 +408,12 @@ public final class SqlLockService implements LockService {
             hopperCache.put(hr.hopperKey().asId(), new SecureHopperEntry(hr.hopperKey(), hr.owner(), hr.boundKey()));
         }
 
-        // Persist the restored data async
+        
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
                 c.setAutoCommit(false);
 
-                // locks
+                
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT OR IGNORE INTO locks(world_uuid,x,y,z,block_type,owner_uuid,created_at) VALUES(?,?,?,?,?,?,?)")) {
                     for (UndoSnapshot.LockRow lr : snapshot.locks()) {
@@ -429,7 +429,7 @@ public final class SqlLockService implements LockService {
                     ps.executeBatch();
                 }
 
-                // trusts
+                
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT OR REPLACE INTO trusted(world_uuid,x,y,z,target_uuid,level) VALUES(?,?,?,?,?,?)")) {
                     for (UndoSnapshot.TrustRow tr : snapshot.trusts()) {
@@ -444,7 +444,7 @@ public final class SqlLockService implements LockService {
                     ps.executeBatch();
                 }
 
-                // secure hoppers
+                
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT OR IGNORE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
                     for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
@@ -478,7 +478,7 @@ public final class SqlLockService implements LockService {
     }
 
     private UndoSnapshot snapshotForSingleLock(LockKey key, LockEntry entry) throws SQLException {
-        // Trust rows
+        
         List<UndoSnapshot.TrustRow> trusts = new ArrayList<>();
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement("SELECT target_uuid,level FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
@@ -519,7 +519,7 @@ public final class SqlLockService implements LockService {
                     long created = rs.getLong(6);
                     locks.add(new UndoSnapshot.LockRow(key, type, owner, created));
 
-                    // trusts for this lock
+                    
                     try (PreparedStatement ps2 = c.prepareStatement("SELECT target_uuid,level FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
                         ps2.setString(1, key.worldUuid().toString());
                         ps2.setInt(2, key.x());
@@ -568,13 +568,13 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean canBreak(Player player, Block block) {
-        // Locked container
+        
         LockEntry lock = getLock(block).orElse(null);
         if (lock != null) {
             return player.hasPermission("chestsecure.admin") || lock.owner().equals(player.getUniqueId());
         }
 
-        // Secure hopper
+        
         if (block.getType() == Material.HOPPER) {
             SecureHopperEntry sh = getSecureHopper(block).orElse(null);
             if (sh != null) {
@@ -614,7 +614,7 @@ public final class SqlLockService implements LockService {
         if (entry == null) return false;
         if (!entry.owner().equals(owner.getUniqueId())) return false;
 
-        // Optimistic write-through: update cache immediately, persist async
+        
         entry.trusted().put(target, level);
         lockCache.put(id, entry);
 
@@ -658,7 +658,7 @@ public final class SqlLockService implements LockService {
         if (entry == null) return false;
         if (!owner.hasPermission("chestsecure.admin") && !entry.owner().equals(owner.getUniqueId())) return false;
 
-        // Optimistic write-through: update cache immediately, persist async
+        
         entry.trusted().remove(target);
         lockCache.put(id, entry);
 
@@ -682,13 +682,13 @@ public final class SqlLockService implements LockService {
 
     @Override
     public List<Location> listLocks(UUID owner) {
-        // Use in-memory cache: faster and shows locks from unloaded worlds too.
+        
         List<Location> out = new ArrayList<>();
         for (LockEntry entry : lockCache.values()) {
             if (!entry.owner().equals(owner)) continue;
             LockKey k = entry.key();
             World world = Bukkit.getWorld(k.worldUuid());
-            // Location with null world is allowed; GuiManager skips null-world entries gracefully.
+            
             out.add(new Location(world, k.x(), k.y(), k.z()));
         }
         out.sort(Comparator.comparing((Location l) -> l.getWorld() != null ? l.getWorld().getName() : "(unloaded)")
@@ -698,7 +698,7 @@ public final class SqlLockService implements LockService {
         return out;
     }
 
-    // -------- Secure Hopper --------
+    
 
     @Override
     public boolean isSecureHopper(Block hopperBlock) {
@@ -706,7 +706,7 @@ public final class SqlLockService implements LockService {
         String id = LockKey.fromLocation(hopperBlock.getLocation()).asId();
         if (hopperCache.containsKey(id)) return true;
 
-        // Also check tile PDC marker
+        
         if (hopperBlock.getState() instanceof TileState tile) {
             Byte mark = tile.getPersistentDataContainer().get(plugin.keySecureHopperBlock(), PersistentDataType.BYTE);
             if (mark != null && mark == (byte) 1) {
@@ -759,11 +759,11 @@ public final class SqlLockService implements LockService {
         LockKey boundKey = LockUtil.canonicalKey(boundContainer);
         long now = Instant.now().toEpochMilli();
 
-        // Optimistic write-through: update cache and PDC immediately, persist async
+        
         SecureHopperEntry sh = new SecureHopperEntry(hopperKey, placer.getUniqueId(), boundKey);
         hopperCache.put(hopperKey.asId(), sh);
 
-        // Mark tile PDC on main thread (must be main thread for TileState)
+        
         if (hopperBlock.getState() instanceof TileState tile) {
             tile.getPersistentDataContainer().set(plugin.keySecureHopperBlock(), PersistentDataType.BYTE, (byte) 1);
             tile.update(true, false);
@@ -787,7 +787,7 @@ public final class SqlLockService implements LockService {
                 ps.executeUpdate();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB bindSecureHopper persist failed", ex);
-                hopperCache.remove(hopperKey.asId()); // rollback cache on failure
+                hopperCache.remove(hopperKey.asId()); 
             }
         });
         return true;
@@ -799,10 +799,10 @@ public final class SqlLockService implements LockService {
         LockKey hk = LockKey.fromLocation(hopperBlock.getLocation());
         String id = hk.asId();
 
-        // Optimistic write-through: update cache and PDC on main thread, persist delete async
+        
         hopperCache.remove(id);
 
-        // Clear PDC marker on main thread (TileState must be main thread)
+        
         if (hopperBlock.getState() instanceof TileState tile) {
             tile.getPersistentDataContainer().remove(plugin.keySecureHopperBlock());
             tile.update(true, false);
@@ -826,7 +826,7 @@ public final class SqlLockService implements LockService {
 
     @Override
     public List<Location> listSecureHoppers(UUID owner) {
-        // Use in-memory cache: consistent with listLocks(), avoids DB hit on every GUI open.
+        
         List<Location> out = new ArrayList<>();
         for (SecureHopperEntry entry : hopperCache.values()) {
             if (!entry.owner().equals(owner)) continue;
@@ -841,7 +841,7 @@ public final class SqlLockService implements LockService {
         return out;
     }
 
-    // -------- Settings --------
+    
 
     @Override
     public boolean getQuickLock(UUID player) {
@@ -871,7 +871,7 @@ public final class SqlLockService implements LockService {
         } catch (SQLException ex) {
             plugin.getLogger().log(Level.SEVERE, "DB loadSetting failed", ex);
         }
-        // default create row
+        
         ensureSettingsRow(player);
         return false;
     }
@@ -912,13 +912,13 @@ public final class SqlLockService implements LockService {
         }
     }
 
-    /** Remove cached player settings on disconnect to prevent unbounded memory growth. */
+    
     public void evictPlayerCache(UUID player) {
         quickLockCache.remove(player);
         quickRemoveCache.remove(player);
     }
 
-    // -------- Logs --------
+    
 
     @Override
     public void logUnauthorizedBreak(Player actor, Block target) {
@@ -932,7 +932,7 @@ public final class SqlLockService implements LockService {
 
     private void insertLog(String action, Player actor, Block target, String extra) {
         long now = Instant.now().toEpochMilli();
-        // Capture all data on main thread before going async (Player/Block not thread-safe)
+        
         final String actorUuid = actor.getUniqueId().toString();
         final String actorName = actor.getName();
         World w = target.getWorld();
@@ -984,7 +984,7 @@ public final class SqlLockService implements LockService {
         return BookUtil.buildLogsBook(lines);
     }
 
-    // -------- Logs UI / Report --------
+    
 
     @Override
     public List<LogRecord> listLogs(String actionFilter, long minCreatedAt, String actorNameLike, int offset, int limit) {
@@ -1161,7 +1161,7 @@ public final class SqlLockService implements LockService {
         lines.add("- Admin breaks (24h): " + admin24h);
         lines.add("");
 
-        // Top actors for unauthorized breaks (7d)
+        
         lines.add("Top Unauthorized (7d):");
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement("SELECT actor_name,COUNT(*) AS c FROM logs WHERE created_at>=? AND action='UNAUTHORIZED_BREAK' GROUP BY actor_name ORDER BY c DESC LIMIT 10")) {

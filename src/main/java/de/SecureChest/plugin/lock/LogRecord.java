@@ -2,9 +2,9 @@ package de.SecureChest.plugin.lock;
 
 import java.util.UUID;
 
-/**
- * Single log record for admin GUI.
- */
+
+
+
 public record LogRecord(
         long id,
         long createdAt,

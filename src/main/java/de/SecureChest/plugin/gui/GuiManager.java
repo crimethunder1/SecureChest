@@ -42,7 +42,7 @@ public final class GuiManager {
         this.plugin = plugin;
     }
 
-    // ---------------- Main ----------------
+    
 
     public void openMain(Player p) {
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.MAIN, "");
@@ -127,7 +127,7 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Locks list ----------------
+    
 
     public void openLocksList(Player p, int page) {
         UiStateStore.LockListState st = plugin.ui().locks(p.getUniqueId());
@@ -143,13 +143,13 @@ public final class GuiManager {
             views.add(new LockView(lockId, loc, type));
         }
 
-        // Filters
+        
         if (st.world == UiStateStore.WorldFilter.CURRENT) {
             views.removeIf(v -> v.loc.getWorld() == null || !v.loc.getWorld().equals(p.getWorld()));
         }
         views.removeIf(v -> !matchesTypeFilter(v.type, st.type));
 
-        // Sort
+        
         views.sort(lockComparator(p, st.sort));
 
         int pageSize = 45;
@@ -175,7 +175,7 @@ public final class GuiManager {
             inv.setItem(slot++, lockItem(p, v));
         }
 
-        // Controls
+        
         inv.setItem(45, button(Material.ARROW, "Back", List.of("Return to main menu"), "back_main", ""));
 
         inv.setItem(47, button(Material.HOPPER, "Sort: " + st.sort,
@@ -234,13 +234,13 @@ public final class GuiManager {
         inv.setItem(32, button(Material.DIAMOND, "Add CO_OWNER (by name)",
                 List.of("Type a player name in chat"), "add_trust_name", "CO_OWNER|" + lockId));
 
-        // Trusted list
+        
         int slot = 36;
         List<Map.Entry<UUID, AccessLevel>> trustList = lock.trusted().entrySet().stream()
                 .sorted(Comparator.comparing(e -> e.getValue().name()))
                 .collect(Collectors.toList());
 
-        // Show count above the trust list; warn if more than 9 (slot 35)
+        
         int trustTotal = trustList.size();
         String trustCountLabel = trustTotal == 0 ? "No trusted players"
                 : "Trusted: " + trustTotal + (trustTotal > 9 ? " (showing first 9)" : "");
@@ -307,7 +307,7 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Secure hoppers ----------------
+    
 
     public void openHoppersList(Player p, int page) {
         List<Location> hoppers = plugin.locks().listSecureHoppers(p.getUniqueId());
@@ -325,7 +325,7 @@ public final class GuiManager {
         int slot = 0;
         for (int i = start; i < end; i++) {
             Location loc = hoppers.get(i);
-            if (loc.getWorld() == null) continue; // skip unloaded worlds (LockKey.fromLocation requires non-null world)
+            if (loc.getWorld() == null) continue; 
             String hopperId = LockKey.fromLocation(loc).asId();
             inv.setItem(slot++, hopperItem(loc, hopperId));
         }
@@ -344,7 +344,7 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Recipe preview ----------------
+    
 
     public void openRecipePreview(Player p, boolean keyRecipe) {
         ShapedRecipe recipe = keyRecipe ? plugin.recipes().chestKeyRecipe() : plugin.recipes().secureHopperRecipe();
@@ -363,7 +363,7 @@ public final class GuiManager {
         String[] shape = recipe.getShape();
         Map<Character, ItemStack> ingredients = new HashMap<>();
 
-        // Use getChoiceMap() directly (Paper 1.21+ API) - handles ExactChoice correctly.
+        
         for (Map.Entry<Character, RecipeChoice> me : recipe.getChoiceMap().entrySet()) {
             if (me.getValue() != null) {
                 ingredients.put(me.getKey(), me.getValue().getItemStack());
@@ -388,7 +388,7 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Admin ----------------
+    
 
     public void openAdmin(Player p) {
         if (!p.hasPermission("chestsecure.admin")) {
@@ -404,7 +404,7 @@ public final class GuiManager {
         boolean inspect = plugin.ui().inspect(p.getUniqueId());
 
         inv.setItem(19, button(Material.NETHER_STAR, "Get Admin Key", List.of("Click to receive Admin Key"), "give_admin_key", ""));
-        // "Book and Quill" was renamed in modern Minecraft versions; use WRITABLE_BOOK for the editable book.
+        
         inv.setItem(21, button(Material.WRITABLE_BOOK, "Logs Book", List.of("Book & Quill (latest logs)"), "give_logs_book", ""));
         inv.setItem(23, button(Material.WRITTEN_BOOK, "Admin Report", List.of("Server overview (book)"), "give_admin_report", ""));
         inv.setItem(25, button(Material.PAPER, "Logs UI", List.of("Browse logs with filters", "Click a log: compass", "Shift-click: teleport (OP)"), "open_logs", ""));
@@ -462,7 +462,7 @@ public final class GuiManager {
             inv.setItem(slot++, logItem(r));
         }
 
-        // Controls
+        
         inv.setItem(45, button(Material.ARROW, "Back", List.of("Return to admin panel"), "back_admin", ""));
 
         inv.setItem(47, button(Material.BOOK, "Action: " + st.action,
@@ -499,7 +499,7 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Item builders ----------------
+    
 
     private static final class LockView {
         final String lockId;
@@ -594,7 +594,7 @@ public final class GuiManager {
     }
 
     private ItemStack toggle(String name, boolean on, String action) {
-        // Use colored glass panes + Adventure API colors (legacy codes ignored by Component.text())
+        
         Material indicator = on ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
         net.kyori.adventure.text.Component displayName = Component.text(name + " \u2014 ")
                 .append(Component.text(on ? "ON" : "OFF",
@@ -664,10 +664,10 @@ public final class GuiManager {
         }
     }
 
-    // Helper location builder without chunk loads
+    
     private static final class LockUtil {
         private static Location toLocation(LockKey key) {
-            // Return null-world Location for unloaded worlds; callers must handle null world gracefully.
+            
             org.bukkit.World w = Bukkit.getWorld(key.worldUuid());
             return new Location(w, key.x(), key.y(), key.z());
         }
