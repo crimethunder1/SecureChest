@@ -255,11 +255,10 @@ public final class SqlLockService implements LockService {
             }
             // trusted rows cascade
             c.commit();
+            lockCache.remove(id);
         } catch (SQLException ex) {
             plugin.getLogger().log(Level.SEVERE, "DB unlock (with undo) failed", ex);
             return false;
-        } finally {
-            lockCache.remove(id);
         }
 
         plugin.undos().set(actor.getUniqueId(), new UndoSnapshot(
@@ -289,11 +288,10 @@ public final class SqlLockService implements LockService {
             ps.setInt(3, key.y());
             ps.setInt(4, key.z());
             ps.executeUpdate();
+            lockCache.remove(id);
         } catch (SQLException ex) {
             plugin.getLogger().log(Level.SEVERE, "DB unlock failed", ex);
             return false;
-        } finally {
-            lockCache.remove(id);
         }
         return true;
     }
@@ -303,6 +301,7 @@ public final class SqlLockService implements LockService {
         int locksDeleted;
         int hoppersDeleted;
         try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement("DELETE FROM locks WHERE owner_uuid=?")) {
                 ps.setString(1, owner.toString());
                 locksDeleted = ps.executeUpdate();
@@ -311,6 +310,7 @@ public final class SqlLockService implements LockService {
                 ps.setString(1, owner.toString());
                 hoppersDeleted = ps.executeUpdate();
             }
+            c.commit();
         } catch (SQLException ex) {
             plugin.getLogger().log(Level.SEVERE, "DB unlockAll failed", ex);
             return false;
@@ -647,22 +647,16 @@ public final class SqlLockService implements LockService {
 
     @Override
     public List<Location> listLocks(UUID owner) {
+        // Use in-memory cache: faster and shows locks from unloaded worlds too.
         List<Location> out = new ArrayList<>();
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT world_uuid,x,y,z FROM locks WHERE owner_uuid=?")) {
-            ps.setString(1, owner.toString());
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    UUID w = UUID.fromString(rs.getString(1));
-                    World world = Bukkit.getWorld(w);
-                    if (world == null) continue;
-                    out.add(new Location(world, rs.getInt(2), rs.getInt(3), rs.getInt(4)));
-                }
-            }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB listLocks failed", ex);
+        for (LockEntry entry : lockCache.values()) {
+            if (!entry.owner().equals(owner)) continue;
+            LockKey k = entry.key();
+            World world = Bukkit.getWorld(k.worldUuid());
+            // Location with null world is allowed; GuiManager skips null-world entries gracefully.
+            out.add(new Location(world, k.x(), k.y(), k.z()));
         }
-        out.sort(Comparator.comparing((Location l) -> l.getWorld() != null ? l.getWorld().getName() : "")
+        out.sort(Comparator.comparing((Location l) -> l.getWorld() != null ? l.getWorld().getName() : "(unloaded)")
                 .thenComparingInt(Location::getBlockX)
                 .thenComparingInt(Location::getBlockY)
                 .thenComparingInt(Location::getBlockZ));
@@ -772,11 +766,10 @@ public final class SqlLockService implements LockService {
             ps.setInt(3, hk.y());
             ps.setInt(4, hk.z());
             ps.executeUpdate();
+            hopperCache.remove(id);
         } catch (SQLException ex) {
             plugin.getLogger().log(Level.SEVERE, "DB removeSecureHopper failed", ex);
             return false;
-        } finally {
-            hopperCache.remove(id);
         }
 
         if (hopperBlock.getState() instanceof TileState tile) {
@@ -788,22 +781,15 @@ public final class SqlLockService implements LockService {
 
     @Override
     public List<Location> listSecureHoppers(UUID owner) {
+        // Use in-memory cache: consistent with listLocks(), avoids DB hit on every GUI open.
         List<Location> out = new ArrayList<>();
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT world_uuid,x,y,z FROM secure_hoppers WHERE owner_uuid=?")) {
-            ps.setString(1, owner.toString());
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    UUID w = UUID.fromString(rs.getString(1));
-                    World world = Bukkit.getWorld(w);
-                    if (world == null) continue;
-                    out.add(new Location(world, rs.getInt(2), rs.getInt(3), rs.getInt(4)));
-                }
-            }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB listSecureHoppers failed", ex);
+        for (SecureHopperEntry entry : hopperCache.values()) {
+            if (!entry.owner().equals(owner)) continue;
+            LockKey k = entry.hopperKey();
+            World world = Bukkit.getWorld(k.worldUuid());
+            out.add(new Location(world, k.x(), k.y(), k.z()));
         }
-        out.sort(Comparator.comparing((Location l) -> l.getWorld() != null ? l.getWorld().getName() : "")
+        out.sort(Comparator.comparing((Location l) -> l.getWorld() != null ? l.getWorld().getName() : "(unloaded)")
                 .thenComparingInt(Location::getBlockX)
                 .thenComparingInt(Location::getBlockY)
                 .thenComparingInt(Location::getBlockZ));

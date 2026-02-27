@@ -4,9 +4,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Ephemeral (in-memory) UI state per player.
- */
 public final class UiStateStore {
 
     public enum LockSort {
@@ -98,5 +95,12 @@ public final class UiStateStore {
 
     public void setInspect(UUID player, boolean on) {
         inspectMode.put(player, on);
+    }
+
+    /** Remove all state for a player (call on disconnect). */
+    public void cleanup(UUID player) {
+        locks.remove(player);
+        logs.remove(player);
+        inspectMode.remove(player);
     }
 }

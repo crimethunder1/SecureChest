@@ -7,6 +7,7 @@ import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -52,7 +53,7 @@ public final class TrustChatListener implements Listener {
 
         if (msg.equalsIgnoreCase("cancel")) {
             plugin.pendingChat().remove(uuid);
-            p.sendMessage(Component.text("Cancelled."));
+            p.sendMessage(Component.text("Cancelled.", NamedTextColor.YELLOW));
             return;
         }
 
@@ -60,7 +61,7 @@ public final class TrustChatListener implements Listener {
             AccessLevel level = AccessLevel.fromString(at.level());
             if (level == null) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("Invalid trust level."));
+                p.sendMessage(Component.text("Invalid trust level.", NamedTextColor.RED));
                 return;
             }
 
@@ -72,9 +73,9 @@ public final class TrustChatListener implements Listener {
             plugin.pendingChat().remove(uuid);
 
             String name = target.getName() != null ? target.getName() : msg;
-            p.sendMessage(Component.text(ok
-                    ? ("Trusted " + name + " as " + level + ".")
-                    : "Failed (not owner / lock missing)."));
+            p.sendMessage(ok
+                    ? Component.text("Trusted " + name + " as " + level + ".", NamedTextColor.GREEN)
+                    : Component.text("Failed (not owner / lock missing).", NamedTextColor.RED));
 
             plugin.gui().openLockManage(p, at.lockId());
             return;
@@ -83,7 +84,7 @@ public final class TrustChatListener implements Listener {
         if (action instanceof PendingChatAction.GlobalUnlock) {
             if (!p.hasPermission("chestsecure.admin")) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("No permission."));
+                p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
                 return;
             }
 
@@ -123,9 +124,9 @@ public final class TrustChatListener implements Listener {
             String filter = msg.equalsIgnoreCase("clear") ? "" : msg;
             plugin.ui().logs(uuid).actorFilter = filter;
 
-            p.sendMessage(Component.text(filter.isEmpty()
-                    ? "Logs actor filter cleared."
-                    : "Logs actor filter set to: " + filter));
+            p.sendMessage(filter.isEmpty()
+                    ? Component.text("Logs actor filter cleared.", NamedTextColor.YELLOW)
+                    : Component.text("Logs actor filter set to: " + filter, NamedTextColor.YELLOW));
 
             plugin.gui().openLogs(p, 0);
         }

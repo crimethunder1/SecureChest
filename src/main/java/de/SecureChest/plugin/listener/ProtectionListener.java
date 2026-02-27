@@ -9,6 +9,7 @@ import de.SecureChest.plugin.lock.SecureHopperEntry;
 import de.SecureChest.plugin.util.Items;
 import de.SecureChest.plugin.util.Worlds;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -107,7 +108,9 @@ public final class ProtectionListener implements Listener {
         boolean quickLock = plugin.locks().getQuickLock(e.getPlayer().getUniqueId());
         ItemStack hand = e.getItem();
         boolean emptyHand = (hand == null || hand.getType().isAir());
-        if (quickLock && emptyHand && !plugin.locks().isLocked(b) && hasChestKey(e.getPlayer())) {
+        // Also guard against accidentally locking a Secure Hopper as a regular lock
+        boolean isSecureHopper = b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b);
+        if (quickLock && emptyHand && !plugin.locks().isLocked(b) && !isSecureHopper && hasChestKey(e.getPlayer())) {
             e.setCancelled(true);
             boolean ok = plugin.locks().lock(e.getPlayer(), b);
             if (ok) feedbackOk(e.getPlayer(), "Locked.");
@@ -115,13 +118,27 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Not holding chest key -> open check
+        // Not holding chest key -> open check (regular lock)
         if (plugin.locks().isLocked(b)) {
             boolean allowed = plugin.locks().canOpen(e.getPlayer(), b, isAdminKey);
             if (!allowed) {
                 e.setCancelled(true);
                 feedbackFail(e.getPlayer(), "Locked.");
                 return;
+            }
+        }
+
+        // Secure Hopper access protection: only owner (or admin) can open its inventory
+        if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
+            SecureHopperEntry shEntry = plugin.locks().getSecureHopper(b).orElse(null);
+            if (shEntry != null) {
+                boolean allowed = e.getPlayer().hasPermission("chestsecure.admin")
+                        || shEntry.owner().equals(e.getPlayer().getUniqueId());
+                if (!allowed) {
+                    e.setCancelled(true);
+                    feedbackFail(e.getPlayer(), "Protected.");
+                    return;
+                }
             }
         }
     }
@@ -134,38 +151,38 @@ public final class ProtectionListener implements Listener {
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             Optional<SecureHopperEntry> shOpt = plugin.locks().getSecureHopper(b);
             if (shOpt.isEmpty()) {
-                p.sendMessage(Component.text("[Inspect] Secure Hopper: missing DB record."));
+                p.sendMessage(Component.text("[Inspect] Secure Hopper: missing DB record.", NamedTextColor.RED));
                 return;
             }
             SecureHopperEntry sh = shOpt.get();
             LockKey bound = sh.boundLock();
             World w = Bukkit.getWorld(bound.worldUuid());
             String wn = (w != null ? w.getName() : bound.worldUuid().toString());
-            p.sendMessage(Component.text("[Inspect] Secure Hopper"));
-            p.sendMessage(Component.text("Owner: " + nameOf(sh.owner())));
-            p.sendMessage(Component.text("Bound: " + wn + " " + bound.x() + " " + bound.y() + " " + bound.z()));
+            p.sendMessage(Component.text("[Inspect] Secure Hopper", NamedTextColor.GOLD));
+            p.sendMessage(Component.text("Owner: " + nameOf(sh.owner()), NamedTextColor.AQUA));
+            p.sendMessage(Component.text("Bound: " + wn + " " + bound.x() + " " + bound.y() + " " + bound.z(), NamedTextColor.AQUA));
             return;
         }
 
         // Regular lock
         if (!plugin.locks().isLocked(b)) {
-            p.sendMessage(Component.text("[Inspect] Not locked."));
+            p.sendMessage(Component.text("[Inspect] Not locked.", NamedTextColor.YELLOW));
             return;
         }
 
         Optional<LockEntry> lockOpt = plugin.locks().getLock(b);
         if (lockOpt.isEmpty()) {
-            p.sendMessage(Component.text("[Inspect] Locked, but record missing."));
+            p.sendMessage(Component.text("[Inspect] Locked, but record missing.", NamedTextColor.RED));
             return;
         }
         LockEntry lock = lockOpt.get();
         LockKey key = lock.key();
         World w2 = Bukkit.getWorld(key.worldUuid());
         String wn2 = (w2 != null ? w2.getName() : key.worldUuid().toString());
-        p.sendMessage(Component.text("[Inspect] Locked " + lock.blockType().name()));
-        p.sendMessage(Component.text("Owner: " + nameOf(lock.owner())));
-        p.sendMessage(Component.text("Location: " + wn2 + " " + key.x() + " " + key.y() + " " + key.z()));
-        p.sendMessage(Component.text("Trusted: " + lock.trusted().size()));
+        p.sendMessage(Component.text("[Inspect] Locked " + lock.blockType().name(), NamedTextColor.GOLD));
+        p.sendMessage(Component.text("Owner: " + nameOf(lock.owner()), NamedTextColor.AQUA));
+        p.sendMessage(Component.text("Location: " + wn2 + " " + key.x() + " " + key.y() + " " + key.z(), NamedTextColor.AQUA));
+        p.sendMessage(Component.text("Trusted: " + lock.trusted().size(), NamedTextColor.AQUA));
     }
 
     private String nameOf(UUID uuid) {
@@ -507,7 +524,7 @@ public final class ProtectionListener implements Listener {
 // -------- Feedback --------
 
     private void feedbackOk(Player p, String msg) {
-        p.sendMessage(Component.text(msg));
+        p.sendMessage(Component.text(msg, NamedTextColor.GREEN));
         if (plugin.getConfig().getBoolean("sounds.enabled", true)) {
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.5f);
         }
@@ -518,7 +535,7 @@ public final class ProtectionListener implements Listener {
     }
 
     private void feedbackFail(Player p, String msg) {
-        p.sendMessage(Component.text(msg));
+        p.sendMessage(Component.text(msg, NamedTextColor.RED));
         if (plugin.getConfig().getBoolean("sounds.enabled", true)) {
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.6f);
         }

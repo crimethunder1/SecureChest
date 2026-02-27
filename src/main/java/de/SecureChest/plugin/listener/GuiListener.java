@@ -6,6 +6,7 @@ import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -126,14 +127,14 @@ public final class GuiListener implements Listener {
             case "ping_lock" -> {
                 var le = plugin.locks().getLockFromId(ctx).orElse(null);
                 if (le == null) {
-                    p.sendMessage(Component.text("Lock not found."));
+                    p.sendMessage(Component.text("Lock not found.", NamedTextColor.RED));
                     plugin.gui().openLocksList(p, 0);
                     return;
                 }
                 Location loc = new Location(Bukkit.getWorld(le.key().worldUuid()), le.key().x(), le.key().y(), le.key().z());
                 if (loc.getWorld() != null) {
                     p.setCompassTarget(loc);
-                    p.sendMessage(Component.text("Compass set to lock location."));
+                    p.sendMessage(Component.text("Compass set to lock location.", NamedTextColor.AQUA));
                 }
                 plugin.gui().openLockManage(p, ctx);
             }
@@ -142,7 +143,7 @@ public final class GuiListener implements Listener {
                 if (le != null) {
                     World w = Bukkit.getWorld(le.key().worldUuid());
                     String worldName = w != null ? w.getName() : le.key().worldUuid().toString();
-                    p.sendMessage(Component.text("Lock coords: " + worldName + " " + le.key().x() + " " + le.key().y() + " " + le.key().z()));
+                    p.sendMessage(Component.text("Lock coords: " + worldName + " " + le.key().x() + " " + le.key().y() + " " + le.key().z(), NamedTextColor.AQUA));
                 }
                 plugin.gui().openLockManage(p, ctx);
             }
@@ -188,7 +189,7 @@ public final class GuiListener implements Listener {
 
                 p.closeInventory();
                 plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.AddTrust(lockId, level));
-                p.sendMessage(Component.text("Type a player name to trust as " + level + ". Type 'cancel' to abort."));
+                p.sendMessage(Component.text("Type a player name to trust as " + level + ". Type 'cancel' to abort.", NamedTextColor.YELLOW));
             }
 
             case "open_trust_role" -> {
@@ -207,19 +208,8 @@ public final class GuiListener implements Listener {
                 UUID target = UUID.fromString(parts[2]);
                 var lvl = de.SecureChest.plugin.lock.AccessLevel.fromString(level);
                 boolean ok = lvl != null && plugin.locks().setTrustById(p, lockId, target, lvl);
-                p.sendMessage(Component.text(ok ? "Trust updated." : "Failed (not owner / lock missing)."));
+                p.sendMessage(ok ? Component.text("Trust updated.", NamedTextColor.GREEN) : Component.text("Failed (not owner / lock missing).", NamedTextColor.RED));
                 plugin.gui().openLockManage(p, lockId);
-            }
-            case "open_trust_byname" -> {
-                // show small selector via role GUI first? we'll default to role selection by clicking again.
-                // We'll open role picker with a fake target and let user type after choosing role.
-                // To keep it simple: click again in manage to pick a role, then type a name.
-                p.closeInventory();
-                p.sendMessage(Component.text("Type a trust level first in the Role GUI (nearby), or use /cs -> Manage Lock -> Nearby."));
-                p.sendMessage(Component.text("For name input: use the three role buttons in this menu next time."));
-                // Back to manage (next tick to avoid inventory state issues)
-                final String lockId = ctx;
-                Bukkit.getScheduler().runTask(plugin, () -> plugin.gui().openLockManage(p, lockId));
             }
 
             case "hoppers_page" -> plugin.gui().openHoppersList(p, parseInt(ctx));
@@ -227,33 +217,33 @@ public final class GuiListener implements Listener {
             case "open_admin", "back_admin" -> plugin.gui().openAdmin(p);
             case "give_admin_key" -> {
                 if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission."));
+                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
                     plugin.gui().openMain(p);
                     return;
                 }
                 p.getInventory().addItem(plugin.items().adminKey());
-                p.sendMessage(Component.text("Admin Key given."));
+                p.sendMessage(Component.text("Admin Key given.", NamedTextColor.GREEN));
                 plugin.gui().openAdmin(p);
             }
             case "give_logs_book" -> {
                 if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission."));
+                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
                     plugin.gui().openMain(p);
                     return;
                 }
                 int max = plugin.getConfig().getInt("admin.logs.book_entries", plugin.getConfig().getInt("admin.logs_book_entries", 200));
                 p.getInventory().addItem(plugin.locks().createLogsBook(max));
-                p.sendMessage(Component.text("Logs book given."));
+                p.sendMessage(Component.text("Logs book given.", NamedTextColor.GREEN));
                 plugin.gui().openAdmin(p);
             }
             case "give_admin_report" -> {
                 if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission."));
+                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
                     plugin.gui().openMain(p);
                     return;
                 }
                 p.getInventory().addItem(plugin.locks().createAdminReportBook());
-                p.sendMessage(Component.text("Admin report given."));
+                p.sendMessage(Component.text("Admin report given.", NamedTextColor.GREEN));
                 plugin.gui().openAdmin(p);
             }
             case "toggle_inspect" -> {
@@ -263,13 +253,13 @@ public final class GuiListener implements Listener {
             }
             case "global_unlock" -> {
                 if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission."));
+                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
                     plugin.gui().openMain(p);
                     return;
                 }
                 p.closeInventory();
                 plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.GlobalUnlock());
-                p.sendMessage(Component.text("Type a player name in chat to global-unlock. Type 'cancel' to abort."));
+                p.sendMessage(Component.text("Type a player name in chat to global-unlock. Type 'cancel' to abort.", NamedTextColor.YELLOW));
             }
             case "open_logs" -> plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
             case "logs_page" -> plugin.gui().openLogs(p, parseInt(ctx));
@@ -286,7 +276,7 @@ public final class GuiListener implements Listener {
             case "logs_set_actor" -> {
                 p.closeInventory();
                 plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.LogActorFilter());
-                p.sendMessage(Component.text("Type an actor name filter (or 'clear' to reset). Type 'cancel' to abort."));
+                p.sendMessage(Component.text("Type an actor name filter (or 'clear' to reset). Type 'cancel' to abort.", NamedTextColor.YELLOW));
             }
             case "log_entry" -> {
                 long logId = parseLong(ctx);
@@ -294,7 +284,7 @@ public final class GuiListener implements Listener {
 
                 Optional<LogRecord> recOpt = plugin.locks().getLogById(logId);
                 if (recOpt.isEmpty()) {
-                    p.sendMessage(Component.text("Log not found."));
+                    p.sendMessage(Component.text("Log not found.", NamedTextColor.RED));
                     plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
                     return;
                 }
@@ -303,19 +293,19 @@ public final class GuiListener implements Listener {
                 if (w != null) {
                     Location loc = new Location(w, r.x(), r.y(), r.z());
                     p.setCompassTarget(loc);
-                    p.sendMessage(Component.text("Compass set to log location."));
+                    p.sendMessage(Component.text("Compass set to log location.", NamedTextColor.AQUA));
                 }
 
                 // Shift click -> teleport confirm (OP only)
                 if (e.getClick() == ClickType.SHIFT_LEFT || e.getClick() == ClickType.SHIFT_RIGHT) {
                     if (!p.isOp()) {
-                        p.sendMessage(Component.text("Teleport requires OP."));
+                        p.sendMessage(Component.text("Teleport requires OP.", NamedTextColor.RED));
                         plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
                         return;
                     }
                     boolean teleportEnabled = plugin.getConfig().getBoolean("admin.logs.teleport_enabled", plugin.getConfig().getBoolean("admin.allow_teleport", false));
                     if (!teleportEnabled) {
-                        p.sendMessage(Component.text("Teleport is disabled in config."));
+                        p.sendMessage(Component.text("Teleport is disabled in config.", NamedTextColor.RED));
                         plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
                         return;
                     }
@@ -354,7 +344,7 @@ public final class GuiListener implements Listener {
     private void handleConfirm(Player p, boolean yes) {
         var reqOpt = plugin.confirms().get(p.getUniqueId());
         if (reqOpt.isEmpty()) {
-            p.sendMessage(Component.text("Nothing to confirm."));
+            p.sendMessage(Component.text("Nothing to confirm.", NamedTextColor.RED));
             plugin.gui().openMain(p);
             return;
         }
@@ -378,7 +368,7 @@ public final class GuiListener implements Listener {
             case LOG_TELEPORT -> handleLogTeleport(p, req.data());
         };
 
-        p.sendMessage(Component.text(ok ? "Done." : "Failed."));
+        p.sendMessage(ok ? Component.text("Done.", NamedTextColor.GREEN) : Component.text("Failed.", NamedTextColor.RED));
         route(p, req.returnTo());
     }
 

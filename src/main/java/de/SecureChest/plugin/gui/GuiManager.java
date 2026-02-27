@@ -10,6 +10,7 @@ import de.SecureChest.plugin.lock.SecureHopperEntry;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.util.Items;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -24,7 +25,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -49,15 +49,17 @@ public final class GuiManager {
         Inventory inv = Bukkit.createInventory(holder, 54, Component.text("ChestSecure"));
         holder.setInventory(inv);
 
-        inv.setItem(10, button(Material.CHEST, "My Locked Blocks", List.of("View & manage your locks"), "open_locks", ""));
-        inv.setItem(12, button(Material.HOPPER, "My Secure Hoppers", List.of("View your secure hoppers"), "open_hoppers", ""));
+        int lockCount = plugin.locks().listLocks(p.getUniqueId()).size();
+        int hopperCount = plugin.locks().listSecureHoppers(p.getUniqueId()).size();
+        inv.setItem(10, button(Material.CHEST, "My Locked Blocks", List.of("View & manage your locks", "You have " + lockCount + " lock(s)"), "open_locks", ""));
+        inv.setItem(12, button(Material.HOPPER, "My Secure Hoppers", List.of("View your secure hoppers", "You have " + hopperCount + " secure hopper(s)"), "open_hoppers", ""));
         inv.setItem(14, button(Material.TRIPWIRE_HOOK, "Recipe: Chest Key", List.of("Click to preview"), "open_recipe_key", ""));
         inv.setItem(16, button(Material.HOPPER, "Recipe: Secure Hopper", List.of("Click to preview"), "open_recipe_hopper", ""));
 
         boolean ql = plugin.locks().getQuickLock(p.getUniqueId());
         boolean qr = plugin.locks().getQuickRemove(p.getUniqueId());
-        inv.setItem(28, toggle(Material.LIME_DYE, "Quick Lock", ql, "toggle_quicklock"));
-        inv.setItem(30, toggle(Material.RED_DYE, "Quick Remove", qr, "toggle_quickremove"));
+        inv.setItem(28, toggle("Quick Lock", ql, "toggle_quicklock"));
+        inv.setItem(30, toggle("Quick Remove", qr, "toggle_quickremove"));
 
         inv.setItem(32, button(Material.BARRIER, "Unlock ALL", List.of("Unlock all your locks & secure hoppers", "Confirm required"), "confirm_unlock_all_self", ""));
 
@@ -95,7 +97,8 @@ public final class GuiManager {
 
         inv.setItem(14, info(Material.LIME_DYE, "Quick Lock", List.of(
                 "If enabled:",
-                "- Right-click with Chest Key auto-locks",
+                "- Right-click with EMPTY HAND auto-locks",
+                "  (a Chest Key must be somewhere in inventory)",
                 "- Great for fast base setup"
         )));
 
@@ -161,6 +164,11 @@ public final class GuiManager {
         int start = st.page * pageSize;
         int end = Math.min(views.size(), start + pageSize);
 
+        if (views.isEmpty()) {
+            inv.setItem(22, info(Material.BARRIER, "No locks found",
+                    List.of("You have no locked blocks", "matching the current filters.")));
+        }
+
         int slot = 0;
         for (int i = start; i < end; i++) {
             LockView v = views.get(i);
@@ -188,7 +196,7 @@ public final class GuiManager {
     public void openLockManage(Player p, String lockId) {
         Optional<LockEntry> lockOpt = plugin.locks().getLockFromId(lockId);
         if (lockOpt.isEmpty()) {
-            p.sendMessage(Component.text("Lock not found."));
+            p.sendMessage(Component.text("Lock not found.", NamedTextColor.RED));
             openLocksList(p, 0);
             return;
         }
@@ -311,6 +319,7 @@ public final class GuiManager {
         int slot = 0;
         for (int i = start; i < end; i++) {
             Location loc = hoppers.get(i);
+            if (loc.getWorld() == null) continue; // skip unloaded worlds (LockKey.fromLocation requires non-null world)
             String hopperId = LockKey.fromLocation(loc).asId();
             inv.setItem(slot++, hopperItem(loc, hopperId));
         }
@@ -318,6 +327,11 @@ public final class GuiManager {
         inv.setItem(45, button(Material.ARROW, "Back", List.of("Return to main menu"), "back_main", ""));
         if (page > 0) inv.setItem(52, button(Material.PAPER, "Previous", List.of("Page " + page), "hoppers_page", String.valueOf(page - 1)));
         if (page < maxPage) inv.setItem(53, button(Material.PAPER, "Next", List.of("Page " + (page + 2)), "hoppers_page", String.valueOf(page + 1)));
+
+        if (hoppers.isEmpty()) {
+            inv.setItem(22, info(Material.BARRIER, "No secure hoppers",
+                    List.of("Place a Secure Hopper facing", "your locked container to add one.")));
+        }
 
         fillGlass(inv, Material.GRAY_STAINED_GLASS_PANE);
         p.openInventory(inv);
@@ -329,7 +343,7 @@ public final class GuiManager {
     public void openRecipePreview(Player p, boolean keyRecipe) {
         ShapedRecipe recipe = keyRecipe ? plugin.recipes().chestKeyRecipe() : plugin.recipes().secureHopperRecipe();
         if (recipe == null) {
-            p.sendMessage(Component.text("Recipe not available."));
+            p.sendMessage(Component.text("Recipe not available.", NamedTextColor.RED));
             openMain(p);
             return;
         }
@@ -343,27 +357,18 @@ public final class GuiManager {
         String[] shape = recipe.getShape();
         Map<Character, ItemStack> ingredients = new HashMap<>();
 
-        // Try getChoiceMap (newer)
-        try {
-            Method m = recipe.getClass().getMethod("getChoiceMap");
-            Object res = m.invoke(recipe);
-            if (res instanceof Map<?, ?> map) {
-                for (Map.Entry<?, ?> me : map.entrySet()) {
-                    if (me.getKey() instanceof Character ch && me.getValue() instanceof RecipeChoice choice) {
-                        ingredients.put(ch, choice.getItemStack());
-                    }
-                }
+        // Use getChoiceMap() directly (Paper 1.21+ API) - handles ExactChoice correctly.
+        for (Map.Entry<Character, RecipeChoice> me : recipe.getChoiceMap().entrySet()) {
+            if (me.getValue() != null) {
+                ingredients.put(me.getKey(), me.getValue().getItemStack());
             }
-        } catch (Exception ignored) {
-            // Fallback to getIngredientMap()
-            Map<Character, ItemStack> map = recipe.getIngredientMap();
-            ingredients.putAll(map);
         }
 
         int idx = 0;
         for (int r = 0; r < 3; r++) {
+            String row = (r < shape.length) ? shape[r] : "   ";
             for (int c = 0; c < 3; c++) {
-                char ch = shape[r].charAt(c);
+                char ch = (c < row.length()) ? row.charAt(c) : ' ';
                 ItemStack ing = ingredients.get(ch);
                 inv.setItem(grid[idx++], ing == null ? new ItemStack(Material.AIR) : ing.clone());
             }
@@ -381,7 +386,7 @@ public final class GuiManager {
 
     public void openAdmin(Player p) {
         if (!p.hasPermission("chestsecure.admin")) {
-            p.sendMessage(Component.text("No permission."));
+            p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
             openMain(p);
             return;
         }
@@ -398,7 +403,7 @@ public final class GuiManager {
         inv.setItem(23, button(Material.WRITTEN_BOOK, "Admin Report", List.of("Server overview (book)"), "give_admin_report", ""));
         inv.setItem(25, button(Material.PAPER, "Logs UI", List.of("Browse logs with filters", "Click a log: compass", "Shift-click: teleport (OP)"), "open_logs", ""));
 
-        inv.setItem(28, toggle(Material.SPYGLASS, "Inspect Mode", inspect, "toggle_inspect"));
+        inv.setItem(28, toggle("Inspect Mode", inspect, "toggle_inspect"));
         inv.setItem(31, button(Material.BARRIER, "Global Unlock", List.of("Unlock all locks of a player", "Type player name in chat", "Confirm required"), "global_unlock", ""));
 
         inv.setItem(49, button(Material.ARROW, "Back", List.of("Return to main menu"), "back_main", ""));
@@ -410,7 +415,7 @@ public final class GuiManager {
 
     public void openLogs(Player p, int page) {
         if (!p.hasPermission("chestsecure.admin")) {
-            p.sendMessage(Component.text("No permission."));
+            p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
             openMain(p);
             return;
         }
@@ -477,7 +482,11 @@ public final class GuiManager {
         inv.setItem(11, button(Material.RED_STAINED_GLASS_PANE, "Cancel", List.of("No"), "confirm_no", ""));
         inv.setItem(15, button(Material.LIME_STAINED_GLASS_PANE, "Confirm", List.of("Yes"), "confirm_yes", ""));
 
-        inv.setItem(13, info(Material.PAPER, title, lines));
+        int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+        List<String> linesWithHint = new ArrayList<>(lines);
+        linesWithHint.add("");
+        linesWithHint.add("\u25ba Expires in " + ttlSeconds + "s - act quickly!");
+        inv.setItem(13, info(Material.PAPER, title, linesWithHint));
         fillGlass(inv, Material.BLACK_STAINED_GLASS_PANE);
 
         p.openInventory(inv);
@@ -578,8 +587,19 @@ public final class GuiManager {
         return button(Material.PAPER, name, lore, "log_entry", String.valueOf(r.id()));
     }
 
-    private ItemStack toggle(Material mat, String name, boolean on, String action) {
-        return button(mat, name, List.of("Status: " + (on ? "ON" : "OFF"), "Click to toggle"), action, "");
+    private ItemStack toggle(String name, boolean on, String action) {
+        // Use colored glass panes + Adventure API colors (legacy codes ignored by Component.text())
+        Material indicator = on ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
+        net.kyori.adventure.text.Component displayName = Component.text(name + " \u2014 ")
+                .append(Component.text(on ? "ON" : "OFF",
+                        on ? NamedTextColor.GREEN : NamedTextColor.RED));
+        ItemStack it = new ItemStack(indicator);
+        ItemMeta meta = it.getItemMeta();
+        meta.displayName(displayName);
+        meta.lore(List.of(Component.text("Click to toggle")));
+        meta.getPersistentDataContainer().set(plugin.keyGuiAction(), PersistentDataType.STRING, action);
+        it.setItemMeta(meta);
+        return it;
     }
 
     private ItemStack info(Material mat, String name, List<String> lore) {
@@ -641,8 +661,8 @@ public final class GuiManager {
     // Helper location builder without chunk loads
     private static final class LockUtil {
         private static Location toLocation(LockKey key) {
+            // Return null-world Location for unloaded worlds; callers must handle null world gracefully.
             org.bukkit.World w = Bukkit.getWorld(key.worldUuid());
-            if (w == null) return new Location(Bukkit.getWorlds().getFirst(), key.x(), key.y(), key.z());
             return new Location(w, key.x(), key.y(), key.z());
         }
     }
