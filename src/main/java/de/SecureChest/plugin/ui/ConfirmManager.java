@@ -1,34 +1,3 @@
-<<<<<<< HEAD
-package de.SecureChest.plugin.ui;
-
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
-public final class ConfirmManager {
-
-    private final Map<UUID, ConfirmRequest> pending = new ConcurrentHashMap<>();
-
-    public void set(UUID player, ConfirmRequest req) {
-        pending.put(player, req);
-    }
-
-    public Optional<ConfirmRequest> get(UUID player) {
-        ConfirmRequest req = pending.get(player);
-        if (req == null) return Optional.empty();
-        if (System.currentTimeMillis() > req.expiresAt()) {
-            pending.remove(player);
-            return Optional.empty();
-        }
-        return Optional.of(req);
-    }
-
-    public void clear(UUID player) {
-        pending.remove(player);
-    }
-}
-=======
 package de.SecureChest.plugin.ui;
 
 import java.util.Map;
@@ -61,4 +30,3 @@ public final class ConfirmManager {
         pending.remove(player);
     }
 }
->>>>>>> a213fa6b4069e01c09e863d0744f947774f9fe82

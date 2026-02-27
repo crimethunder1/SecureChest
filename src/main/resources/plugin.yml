@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 name: ChestSecure
 version: 1.3.0
 main: de.SecureChest.plugin.ChestSecurePlugin
@@ -19,25 +18,3 @@ permissions:
   chestsecure.admin:
     description: "Admin access: open/break locked blocks, admin panel."
     default: op
-=======
-name: ChestSecure
-version: 1.0.0
-main: de.SecureChest.plugin.ChestSecurePlugin
-api-version: "1.21"
-author: "crimethunder"
-description: "ChestSecure - Lock & protect containers with keys (Paper 1.21.11)."
-
-commands:
-  chestsecure:
-    description: "Open ChestSecure GUI."
-    usage: "/cs"
-    aliases: [cs]
-
-permissions:
-  chestsecure.use:
-    description: "Allows using ChestSecure."
-    default: true
-  chestsecure.admin:
-    description: "Admin access: open/break locked blocks, admin panel."
-    default: op
->>>>>>> a213fa6b4069e01c09e863d0744f947774f9fe82
