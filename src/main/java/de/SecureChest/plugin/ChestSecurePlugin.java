@@ -85,6 +85,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
         getServer().getPluginManager().registerEvents(new TrustChatListener(this), this);
+        getServer().getPluginManager().registerEvents(new de.SecureChest.plugin.listener.PlayerQuitListener(this), this);
 
         getLogger().info("ChestSecure enabled.");
     }
