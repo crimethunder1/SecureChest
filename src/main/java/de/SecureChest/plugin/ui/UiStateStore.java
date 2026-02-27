@@ -97,7 +97,6 @@ public final class UiStateStore {
         inspectMode.put(player, on);
     }
 
-    /** Remove all state for a player (call on disconnect). */
     public void cleanup(UUID player) {
         locks.remove(player);
         logs.remove(player);

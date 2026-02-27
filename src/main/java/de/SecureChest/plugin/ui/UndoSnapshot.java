@@ -5,9 +5,6 @@ import de.SecureChest.plugin.lock.LockKey;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Snapshot for UNLOCK operations only.
- */
 public record UndoSnapshot(
         List<LockRow> locks,
         List<TrustRow> trusts,

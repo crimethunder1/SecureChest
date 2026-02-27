@@ -7,10 +7,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.UUID;
 
-/**
- * Cleans up all per-player in-memory state when a player disconnects,
- * preventing unbounded memory growth on long-running servers.
- */
 public final class PlayerQuitListener implements Listener {
 
     private final ChestSecurePlugin plugin;
@@ -26,5 +22,8 @@ public final class PlayerQuitListener implements Listener {
         plugin.confirms().clear(uuid);
         plugin.undos().clear(uuid);
         plugin.ui().cleanup(uuid);
+        if (plugin.locks() instanceof de.SecureChest.plugin.lock.SqlLockService sls) {
+            sls.evictPlayerCache(uuid);
+        }
     }
 }

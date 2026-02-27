@@ -23,6 +23,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
@@ -61,9 +62,12 @@ public final class ProtectionListener implements Listener {
         boolean isAdminKey = e.getPlayer().hasPermission("chestsecure.admin")
                 && plugin.items().is(e.getItem(), Items.Type.ADMIN_KEY);
 
-        // Admin Inspect Mode (sneak + right click, empty hand)
+        // Admin Inspect Mode (sneak + right click, EMPTY HAND only)
+        // Must check emptyHand first to avoid blocking normal item usage (eating, placing, etc.)
         boolean inspectMode = plugin.ui().inspect(e.getPlayer().getUniqueId());
-        if (inspectMode && e.getPlayer().hasPermission("chestsecure.admin") && e.getPlayer().isSneaking() && !isChestKey && !isAdminKey) {
+        ItemStack handItem = e.getItem();
+        boolean emptyHand = (handItem == null || handItem.getType().isAir());
+        if (inspectMode && e.getPlayer().hasPermission("chestsecure.admin") && e.getPlayer().isSneaking() && emptyHand && !isChestKey && !isAdminKey) {
             e.setCancelled(true);
             sendInspectInfo(e.getPlayer(), b);
             return;
@@ -106,8 +110,6 @@ public final class ProtectionListener implements Listener {
 
         // Quick Lock: if enabled, right-click with empty hand locks if you own a Chest Key anywhere
         boolean quickLock = plugin.locks().getQuickLock(e.getPlayer().getUniqueId());
-        ItemStack hand = e.getItem();
-        boolean emptyHand = (hand == null || hand.getType().isAir());
         // Also guard against accidentally locking a Secure Hopper as a regular lock
         boolean isSecureHopper = b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b);
         if (quickLock && emptyHand && !plugin.locks().isLocked(b) && !isSecureHopper && hasChestKey(e.getPlayer())) {
@@ -128,11 +130,12 @@ public final class ProtectionListener implements Listener {
             }
         }
 
-        // Secure Hopper access protection: only owner (or admin) can open its inventory
+        // Secure Hopper access protection: only owner (or admin with Admin Key) can open its inventory
+        // Admin-Key requirement is consistent with locked containers (see canOpen()).
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             SecureHopperEntry shEntry = plugin.locks().getSecureHopper(b).orElse(null);
             if (shEntry != null) {
-                boolean allowed = e.getPlayer().hasPermission("chestsecure.admin")
+                boolean allowed = (e.getPlayer().hasPermission("chestsecure.admin") && isAdminKey)
                         || shEntry.owner().equals(e.getPlayer().getUniqueId());
                 if (!allowed) {
                     e.setCancelled(true);
@@ -483,8 +486,24 @@ public final class ProtectionListener implements Listener {
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
         if (level != AccessLevel.VIEW) return;
 
-        // VIEW: block any transfers involving top inventory
-        if (e.getClickedInventory() == top || e.isShiftClick()) {
+        // VIEW: cancel ALL click actions — this closes every known bypass vector:
+        //  - Direct clicks in the container (top inventory)
+        //  - Shift-clicks from bottom inventory into container
+        //  - COLLECT_TO_CURSOR (double-click) which can pull items from any open inventory
+        //  - Hotbar-swap (number keys) targeting container slots
+        //  - DROP actions on container slots
+        // Using a whitelist approach: only actions that exclusively affect the bottom
+        // (player) inventory are permitted. Everything else is cancelled.
+        InventoryAction action = e.getAction();
+        boolean affectsTop =
+                e.getClickedInventory() == top                          // direct click in container
+                || e.isShiftClick()                                     // shift-click can move into container
+                || action == InventoryAction.COLLECT_TO_CURSOR          // double-click pulls from all slots
+                || action == InventoryAction.MOVE_TO_OTHER_INVENTORY    // explicit cross-inventory move
+                || action == InventoryAction.HOTBAR_SWAP                // number key swap to container slot
+                || action == InventoryAction.HOTBAR_MOVE_AND_READD;    // hotbar variant
+
+        if (affectsTop) {
             e.setCancelled(true);
         }
     }

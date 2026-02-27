@@ -116,21 +116,23 @@ public final class DatabaseManager {
                 " quick_remove INTEGER NOT NULL DEFAULT 0" +
                 ");"
             );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_locks_owner ON locks(owner_uuid);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_created ON logs(created_at);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_action ON logs(action);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_actor ON logs(actor_name);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_secure_hoppers_owner ON secure_hoppers(owner_uuid);");
         }
     }
 
     public Connection getConnection() throws SQLException {
         Connection c = DriverManager.getConnection(jdbcUrl);
-        // SQLite foreign key enforcement is per-connection.
         try (Statement st = c.createStatement()) {
             st.execute("PRAGMA foreign_keys = ON;");
         } catch (SQLException ignored) {
-            // best-effort
         }
         return c;
     }
 
     public void close() {
-        // No persistent pool
     }
 }

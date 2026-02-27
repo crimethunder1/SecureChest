@@ -174,26 +174,30 @@ public final class SqlLockService implements LockService {
         if (lockCache.containsKey(id)) return false;
 
         long now = Instant.now().toEpochMilli();
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("INSERT OR IGNORE INTO locks(world_uuid,x,y,z,block_type,owner_uuid,created_at) VALUES(?,?,?,?,?,?,?)")) {
-            ps.setString(1, key.worldUuid().toString());
-            ps.setInt(2, key.x());
-            ps.setInt(3, key.y());
-            ps.setInt(4, key.z());
-            ps.setString(5, block.getType().name());
-            ps.setString(6, owner.getUniqueId().toString());
-            ps.setLong(7, now);
-            int changed = ps.executeUpdate();
-            if (changed > 0) {
-                LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
-                lockCache.put(id, entry);
-                return true;
+        // Optimistic write-through: update cache immediately, persist async
+        LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
+        lockCache.put(id, entry);
+
+        final String blockTypeName = block.getType().name();
+        final String ownerStr = owner.getUniqueId().toString();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "INSERT OR IGNORE INTO locks(world_uuid,x,y,z,block_type,owner_uuid,created_at) VALUES(?,?,?,?,?,?,?)")) {
+                ps.setString(1, key.worldUuid().toString());
+                ps.setInt(2, key.x());
+                ps.setInt(3, key.y());
+                ps.setInt(4, key.z());
+                ps.setString(5, blockTypeName);
+                ps.setString(6, ownerStr);
+                ps.setLong(7, now);
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB lock persist failed", ex);
+                lockCache.remove(id); // rollback cache on failure
             }
-            return false;
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB lock failed", ex);
-            return false;
-        }
+        });
+        return true;
     }
 
     @Override
@@ -281,46 +285,54 @@ public final class SqlLockService implements LockService {
         boolean allowed = caller.hasPermission("chestsecure.admin") || entry.owner().equals(caller.getUniqueId());
         if (!allowed) return false;
 
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("DELETE FROM locks WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
-            ps.setString(1, key.worldUuid().toString());
-            ps.setInt(2, key.x());
-            ps.setInt(3, key.y());
-            ps.setInt(4, key.z());
-            ps.executeUpdate();
-            lockCache.remove(id);
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB unlock failed", ex);
-            return false;
-        }
+        // Optimistic write-through: remove from cache immediately, persist delete async
+        lockCache.remove(id);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "DELETE FROM locks WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
+                ps.setString(1, key.worldUuid().toString());
+                ps.setInt(2, key.x());
+                ps.setInt(3, key.y());
+                ps.setInt(4, key.z());
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB unlock persist failed", ex);
+                // Note: cache already cleared; DB inconsistency logged above
+            }
+        });
         return true;
     }
 
     @Override
     public boolean unlockAll(UUID owner) {
-        int locksDeleted;
-        int hoppersDeleted;
-        try (Connection c = db.getConnection()) {
-            c.setAutoCommit(false);
-            try (PreparedStatement ps = c.prepareStatement("DELETE FROM locks WHERE owner_uuid=?")) {
-                ps.setString(1, owner.toString());
-                locksDeleted = ps.executeUpdate();
-            }
-            try (PreparedStatement ps = c.prepareStatement("DELETE FROM secure_hoppers WHERE owner_uuid=?")) {
-                ps.setString(1, owner.toString());
-                hoppersDeleted = ps.executeUpdate();
-            }
-            c.commit();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB unlockAll failed", ex);
-            return false;
-        }
+        // Check if there's anything to delete (cache-only check, fast)
+        boolean hasLocks = lockCache.values().stream().anyMatch(e -> e.owner().equals(owner));
+        boolean hasHoppers = hopperCache.values().stream().anyMatch(e -> e.owner().equals(owner));
+        if (!hasLocks && !hasHoppers) return false;
 
-        // purge caches
+        // Optimistic write-through: purge cache immediately
         lockCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
         hopperCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
 
-        return locksDeleted > 0 || hoppersDeleted > 0;
+        final String ownerStr = owner.toString();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try (PreparedStatement ps = c.prepareStatement("DELETE FROM locks WHERE owner_uuid=?")) {
+                    ps.setString(1, ownerStr);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement("DELETE FROM secure_hoppers WHERE owner_uuid=?")) {
+                    ps.setString(1, ownerStr);
+                    ps.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB unlockAll persist failed", ex);
+            }
+        });
+        return true;
     }
 
     @Override
@@ -329,6 +341,7 @@ public final class SqlLockService implements LockService {
         int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
         long expiresAt = now + (ttlSeconds * 1000L);
 
+        // Snapshot must happen before cache purge so we capture current state
         UndoSnapshot snapshot;
         try {
             snapshot = snapshotForOwner(owner, now, expiresAt);
@@ -337,31 +350,38 @@ public final class SqlLockService implements LockService {
             return false;
         }
 
-        int locksDeleted;
-        int hoppersDeleted;
-        try (Connection c = db.getConnection()) {
-            c.setAutoCommit(false);
-            try (PreparedStatement ps = c.prepareStatement("DELETE FROM locks WHERE owner_uuid=?")) {
-                ps.setString(1, owner.toString());
-                locksDeleted = ps.executeUpdate();
-            }
-            try (PreparedStatement ps = c.prepareStatement("DELETE FROM secure_hoppers WHERE owner_uuid=?")) {
-                ps.setString(1, owner.toString());
-                hoppersDeleted = ps.executeUpdate();
-            }
-            c.commit();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB unlockAllWithUndo failed", ex);
+        boolean hasLocks = lockCache.values().stream().anyMatch(e -> e.owner().equals(owner));
+        boolean hasHoppers = hopperCache.values().stream().anyMatch(e -> e.owner().equals(owner));
+        if (!hasLocks && !hasHoppers && snapshot.locks().isEmpty() && snapshot.secureHoppers().isEmpty()) {
             return false;
         }
 
+        // Optimistic write-through: purge cache immediately
         lockCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
         hopperCache.entrySet().removeIf(e -> e.getValue().owner().equals(owner));
 
         if (!snapshot.locks().isEmpty() || !snapshot.secureHoppers().isEmpty()) {
             plugin.undos().set(actor.getUniqueId(), snapshot);
         }
-        return locksDeleted > 0 || hoppersDeleted > 0;
+
+        final String ownerStr = owner.toString();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try (PreparedStatement ps = c.prepareStatement("DELETE FROM locks WHERE owner_uuid=?")) {
+                    ps.setString(1, ownerStr);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement("DELETE FROM secure_hoppers WHERE owner_uuid=?")) {
+                    ps.setString(1, ownerStr);
+                    ps.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB unlockAllWithUndo persist failed", ex);
+            }
+        });
+        return true;
     }
 
     @Override
@@ -369,64 +389,9 @@ public final class SqlLockService implements LockService {
         var snapOpt = plugin.undos().consume(actor.getUniqueId());
         if (snapOpt.isEmpty()) return false;
         UndoSnapshot snapshot = snapOpt.get();
+        if (snapshot.locks().isEmpty() && snapshot.secureHoppers().isEmpty()) return false;
 
-        try (Connection c = db.getConnection()) {
-            c.setAutoCommit(false);
-
-            // locks
-            try (PreparedStatement ps = c.prepareStatement("INSERT OR IGNORE INTO locks(world_uuid,x,y,z,block_type,owner_uuid,created_at) VALUES(?,?,?,?,?,?,?)")) {
-                for (UndoSnapshot.LockRow lr : snapshot.locks()) {
-                    ps.setString(1, lr.key().worldUuid().toString());
-                    ps.setInt(2, lr.key().x());
-                    ps.setInt(3, lr.key().y());
-                    ps.setInt(4, lr.key().z());
-                    ps.setString(5, lr.blockType());
-                    ps.setString(6, lr.owner().toString());
-                    ps.setLong(7, lr.createdAt());
-                    ps.addBatch();
-                }
-                ps.executeBatch();
-            }
-
-            // trusts
-            try (PreparedStatement ps = c.prepareStatement("INSERT OR REPLACE INTO trusted(world_uuid,x,y,z,target_uuid,level) VALUES(?,?,?,?,?,?)")) {
-                for (UndoSnapshot.TrustRow tr : snapshot.trusts()) {
-                    ps.setString(1, tr.key().worldUuid().toString());
-                    ps.setInt(2, tr.key().x());
-                    ps.setInt(3, tr.key().y());
-                    ps.setInt(4, tr.key().z());
-                    ps.setString(5, tr.target().toString());
-                    ps.setString(6, tr.level());
-                    ps.addBatch();
-                }
-                ps.executeBatch();
-            }
-
-            // secure hoppers
-            try (PreparedStatement ps = c.prepareStatement("INSERT OR IGNORE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
-                for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
-                    ps.setString(1, hr.hopperKey().worldUuid().toString());
-                    ps.setInt(2, hr.hopperKey().x());
-                    ps.setInt(3, hr.hopperKey().y());
-                    ps.setInt(4, hr.hopperKey().z());
-                    ps.setString(5, hr.owner().toString());
-                    ps.setString(6, hr.boundKey().worldUuid().toString());
-                    ps.setInt(7, hr.boundKey().x());
-                    ps.setInt(8, hr.boundKey().y());
-                    ps.setInt(9, hr.boundKey().z());
-                    ps.setLong(10, hr.createdAt());
-                    ps.addBatch();
-                }
-                ps.executeBatch();
-            }
-
-            c.commit();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB undo restore failed", ex);
-            return false;
-        }
-
-        // Refresh caches for restored locks/hoppers
+        // Optimistic write-through: restore cache immediately so player sees result at once
         for (UndoSnapshot.LockRow lr : snapshot.locks()) {
             Material type = Material.matchMaterial(lr.blockType());
             LockEntry le = new LockEntry(lr.key(), type == null ? Material.CHEST : type, lr.owner(), lr.createdAt());
@@ -442,6 +407,67 @@ public final class SqlLockService implements LockService {
         for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
             hopperCache.put(hr.hopperKey().asId(), new SecureHopperEntry(hr.hopperKey(), hr.owner(), hr.boundKey()));
         }
+
+        // Persist the restored data async
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+
+                // locks
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT OR IGNORE INTO locks(world_uuid,x,y,z,block_type,owner_uuid,created_at) VALUES(?,?,?,?,?,?,?)")) {
+                    for (UndoSnapshot.LockRow lr : snapshot.locks()) {
+                        ps.setString(1, lr.key().worldUuid().toString());
+                        ps.setInt(2, lr.key().x());
+                        ps.setInt(3, lr.key().y());
+                        ps.setInt(4, lr.key().z());
+                        ps.setString(5, lr.blockType());
+                        ps.setString(6, lr.owner().toString());
+                        ps.setLong(7, lr.createdAt());
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+
+                // trusts
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT OR REPLACE INTO trusted(world_uuid,x,y,z,target_uuid,level) VALUES(?,?,?,?,?,?)")) {
+                    for (UndoSnapshot.TrustRow tr : snapshot.trusts()) {
+                        ps.setString(1, tr.key().worldUuid().toString());
+                        ps.setInt(2, tr.key().x());
+                        ps.setInt(3, tr.key().y());
+                        ps.setInt(4, tr.key().z());
+                        ps.setString(5, tr.target().toString());
+                        ps.setString(6, tr.level());
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+
+                // secure hoppers
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT OR IGNORE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
+                    for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
+                        ps.setString(1, hr.hopperKey().worldUuid().toString());
+                        ps.setInt(2, hr.hopperKey().x());
+                        ps.setInt(3, hr.hopperKey().y());
+                        ps.setInt(4, hr.hopperKey().z());
+                        ps.setString(5, hr.owner().toString());
+                        ps.setString(6, hr.boundKey().worldUuid().toString());
+                        ps.setInt(7, hr.boundKey().x());
+                        ps.setInt(8, hr.boundKey().y());
+                        ps.setInt(9, hr.boundKey().z());
+                        ps.setLong(10, hr.createdAt());
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+
+                c.commit();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB undo restore persist failed", ex);
+            }
+        });
 
         return true;
     }
@@ -588,22 +614,27 @@ public final class SqlLockService implements LockService {
         if (entry == null) return false;
         if (!entry.owner().equals(owner.getUniqueId())) return false;
 
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("INSERT OR REPLACE INTO trusted(world_uuid,x,y,z,target_uuid,level) VALUES(?,?,?,?,?,?)")) {
-            ps.setString(1, key.worldUuid().toString());
-            ps.setInt(2, key.x());
-            ps.setInt(3, key.y());
-            ps.setInt(4, key.z());
-            ps.setString(5, target.toString());
-            ps.setString(6, level.name());
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB setTrust failed", ex);
-            return false;
-        }
-
+        // Optimistic write-through: update cache immediately, persist async
         entry.trusted().put(target, level);
         lockCache.put(id, entry);
+
+        final String targetStr = target.toString();
+        final String levelName = level.name();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "INSERT OR REPLACE INTO trusted(world_uuid,x,y,z,target_uuid,level) VALUES(?,?,?,?,?,?)")) {
+                ps.setString(1, key.worldUuid().toString());
+                ps.setInt(2, key.x());
+                ps.setInt(3, key.y());
+                ps.setInt(4, key.z());
+                ps.setString(5, targetStr);
+                ps.setString(6, levelName);
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB setTrust persist failed", ex);
+            }
+        });
         return true;
     }
 
@@ -627,21 +658,25 @@ public final class SqlLockService implements LockService {
         if (entry == null) return false;
         if (!owner.hasPermission("chestsecure.admin") && !entry.owner().equals(owner.getUniqueId())) return false;
 
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("DELETE FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=? AND target_uuid=?")) {
-            ps.setString(1, key.worldUuid().toString());
-            ps.setInt(2, key.x());
-            ps.setInt(3, key.y());
-            ps.setInt(4, key.z());
-            ps.setString(5, target.toString());
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB removeTrust failed", ex);
-            return false;
-        }
-
+        // Optimistic write-through: update cache immediately, persist async
         entry.trusted().remove(target);
         lockCache.put(id, entry);
+
+        final String targetStr = target.toString();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "DELETE FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=? AND target_uuid=?")) {
+                ps.setString(1, key.worldUuid().toString());
+                ps.setInt(2, key.x());
+                ps.setInt(3, key.y());
+                ps.setInt(4, key.z());
+                ps.setString(5, targetStr);
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB removeTrust persist failed", ex);
+            }
+        });
         return true;
     }
 
@@ -724,32 +759,37 @@ public final class SqlLockService implements LockService {
         LockKey boundKey = LockUtil.canonicalKey(boundContainer);
         long now = Instant.now().toEpochMilli();
 
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("INSERT OR REPLACE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
-            ps.setString(1, hopperKey.worldUuid().toString());
-            ps.setInt(2, hopperKey.x());
-            ps.setInt(3, hopperKey.y());
-            ps.setInt(4, hopperKey.z());
-            ps.setString(5, placer.getUniqueId().toString());
-            ps.setString(6, boundKey.worldUuid().toString());
-            ps.setInt(7, boundKey.x());
-            ps.setInt(8, boundKey.y());
-            ps.setInt(9, boundKey.z());
-            ps.setLong(10, now);
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB bindSecureHopper failed", ex);
-            return false;
-        }
+        // Optimistic write-through: update cache and PDC immediately, persist async
+        SecureHopperEntry sh = new SecureHopperEntry(hopperKey, placer.getUniqueId(), boundKey);
+        hopperCache.put(hopperKey.asId(), sh);
 
-        // Mark tile PDC
+        // Mark tile PDC on main thread (must be main thread for TileState)
         if (hopperBlock.getState() instanceof TileState tile) {
             tile.getPersistentDataContainer().set(plugin.keySecureHopperBlock(), PersistentDataType.BYTE, (byte) 1);
             tile.update(true, false);
         }
 
-        SecureHopperEntry sh = new SecureHopperEntry(hopperKey, placer.getUniqueId(), boundKey);
-        hopperCache.put(hopperKey.asId(), sh);
+        final String placerStr = placer.getUniqueId().toString();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "INSERT OR REPLACE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setString(1, hopperKey.worldUuid().toString());
+                ps.setInt(2, hopperKey.x());
+                ps.setInt(3, hopperKey.y());
+                ps.setInt(4, hopperKey.z());
+                ps.setString(5, placerStr);
+                ps.setString(6, boundKey.worldUuid().toString());
+                ps.setInt(7, boundKey.x());
+                ps.setInt(8, boundKey.y());
+                ps.setInt(9, boundKey.z());
+                ps.setLong(10, now);
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB bindSecureHopper persist failed", ex);
+                hopperCache.remove(hopperKey.asId()); // rollback cache on failure
+            }
+        });
         return true;
     }
 
@@ -759,23 +799,28 @@ public final class SqlLockService implements LockService {
         LockKey hk = LockKey.fromLocation(hopperBlock.getLocation());
         String id = hk.asId();
 
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("DELETE FROM secure_hoppers WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
-            ps.setString(1, hk.worldUuid().toString());
-            ps.setInt(2, hk.x());
-            ps.setInt(3, hk.y());
-            ps.setInt(4, hk.z());
-            ps.executeUpdate();
-            hopperCache.remove(id);
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB removeSecureHopper failed", ex);
-            return false;
-        }
+        // Optimistic write-through: update cache and PDC on main thread, persist delete async
+        hopperCache.remove(id);
 
+        // Clear PDC marker on main thread (TileState must be main thread)
         if (hopperBlock.getState() instanceof TileState tile) {
             tile.getPersistentDataContainer().remove(plugin.keySecureHopperBlock());
             tile.update(true, false);
         }
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "DELETE FROM secure_hoppers WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
+                ps.setString(1, hk.worldUuid().toString());
+                ps.setInt(2, hk.x());
+                ps.setInt(3, hk.y());
+                ps.setInt(4, hk.z());
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB removeSecureHopper persist failed", ex);
+            }
+        });
         return true;
     }
 
@@ -845,14 +890,14 @@ public final class SqlLockService implements LockService {
 
     @Override
     public void setQuickLock(UUID player, boolean value) {
-        setSetting(player, "quick_lock", value);
         quickLockCache.put(player, value);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> setSetting(player, "quick_lock", value));
     }
 
     @Override
     public void setQuickRemove(UUID player, boolean value) {
-        setSetting(player, "quick_remove", value);
         quickRemoveCache.put(player, value);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> setSetting(player, "quick_remove", value));
     }
 
     private void setSetting(UUID player, String field, boolean value) {
@@ -865,6 +910,11 @@ public final class SqlLockService implements LockService {
         } catch (SQLException ex) {
             plugin.getLogger().log(Level.SEVERE, "DB setSetting failed", ex);
         }
+    }
+
+    public void evictPlayerCache(UUID player) {
+        quickLockCache.remove(player);
+        quickRemoveCache.remove(player);
     }
 
     // -------- Logs --------
@@ -881,23 +931,33 @@ public final class SqlLockService implements LockService {
 
     private void insertLog(String action, Player actor, Block target, String extra) {
         long now = Instant.now().toEpochMilli();
+        // Capture all data on main thread before going async (Player/Block not thread-safe)
+        final String actorUuid = actor.getUniqueId().toString();
+        final String actorName = actor.getName();
         World w = target.getWorld();
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement("INSERT INTO logs(created_at,action,actor_uuid,actor_name,world_name,world_uuid,x,y,z,extra) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
-            ps.setLong(1, now);
-            ps.setString(2, action);
-            ps.setString(3, actor.getUniqueId().toString());
-            ps.setString(4, actor.getName());
-            ps.setString(5, w.getName());
-            ps.setString(6, w.getUID().toString());
-            ps.setInt(7, target.getX());
-            ps.setInt(8, target.getY());
-            ps.setInt(9, target.getZ());
-            ps.setString(10, extra);
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB log insert failed", ex);
-        }
+        final String worldName = w != null ? w.getName() : "unknown";
+        final String worldUuid = w != null ? w.getUID().toString() : "00000000-0000-0000-0000-000000000000";
+        final int bx = target.getX(), by = target.getY(), bz = target.getZ();
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "INSERT INTO logs(created_at,action,actor_uuid,actor_name,world_name,world_uuid,x,y,z,extra) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setLong(1, now);
+                ps.setString(2, action);
+                ps.setString(3, actorUuid);
+                ps.setString(4, actorName);
+                ps.setString(5, worldName);
+                ps.setString(6, worldUuid);
+                ps.setInt(7, bx);
+                ps.setInt(8, by);
+                ps.setInt(9, bz);
+                ps.setString(10, extra);
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB log insert failed", ex);
+            }
+        });
     }
 
     @Override

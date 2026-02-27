@@ -6,8 +6,5 @@ public sealed interface PendingChatAction permits PendingChatAction.AddTrust, Pe
 
     record GlobalUnlock() implements PendingChatAction {}
 
-    /**
-     * Set/replace actor filter for the admin logs GUI.
-     */
     record LogActorFilter() implements PendingChatAction {}
 }

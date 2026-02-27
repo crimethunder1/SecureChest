@@ -135,6 +135,8 @@ public final class GuiListener implements Listener {
                 if (loc.getWorld() != null) {
                     p.setCompassTarget(loc);
                     p.sendMessage(Component.text("Compass set to lock location.", NamedTextColor.AQUA));
+                } else {
+                    p.sendMessage(Component.text("World is unloaded - cannot set compass.", NamedTextColor.RED));
                 }
                 plugin.gui().openLockManage(p, ctx);
             }
@@ -196,7 +198,11 @@ public final class GuiListener implements Listener {
                 // ctx = lockId|uuid
                 String[] parts = ctx.split("\\|", 2);
                 if (parts.length != 2) return;
-                plugin.gui().openTrustRole(p, parts[0], UUID.fromString(parts[1]));
+                try {
+                    plugin.gui().openTrustRole(p, parts[0], UUID.fromString(parts[1]));
+                } catch (IllegalArgumentException ignored) {
+                    p.sendMessage(Component.text("Invalid data.", NamedTextColor.RED));
+                }
             }
             case "back_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
             case "set_trust_role" -> {
@@ -205,10 +211,14 @@ public final class GuiListener implements Listener {
                 if (parts.length != 3) return;
                 String level = parts[0];
                 String lockId = parts[1];
-                UUID target = UUID.fromString(parts[2]);
-                var lvl = de.SecureChest.plugin.lock.AccessLevel.fromString(level);
-                boolean ok = lvl != null && plugin.locks().setTrustById(p, lockId, target, lvl);
-                p.sendMessage(ok ? Component.text("Trust updated.", NamedTextColor.GREEN) : Component.text("Failed (not owner / lock missing).", NamedTextColor.RED));
+                try {
+                    UUID target = UUID.fromString(parts[2]);
+                    var lvl = de.SecureChest.plugin.lock.AccessLevel.fromString(level);
+                    boolean ok = lvl != null && plugin.locks().setTrustById(p, lockId, target, lvl);
+                    p.sendMessage(ok ? Component.text("Trust updated.", NamedTextColor.GREEN) : Component.text("Failed (not owner / lock missing).", NamedTextColor.RED));
+                } catch (IllegalArgumentException ignored) {
+                    p.sendMessage(Component.text("Invalid data.", NamedTextColor.RED));
+                }
                 plugin.gui().openLockManage(p, lockId);
             }
 
@@ -359,10 +369,21 @@ public final class GuiListener implements Listener {
         boolean ok = switch (req.type()) {
             case UNLOCK_ONE -> plugin.locks().unlockByIdWithUndo(p, req.data());
             case UNLOCK_ALL_SELF -> plugin.locks().unlockAllWithUndo(p, p.getUniqueId());
-            case GLOBAL_UNLOCK -> plugin.locks().unlockAllWithUndo(p, UUID.fromString(req.data()));
+            case GLOBAL_UNLOCK -> {
+                try {
+                    yield plugin.locks().unlockAllWithUndo(p, UUID.fromString(req.data()));
+                } catch (IllegalArgumentException ignored) {
+                    yield false;
+                }
+            }
             case REMOVE_TRUST -> {
                 String[] parts = req.data().split("\\|", 2);
-                yield parts.length == 2 && plugin.locks().removeTrustById(p, parts[0], UUID.fromString(parts[1]));
+                if (parts.length != 2) yield false;
+                try {
+                    yield plugin.locks().removeTrustById(p, parts[0], UUID.fromString(parts[1]));
+                } catch (IllegalArgumentException ignored) {
+                    yield false;
+                }
             }
             case UNDO_RESTORE -> plugin.locks().restoreUndo(p);
             case LOG_TELEPORT -> handleLogTeleport(p, req.data());

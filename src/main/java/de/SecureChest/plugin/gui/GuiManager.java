@@ -42,7 +42,6 @@ public final class GuiManager {
         this.plugin = plugin;
     }
 
-    // ---------------- Main ----------------
 
     public void openMain(Player p) {
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.MAIN, "");
@@ -127,8 +126,6 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Locks list ----------------
-
     public void openLocksList(Player p, int page) {
         UiStateStore.LockListState st = plugin.ui().locks(p.getUniqueId());
         st.page = Math.max(0, page);
@@ -143,13 +140,11 @@ public final class GuiManager {
             views.add(new LockView(lockId, loc, type));
         }
 
-        // Filters
         if (st.world == UiStateStore.WorldFilter.CURRENT) {
             views.removeIf(v -> v.loc.getWorld() == null || !v.loc.getWorld().equals(p.getWorld()));
         }
         views.removeIf(v -> !matchesTypeFilter(v.type, st.type));
 
-        // Sort
         views.sort(lockComparator(p, st.sort));
 
         int pageSize = 45;
@@ -175,7 +170,6 @@ public final class GuiManager {
             inv.setItem(slot++, lockItem(p, v));
         }
 
-        // Controls
         inv.setItem(45, button(Material.ARROW, "Back", List.of("Return to main menu"), "back_main", ""));
 
         inv.setItem(47, button(Material.HOPPER, "Sort: " + st.sort,
@@ -234,11 +228,15 @@ public final class GuiManager {
         inv.setItem(32, button(Material.DIAMOND, "Add CO_OWNER (by name)",
                 List.of("Type a player name in chat"), "add_trust_name", "CO_OWNER|" + lockId));
 
-        // Trusted list
         int slot = 36;
         List<Map.Entry<UUID, AccessLevel>> trustList = lock.trusted().entrySet().stream()
                 .sorted(Comparator.comparing(e -> e.getValue().name()))
                 .collect(Collectors.toList());
+
+        int trustTotal = trustList.size();
+        String trustCountLabel = trustTotal == 0 ? "No trusted players"
+                : "Trusted: " + trustTotal + (trustTotal > 9 ? " (showing first 9)" : "");
+        inv.setItem(35, info(Material.NAME_TAG, trustCountLabel, List.of()));
 
         for (var e : trustList) {
             if (slot >= 45) break;
@@ -301,8 +299,6 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    // ---------------- Secure hoppers ----------------
-
     public void openHoppersList(Player p, int page) {
         List<Location> hoppers = plugin.locks().listSecureHoppers(p.getUniqueId());
         int pageSize = 45;
@@ -337,8 +333,6 @@ public final class GuiManager {
         p.openInventory(inv);
         soundClick(p);
     }
-
-    // ---------------- Recipe preview ----------------
 
     public void openRecipePreview(Player p, boolean keyRecipe) {
         ShapedRecipe recipe = keyRecipe ? plugin.recipes().chestKeyRecipe() : plugin.recipes().secureHopperRecipe();
