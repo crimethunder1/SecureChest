@@ -56,6 +56,7 @@ public final class GuiListener implements Listener {
         switch (action) {
             case "back_main" -> plugin.gui().openMain(p);
             case "open_help" -> plugin.gui().openHelp(p);
+            case "open_stats" -> plugin.gui().openStats(p);
             case "open_locks", "back_locks" -> plugin.gui().openLocksList(p, plugin.ui().locks(p.getUniqueId()).page);
             case "open_hoppers" -> plugin.gui().openHoppersList(p, 0);
             case "open_recipe_key" -> plugin.gui().openRecipePreview(p, true);
@@ -92,6 +93,7 @@ public final class GuiListener implements Listener {
             case "confirm_undo_restore" -> {
                 int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
                 long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
+                int undoCount = plugin.undos().count(p.getUniqueId());
                 plugin.confirms().set(p.getUniqueId(), new ConfirmRequest(
                         ConfirmType.UNDO_RESTORE,
                         "",
@@ -99,9 +101,9 @@ public final class GuiListener implements Listener {
                         expiresAt
                 ));
                 plugin.gui().openConfirm(p, "Undo", List.of(
-                        "Restore your last unlock operation?",
+                        "Restore the most recent unlock or transfer?",
                         "",
-                        "Only works for the most recent unlock.",
+                        undoCount + " snapshot(s) remaining in history.",
                         ""
                 ));
             }
@@ -183,15 +185,21 @@ public final class GuiListener implements Listener {
             }
             case "open_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
             case "add_trust_name" -> {
-                
                 String[] parts = ctx.split("\\|", 2);
                 if (parts.length != 2) return;
-                String level = parts[0];
+                String level  = parts[0];
                 String lockId = parts[1];
-
+                // UX2: friendly role label in prompt instead of raw enum name
+                String roleLabel = switch (level) {
+                    case "VIEW"     -> "Viewer";
+                    case "STOCKER"  -> "Stocker";
+                    case "CO_OWNER" -> "Co-owner";
+                    default         -> level;
+                };
                 p.closeInventory();
                 plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.AddTrust(lockId, level));
-                p.sendMessage(Component.text("Type a player name to trust as " + level + ". Type 'cancel' to abort.", NamedTextColor.YELLOW));
+                p.sendMessage(Component.text("Type the name of the player to add as " + roleLabel
+                        + ".  Type 'cancel' to abort.", NamedTextColor.YELLOW));
             }
 
             case "open_trust_role" -> {
@@ -220,6 +228,14 @@ public final class GuiListener implements Listener {
                     p.sendMessage(Component.text("Invalid data.", NamedTextColor.RED));
                 }
                 plugin.gui().openLockManage(p, lockId);
+            }
+
+            case "transfer_lock_name" -> {
+                p.closeInventory();
+                plugin.pendingChat().put(p.getUniqueId(), new de.SecureChest.plugin.PendingChatAction.TransferLock(ctx));
+                p.sendMessage(Component.text(
+                        "Type the name of the player to receive this lock.  Type 'cancel' to abort.",
+                        NamedTextColor.YELLOW));
             }
 
             case "hoppers_page" -> plugin.gui().openHoppersList(p, parseInt(ctx));
@@ -269,7 +285,9 @@ public final class GuiListener implements Listener {
                 }
                 p.closeInventory();
                 plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.GlobalUnlock());
-                p.sendMessage(Component.text("Type a player name in chat to global-unlock. Type 'cancel' to abort.", NamedTextColor.YELLOW));
+                p.sendMessage(Component.text(
+                        "Type the player name whose locks you want to remove.  Type 'cancel' to abort.",
+                        NamedTextColor.YELLOW));
             }
             case "open_logs" -> plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
             case "logs_page" -> plugin.gui().openLogs(p, parseInt(ctx));
@@ -286,7 +304,9 @@ public final class GuiListener implements Listener {
             case "logs_set_actor" -> {
                 p.closeInventory();
                 plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.LogActorFilter());
-                p.sendMessage(Component.text("Type an actor name filter (or 'clear' to reset). Type 'cancel' to abort.", NamedTextColor.YELLOW));
+                p.sendMessage(Component.text(
+                        "Type a player name to filter logs, or 'clear' to reset.  Type 'cancel' to abort.",
+                        NamedTextColor.YELLOW));
             }
             case "log_entry" -> {
                 long logId = parseLong(ctx);
@@ -348,13 +368,27 @@ public final class GuiListener implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent e) {
-        
+        if (!(e.getPlayer() instanceof Player p)) return;
+        // BUG FIX (B1): Only intercept close events for our own GUIs.
+        // Previously this fired for ALL inventory closes (chests, furnaces, etc.), which
+        // incorrectly cleared a pending chat action when the player opened a regular container
+        // after starting a chat-input flow (e.g. "Add Viewer by name").
+        if (!(e.getInventory().getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
+
+        // If a chat-input action was already started from the GUI that just closed,
+        // cancel it — the player left without typing.
+        if (plugin.pendingChat().containsKey(p.getUniqueId())) {
+            plugin.pendingChat().remove(p.getUniqueId());
+            p.sendMessage(net.kyori.adventure.text.Component.text(
+                    "Chat input cancelled.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+        }
     }
 
     private void handleConfirm(Player p, boolean yes) {
         var reqOpt = plugin.confirms().get(p.getUniqueId());
         if (reqOpt.isEmpty()) {
-            p.sendMessage(Component.text("Nothing to confirm.", NamedTextColor.RED));
+            // B5 FIX: "Nothing to confirm." was confusing — tell the player exactly what happened
+            p.sendMessage(Component.text("Confirmation timed out — please try again.", NamedTextColor.YELLOW));
             plugin.gui().openMain(p);
             return;
         }
@@ -381,6 +415,16 @@ public final class GuiListener implements Listener {
                 if (parts.length != 2) yield false;
                 try {
                     yield plugin.locks().removeTrustById(p, parts[0], UUID.fromString(parts[1]));
+                } catch (IllegalArgumentException ignored) {
+                    yield false;
+                }
+            }
+            case TRANSFER_LOCK -> {
+                // data = "lockId|newOwnerUUID"
+                String[] parts = req.data().split("\\|", 2);
+                if (parts.length != 2) yield false;
+                try {
+                    yield plugin.locks().transferLock(p, parts[0], UUID.fromString(parts[1]));
                 } catch (IllegalArgumentException ignored) {
                     yield false;
                 }

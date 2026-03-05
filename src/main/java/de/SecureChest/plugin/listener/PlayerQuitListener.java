@@ -1,22 +1,74 @@
 package de.SecureChest.plugin.listener;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.lock.Notification;
+import de.SecureChest.plugin.lock.SqlLockService;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
-
-
-
-
 public final class PlayerQuitListener implements Listener {
+
+    private static final DateTimeFormatter DF =
+            DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final ChestSecurePlugin plugin;
 
     public PlayerQuitListener(ChestSecurePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /**
+     * On join:
+     *  1) Pre-load player settings asynchronously (avoids sync DB reads on first interaction).
+     *  2) Fetch and schedule any pending offline notifications (shown 10 s after join).
+     */
+    @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        UUID uuid = e.getPlayer().getUniqueId();
+
+        if (plugin.locks() instanceof SqlLockService sls) {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                // 1) Pre-load settings
+                sls.preloadPlayerSettings(uuid);
+
+                // 2) Fetch offline notifications
+                if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
+                List<Notification> notifications = sls.fetchAndClearNotifications(uuid);
+                if (notifications.isEmpty()) return;
+
+                // Schedule display on main thread, 10 seconds after join
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    var player = Bukkit.getPlayer(uuid);
+                    if (player == null || !player.isOnline()) return;
+
+                    int count = notifications.size();
+                    String plural = count == 1 ? "alert" : "alerts";
+                    player.sendMessage(
+                        Component.text("[ ChestSecure ] ", NamedTextColor.GOLD)
+                            .append(Component.text(count + " missed " + plural + " while you were offline:",
+                                    NamedTextColor.YELLOW)));
+                    for (Notification n : notifications) {
+                        String time = DF.format(Instant.ofEpochMilli(n.createdAt()));
+                        player.sendMessage(
+                            Component.text("  " + time + "  ", NamedTextColor.DARK_GRAY)
+                                .append(Component.text(n.message(), NamedTextColor.WHITE)));
+                    }
+                    player.sendMessage(
+                        Component.text("Use /cs to manage your locks.", NamedTextColor.GRAY));
+                }, 200L); // 200 ticks = 10 seconds
+            });
+        }
     }
 
     @EventHandler
@@ -26,8 +78,8 @@ public final class PlayerQuitListener implements Listener {
         plugin.confirms().clear(uuid);
         plugin.undos().clear(uuid);
         plugin.ui().cleanup(uuid);
-        
-        if (plugin.locks() instanceof de.SecureChest.plugin.lock.SqlLockService sls) {
+
+        if (plugin.locks() instanceof SqlLockService sls) {
             sls.evictPlayerCache(uuid);
         }
     }

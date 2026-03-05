@@ -9,6 +9,7 @@ import de.SecureChest.plugin.listener.TrustChatListener;
 import de.SecureChest.plugin.lock.LockService;
 import de.SecureChest.plugin.lock.SqlLockService;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
+import de.SecureChest.plugin.sign.SignManager;
 import de.SecureChest.plugin.ui.ConfirmManager;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.ui.UndoManager;
@@ -33,30 +34,30 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private RecipeRegistry recipes;
     private GuiManager gui;
     private Items items;
+    private SignManager signManager;
 
     private ConfirmManager confirmManager;
     private UndoManager undoManager;
     private UiStateStore uiState;
 
-    
     private final Map<UUID, PendingChatAction> pendingChat = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
-        this.KEY_ITEM_TYPE = new NamespacedKey(this, "item_type");
-        this.KEY_GUI_ACTION = new NamespacedKey(this, "gui_action");
-        this.KEY_GUI_CONTEXT = new NamespacedKey(this, "gui_context");
+        this.KEY_ITEM_TYPE          = new NamespacedKey(this, "item_type");
+        this.KEY_GUI_ACTION         = new NamespacedKey(this, "gui_action");
+        this.KEY_GUI_CONTEXT        = new NamespacedKey(this, "gui_context");
         this.KEY_SECURE_HOPPER_BLOCK = new NamespacedKey(this, "secure_hopper_block");
 
         this.items = new Items(this);
 
+        int maxUndoHistory = getConfig().getInt("ui.max_undo_history", 5);
         this.confirmManager = new ConfirmManager();
-        this.undoManager = new UndoManager();
-        this.uiState = new UiStateStore();
+        this.undoManager    = new UndoManager(maxUndoHistory);
+        this.uiState        = new UiStateStore();
 
-        
         this.database = new DatabaseManager(this);
         if (!database.init()) {
             getLogger().severe("Failed to initialize database. Disabling plugin.");
@@ -64,90 +65,53 @@ public final class ChestSecurePlugin extends JavaPlugin {
             return;
         }
 
-        this.lockService = new SqlLockService(this, database);
+        this.signManager = new SignManager(this);
+        // BUG FIX: pass sign spawn callback directly into constructor so it is set
+        // BEFORE the async cache-warm task runs (eliminates the postWarm race condition).
+        SqlLockService sls = new SqlLockService(this, database, () -> signManager.spawnAllSigns());
+        this.lockService = sls;
 
-        
         this.recipes = new RecipeRegistry(this);
         this.recipes.registerAll();
 
-        
         this.gui = new GuiManager(this);
 
-        
         PluginCommand cmd = getCommand("chestsecure");
         if (cmd != null) {
             cmd.setExecutor(new ChestSecureCommand(this));
         } else {
-            getLogger().warning("Command 'chestsecure' not found in plugin.yml - /cs will not work.");
+            getLogger().warning("Command 'chestsecure' not found in plugin.yml.");
         }
 
-        
         getServer().getPluginManager().registerEvents(new ProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
         getServer().getPluginManager().registerEvents(new TrustChatListener(this), this);
         getServer().getPluginManager().registerEvents(new de.SecureChest.plugin.listener.PlayerQuitListener(this), this);
+        getServer().getPluginManager().registerEvents(signManager, this);
 
         getLogger().info("ChestSecure enabled.");
     }
 
     @Override
     public void onDisable() {
-        if (database != null) {
-            database.close();
-        }
+        if (database != null) database.close();
         pendingChat.clear();
         getLogger().info("ChestSecure disabled.");
     }
 
-    public NamespacedKey keyItemType() {
-        return KEY_ITEM_TYPE;
-    }
+    public NamespacedKey keyItemType()          { return KEY_ITEM_TYPE; }
+    public NamespacedKey keyGuiAction()         { return KEY_GUI_ACTION; }
+    public NamespacedKey keyGuiContext()        { return KEY_GUI_CONTEXT; }
+    public NamespacedKey keySecureHopperBlock() { return KEY_SECURE_HOPPER_BLOCK; }
 
-    public NamespacedKey keyGuiAction() {
-        return KEY_GUI_ACTION;
-    }
-
-    public NamespacedKey keyGuiContext() {
-        return KEY_GUI_CONTEXT;
-    }
-
-    public NamespacedKey keySecureHopperBlock() {
-        return KEY_SECURE_HOPPER_BLOCK;
-    }
-
-    public DatabaseManager db() {
-        return database;
-    }
-
-    public LockService locks() {
-        return lockService;
-    }
-
-    public RecipeRegistry recipes() {
-        return recipes;
-    }
-
-    public GuiManager gui() {
-        return gui;
-    }
-
-    public ConfirmManager confirms() {
-        return confirmManager;
-    }
-
-    public UndoManager undos() {
-        return undoManager;
-    }
-
-    public UiStateStore ui() {
-        return uiState;
-    }
-
-    public Items items() {
-        return items;
-    }
-
-    public Map<UUID, PendingChatAction> pendingChat() {
-        return pendingChat;
-    }
+    public DatabaseManager db()        { return database; }
+    public LockService locks()         { return lockService; }
+    public RecipeRegistry recipes()    { return recipes; }
+    public GuiManager gui()            { return gui; }
+    public ConfirmManager confirms()   { return confirmManager; }
+    public UndoManager undos()         { return undoManager; }
+    public UiStateStore ui()           { return uiState; }
+    public Items items()               { return items; }
+    public SignManager signs()         { return signManager; }
+    public Map<UUID, PendingChatAction> pendingChat() { return pendingChat; }
 }

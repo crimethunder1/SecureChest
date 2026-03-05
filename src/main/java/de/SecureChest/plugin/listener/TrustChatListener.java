@@ -65,9 +65,15 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
-            
+            // BUG FIX: Bukkit.getOfflinePlayer(String) can block the main thread with a
+            // Mojang UUID lookup. Use getOfflinePlayerIfCached instead and reject unknown names.
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
-            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayer(msg);
+            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
+            if (target == null || target.getUniqueId() == null) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text("Player '" + msg + "' not found. They must have joined this server at least once.", NamedTextColor.RED));
+                return;
+            }
 
             boolean ok = plugin.locks().setTrustById(p, at.lockId(), target.getUniqueId(), level);
             plugin.pendingChat().remove(uuid);
@@ -89,7 +95,13 @@ public final class TrustChatListener implements Listener {
             }
 
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
-            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayer(msg);
+            // BUG FIX: same non-blocking lookup as AddTrust above
+            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
+            if (target == null || target.getUniqueId() == null) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text("Player '" + msg + "' not found. They must have joined this server at least once.", NamedTextColor.RED));
+                return;
+            }
 
             plugin.pendingChat().remove(uuid);
 
@@ -129,6 +141,44 @@ public final class TrustChatListener implements Listener {
                     : Component.text("Logs actor filter set to: " + filter, NamedTextColor.YELLOW));
 
             plugin.gui().openLogs(p, 0);
+            return; // BUG FIX: missing return — without this the TransferLock check below
+                    // also runs on the same action object (harmless due to sealed types, but
+                    // wrong and could break if the sealed hierarchy is ever extended)
+        }
+
+        // FEATURE: Lock Transfer – chat input for new owner name
+        if (action instanceof PendingChatAction.TransferLock tl) {
+            OfflinePlayer online = Bukkit.getPlayerExact(msg);
+            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
+            if (target == null || target.getUniqueId() == null) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text("Player '" + msg + "' not found. They must have joined this server at least once.", NamedTextColor.RED));
+                return;
+            }
+            plugin.pendingChat().remove(uuid);
+
+            String display = target.getName() != null ? target.getName() : msg;
+            int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+            long expiresAt = System.currentTimeMillis() + (ttlSeconds * 1000L);
+
+            plugin.confirms().set(uuid, new de.SecureChest.plugin.ui.ConfirmRequest(
+                    de.SecureChest.plugin.ui.ConfirmType.TRANSFER_LOCK,
+                    tl.lockId() + "|" + target.getUniqueId(),
+                    "LOCK_MANAGE|" + tl.lockId(),
+                    expiresAt
+            ));
+
+            plugin.gui().openConfirm(p,
+                    "Transfer Lock",
+                    java.util.List.of(
+                            "Transfer this lock to:",
+                            display,
+                            "",
+                            "The trust list will be cleared.",
+                            "An Undo will be available after.",
+                            ""
+                    )
+            );
         }
     }
 }

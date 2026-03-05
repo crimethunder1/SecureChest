@@ -22,18 +22,15 @@ public final class DatabaseManager {
                 plugin.getLogger().severe("Could not create plugin data folder.");
                 return false;
             }
-
             File dbFile = new File(dir, "chestsecure.db");
             this.jdbcUrl = "jdbc:sqlite:" + dbFile.getAbsolutePath();
 
-            try {
-                Class.forName("org.sqlite.JDBC");
-            } catch (ClassNotFoundException ignored) {
-                plugin.getLogger().warning("SQLite JDBC driver class not found. Paper should bundle it. Attempting to continue...");
+            try { Class.forName("org.sqlite.JDBC"); }
+            catch (ClassNotFoundException ignored) {
+                plugin.getLogger().warning("SQLite JDBC driver not found — trying to continue...");
             }
 
-            try (Connection c = getConnection();
-                 Statement st = c.createStatement()) {
+            try (Connection c = getConnection(); Statement st = c.createStatement()) {
                 st.execute("PRAGMA foreign_keys = ON;");
             }
 
@@ -46,8 +43,7 @@ public final class DatabaseManager {
     }
 
     private void createTables() throws SQLException {
-        try (Connection c = getConnection();
-             Statement st = c.createStatement()) {
+        try (Connection c = getConnection(); Statement st = c.createStatement()) {
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS locks (" +
@@ -116,27 +112,36 @@ public final class DatabaseManager {
                 " quick_remove INTEGER NOT NULL DEFAULT 0" +
                 ");"
             );
-            
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_locks_owner ON locks(owner_uuid);");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_created ON logs(created_at);");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_action ON logs(action);");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_actor ON logs(actor_name);");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_secure_hoppers_owner ON secure_hoppers(owner_uuid);");
+
+            // FEATURE: Persistent offline notifications
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS notifications (" +
+                " id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                " owner_uuid TEXT NOT NULL," +
+                " message TEXT NOT NULL," +
+                " created_at INTEGER NOT NULL" +
+                ");"
+            );
+
+            // Indexes
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_locks_owner       ON locks(owner_uuid);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_created      ON logs(created_at);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_action       ON logs(action);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_actor        ON logs(actor_name);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_hoppers_owner     ON secure_hoppers(owner_uuid);");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_notifications_owner ON notifications(owner_uuid);");
         }
     }
 
     public Connection getConnection() throws SQLException {
         Connection c = DriverManager.getConnection(jdbcUrl);
-        
         try (Statement st = c.createStatement()) {
             st.execute("PRAGMA foreign_keys = ON;");
-        } catch (SQLException ignored) {
-            
-        }
+        } catch (SQLException ignored) {}
         return c;
     }
 
     public void close() {
-        
+        // SQLite JDBC connections are closed per-use; nothing to close here.
     }
 }

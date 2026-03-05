@@ -5,6 +5,7 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,30 +18,30 @@ public interface LockService {
 
     Optional<LockEntry> getLockFromId(String lockId);
 
+    /**
+     * Returns all LockEntry objects currently in the in-memory cache.
+     * Used by SignManager to iterate all locks without a DB round-trip.
+     */
+    Collection<LockEntry> getAllCachedLocks();
+
     boolean lock(Player owner, Block block);
 
     boolean unlock(Player caller, Block block);
 
     boolean unlockById(Player caller, String lockId);
 
-    
-
-
     boolean unlockByIdWithUndo(Player actor, String lockId);
 
     boolean unlockAll(UUID owner);
 
-    
-
-
     boolean unlockAllWithUndo(Player actor, UUID owner);
-
-    
-
 
     boolean restoreUndo(Player actor);
 
     boolean hasUndo(Player actor);
+
+    // NEW: Transfer ownership of a lock to another player
+    boolean transferLock(Player actor, String lockId, UUID newOwner);
 
     boolean canOpen(Player player, Block block, boolean usingAdminKey);
 
@@ -58,7 +59,9 @@ public interface LockService {
 
     List<Location> listLocks(UUID owner);
 
-    
+    // NEW: aggregate statistics for a player's locks
+    LockStats getLockStats(UUID owner);
+
     boolean isSecureHopper(Block hopperBlock);
 
     Optional<SecureHopperEntry> getSecureHopper(Block hopperBlock);
@@ -69,19 +72,20 @@ public interface LockService {
 
     List<Location> listSecureHoppers(UUID owner);
 
-    
     boolean getQuickLock(UUID player);
     boolean getQuickRemove(UUID player);
     void setQuickLock(UUID player, boolean value);
     void setQuickRemove(UUID player, boolean value);
 
-    
     void logUnauthorizedBreak(Player actor, Block target);
     void logAdminBreak(Player actor, Block target);
 
+    // NEW: Notification persistence
+    void addNotification(UUID ownerUuid, String message);
+    List<Notification> fetchAndClearNotifications(UUID playerUuid); // called from async context
+
     ItemStack createLogsBook(int maxEntries);
 
-    
     List<LogRecord> listLogs(String actionFilter, long minCreatedAt, String actorNameLike, int offset, int limit);
     int countLogs(String actionFilter, long minCreatedAt, String actorNameLike);
     Optional<LogRecord> getLogById(long id);

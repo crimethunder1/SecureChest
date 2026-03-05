@@ -12,11 +12,23 @@ ui:
   confirm_timeout_seconds: 15
   undo_seconds: 20
   trust_nearby_radius: 32.0
+  # FEATURE: how many undo snapshots to keep per player (default 5)
+  max_undo_history: 5
 
 auto_lock:
   enabled: false
   require_key: true
   sneak_only: false
+
+# FEATURE: floating TextDisplay name tags above locked containers
+signs:
+  enabled: true
+
+# FEATURE: break-attempt notifications (online: immediate, offline: shown on next login)
+notifications:
+  enabled: true
+  # max notifications stored per player before oldest are purged
+  max_per_player: 20
 
 admin:
   logs:

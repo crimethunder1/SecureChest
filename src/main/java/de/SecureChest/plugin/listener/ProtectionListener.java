@@ -41,6 +41,12 @@ public final class ProtectionListener implements Listener {
     private final ChestSecurePlugin plugin;
     private final Worlds worlds;
 
+    // BUG FIX: throttle break-attempt notifications (30s per attacker+block pair)
+    // to prevent grief bots from flooding the notifications DB table.
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> notifyCooldowns =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long NOTIFY_COOLDOWN_MS = 30_000L;
+
     public ProtectionListener(ChestSecurePlugin plugin) {
         this.plugin = plugin;
         this.worlds = new Worlds(plugin);
@@ -120,18 +126,19 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        
+        // Access check — tell the player who owns it
         if (plugin.locks().isLocked(b)) {
             boolean allowed = plugin.locks().canOpen(e.getPlayer(), b, isAdminKey);
             if (!allowed) {
                 e.setCancelled(true);
-                feedbackFail(e.getPlayer(), "Locked.");
+                String owner = plugin.locks().getLock(b)
+                        .map(le -> nameOf(le.owner())).orElse("someone");
+                feedbackFail(e.getPlayer(), "This block is locked by " + owner + ".");
                 return;
             }
         }
 
-        
-        
+        // Secure Hopper access check
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             SecureHopperEntry shEntry = plugin.locks().getSecureHopper(b).orElse(null);
             if (shEntry != null) {
@@ -139,7 +146,7 @@ public final class ProtectionListener implements Listener {
                         || shEntry.owner().equals(e.getPlayer().getUniqueId());
                 if (!allowed) {
                     e.setCancelled(true);
-                    feedbackFail(e.getPlayer(), "Protected.");
+                    feedbackFail(e.getPlayer(), "This Secure Hopper belongs to " + nameOf(shEntry.owner()) + ".");
                     return;
                 }
             }
@@ -189,8 +196,12 @@ public final class ProtectionListener implements Listener {
     }
 
     private String nameOf(UUID uuid) {
-        OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
-        return op.getName() != null ? op.getName() : uuid.toString();
+        // Non-blocking: check online players first, then the server name cache
+        org.bukkit.entity.Player online = Bukkit.getPlayer(uuid);
+        if (online != null) return online.getName();
+        OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(uuid.toString());
+        if (cached != null && cached.getName() != null) return cached.getName();
+        return uuid.toString().substring(0, 8);
     }
 
     
@@ -274,7 +285,7 @@ public final class ProtectionListener implements Listener {
 
         if (!plugin.locks().canBreak(e.getPlayer(), b)) {
             e.setCancelled(true);
-            feedbackFail(e.getPlayer(), "Protected.");
+            feedbackFail(e.getPlayer(), "You cannot break this protected block.");
         }
     }
 
@@ -290,7 +301,13 @@ public final class ProtectionListener implements Listener {
         if (!plugin.locks().canBreak(e.getPlayer(), b)) {
             e.setCancelled(true);
             plugin.locks().logUnauthorizedBreak(e.getPlayer(), b);
-            feedbackFail(e.getPlayer(), "You cannot break this.");
+            // Show owner name so the player knows who to contact
+            String owner = plugin.locks().getLock(b).map(le -> nameOf(le.owner()))
+                    .orElseGet(() -> plugin.locks().getSecureHopper(b)
+                            .map(sh -> nameOf(sh.owner())).orElse("someone"));
+            feedbackFail(e.getPlayer(), "You cannot break this — it belongs to " + owner + ".");
+            // FEATURE: notify the lock owner (online: immediate chat, offline: stored in DB)
+            sendBreakNotification(e.getPlayer(), b, locked, secureHopper);
             return;
         }
 
@@ -309,9 +326,12 @@ public final class ProtectionListener implements Listener {
             }
         }
 
-        
+        // BUG FIX: use the undo-capable unlock so players can recover accidentally broken locks.
         if (locked) {
-            plugin.locks().unlock(e.getPlayer(), b);
+            String lockId = plugin.locks().getLock(b).map(le -> le.key().asId()).orElse(null);
+            if (lockId != null) {
+                plugin.locks().unlockByIdWithUndo(e.getPlayer(), lockId);
+            }
         }
         if (secureHopper) {
             plugin.locks().removeSecureHopper(b);
@@ -319,7 +339,11 @@ public final class ProtectionListener implements Listener {
             b.getWorld().dropItemNaturally(b.getLocation(), plugin.items().secureHopper());
         }
 
-        feedbackOk(e.getPlayer(), "Removed.");
+        if (locked) {
+            feedbackOk(e.getPlayer(), "Lock removed. Use /cs to undo.");
+        } else {
+            feedbackOk(e.getPlayer(), "Secure Hopper removed.");
+        }
     }
 
     
@@ -484,6 +508,12 @@ public final class ProtectionListener implements Listener {
         if (!plugin.locks().isLocked(container)) return;
 
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
+        // BUG FIX: null means the player has no access at all (e.g. trust was revoked
+        // while the inventory was open). Cancel ALL interactions for null-access players.
+        if (level == null) {
+            e.setCancelled(true);
+            return;
+        }
         if (level != AccessLevel.VIEW) return;
 
         
@@ -520,6 +550,11 @@ public final class ProtectionListener implements Listener {
         if (!plugin.locks().isLocked(container)) return;
 
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
+        // BUG FIX: null means no access (e.g. trust revoked while chest is open) — block drags too.
+        if (level == null) {
+            e.setCancelled(true);
+            return;
+        }
         if (level != AccessLevel.VIEW) return;
 
         
@@ -538,6 +573,51 @@ public final class ProtectionListener implements Listener {
             if (plugin.items().is(it, Items.Type.CHEST_KEY)) return true;
         }
         return plugin.items().is(p.getInventory().getItemInOffHand(), Items.Type.CHEST_KEY);
+    }
+
+    /** Notify the lock owner when someone attempts to break their protected block. */
+    private void sendBreakNotification(Player attacker, Block b, boolean isLocked, boolean isHopper) {
+        if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
+
+        UUID ownerUuid = null;
+        String blockTypeName = b.getType().name().replace("_", " ").toLowerCase();
+
+        if (isLocked) {
+            var lockOpt = plugin.locks().getLock(b);
+            if (lockOpt.isPresent()) ownerUuid = lockOpt.get().owner();
+        } else if (isHopper) {
+            var hopperOpt = plugin.locks().getSecureHopper(b);
+            if (hopperOpt.isPresent()) ownerUuid = hopperOpt.get().owner();
+        }
+        if (ownerUuid == null || ownerUuid.equals(attacker.getUniqueId())) return;
+
+        // BUG FIX: rate-limit so a grief bot can't spam the notifications table.
+        String cooldownKey = attacker.getUniqueId() + ":" + b.getX() + ":" + b.getY() + ":" + b.getZ();
+        long now = System.currentTimeMillis();
+        Long last = notifyCooldowns.get(cooldownKey);
+        if (last != null && (now - last) < NOTIFY_COOLDOWN_MS) return;
+        notifyCooldowns.put(cooldownKey, now);
+        // Prune old entries to prevent memory accumulation
+        if (notifyCooldowns.size() > 500) {
+            notifyCooldowns.entrySet().removeIf(e -> (now - e.getValue()) > NOTIFY_COOLDOWN_MS);
+        }
+
+        World w = b.getWorld();
+        String location = (w != null ? w.getName() : "?") + " " + b.getX() + " " + b.getY() + " " + b.getZ();
+        String message = attacker.getName() + " tried to break your " + blockTypeName + " at " + location;
+
+        final UUID finalOwner = ownerUuid;
+        final String finalMsg = message;
+
+        org.bukkit.entity.Player onlineOwner = org.bukkit.Bukkit.getPlayer(ownerUuid);
+        if (onlineOwner != null && onlineOwner.isOnline()) {
+            onlineOwner.sendMessage(
+                net.kyori.adventure.text.Component.text("⚠ [ChestSecure] ", net.kyori.adventure.text.format.NamedTextColor.RED)
+                    .append(net.kyori.adventure.text.Component.text(finalMsg, net.kyori.adventure.text.format.NamedTextColor.YELLOW))
+            );
+        } else {
+            plugin.locks().addNotification(finalOwner, finalMsg);
+        }
     }
 
 
