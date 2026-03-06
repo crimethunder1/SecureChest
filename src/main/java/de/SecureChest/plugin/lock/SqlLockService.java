@@ -461,6 +461,12 @@ public final class SqlLockService implements LockService {
         if (entry == null) entry = getLockFromId(id).orElse(null);
         if (entry == null) return false;
 
+        // entry is conditionally reassigned above, so it is NOT effectively-final.
+        // Capture effectively-final copies for the async lambdas below.
+        final LockKey finalKey = key;
+        final String finalId = id;
+        final LockEntry originalEntry = entry;
+
         boolean allowed = actor.hasPermission("chestsecure.admin") || entry.owner().equals(actor.getUniqueId());
         if (!allowed) return false;
         if (entry.owner().equals(newOwner)) return false; // already owner
@@ -471,12 +477,12 @@ public final class SqlLockService implements LockService {
         UndoSnapshot snapshot = snapshotForSingleLock(key, entry);
 
         // Update cache: replace entry with new owner, clear trust list (new owner decides)
-        LockEntry transferred = new LockEntry(key, entry.blockType(), newOwner, entry.createdAt());
-        lockCache.put(id, transferred);
+        LockEntry transferred = new LockEntry(finalKey, originalEntry.blockType(), newOwner, originalEntry.createdAt());
+        lockCache.put(finalId, transferred);
 
         // Update sign to show new owner
-        plugin.signs().removeSign(id);
-        plugin.signs().spawnSign(key, ownerName(newOwner));
+        plugin.signs().removeSign(finalId);
+        plugin.signs().spawnSign(finalKey, ownerName(newOwner));
 
         final String newOwnerStr = newOwner.toString();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -486,25 +492,25 @@ public final class SqlLockService implements LockService {
                 try (PreparedStatement ps = c.prepareStatement(
                         "UPDATE locks SET owner_uuid=? WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
                     ps.setString(1, newOwnerStr);
-                    ps.setString(2, key.worldUuid().toString());
-                    ps.setInt(3, key.x()); ps.setInt(4, key.y()); ps.setInt(5, key.z());
+                    ps.setString(2, finalKey.worldUuid().toString());
+                    ps.setInt(3, finalKey.x()); ps.setInt(4, finalKey.y()); ps.setInt(5, finalKey.z());
                     ps.executeUpdate();
                 }
                 // Clear trust list – new owner manages it from scratch
                 try (PreparedStatement ps = c.prepareStatement(
                         "DELETE FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
-                    ps.setString(1, key.worldUuid().toString());
-                    ps.setInt(2, key.x()); ps.setInt(3, key.y()); ps.setInt(4, key.z());
+                    ps.setString(1, finalKey.worldUuid().toString());
+                    ps.setInt(2, finalKey.x()); ps.setInt(3, finalKey.y()); ps.setInt(4, finalKey.z());
                     ps.executeUpdate();
                 }
                 c.commit();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB transferLock persist failed", ex);
                 // Rollback in-memory state
-                lockCache.put(id, entry);
+                lockCache.put(finalId, originalEntry);
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    plugin.signs().removeSign(id);
-                    plugin.signs().spawnSign(key, ownerName(entry.owner()));
+                    plugin.signs().removeSign(finalId);
+                    plugin.signs().spawnSign(finalKey, ownerName(originalEntry.owner()));
                 });
             }
         });
