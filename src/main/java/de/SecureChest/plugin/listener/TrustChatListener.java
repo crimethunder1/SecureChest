@@ -27,8 +27,7 @@ public final class TrustChatListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onChat(AsyncChatEvent e) {
-        
-        
+
         final UUID uuid = e.getPlayer().getUniqueId();
         final PendingChatAction action = plugin.pendingChat().get(uuid);
         if (action == null) return;
@@ -47,7 +46,6 @@ public final class TrustChatListener implements Listener {
         Player p = Bukkit.getPlayer(uuid);
         if (p == null) return;
 
-        
         PendingChatAction action = plugin.pendingChat().get(uuid);
         if (action == null) return;
 
@@ -65,8 +63,6 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
-            // BUG FIX: Bukkit.getOfflinePlayer(String) can block the main thread with a
-            // Mojang UUID lookup. Use getOfflinePlayerIfCached instead and reject unknown names.
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
@@ -95,7 +91,7 @@ public final class TrustChatListener implements Listener {
             }
 
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
-            // BUG FIX: same non-blocking lookup as AddTrust above
+
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
                 plugin.pendingChat().remove(uuid);
@@ -141,12 +137,10 @@ public final class TrustChatListener implements Listener {
                     : Component.text("Logs actor filter set to: " + filter, NamedTextColor.YELLOW));
 
             plugin.gui().openLogs(p, 0);
-            return; // BUG FIX: missing return — without this the TransferLock check below
-                    // also runs on the same action object (harmless due to sealed types, but
-                    // wrong and could break if the sealed hierarchy is ever extended)
+            return;
+
         }
 
-        // FEATURE: Lock Transfer – chat input for new owner name
         if (action instanceof PendingChatAction.TransferLock tl) {
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);

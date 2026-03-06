@@ -18,7 +18,7 @@ public final class ChestSecureHolder implements InventoryHolder {
         ADMIN,
         LOGS_LIST,
         CONFIRM,
-        STATS     // NEW: per-player lock statistics screen
+        STATS
     }
 
     private final GuiId id;

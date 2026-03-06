@@ -4,9 +4,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-
-
-
 public final class UiStateStore {
 
     public enum LockSort {
@@ -100,7 +97,6 @@ public final class UiStateStore {
         inspectMode.put(player, on);
     }
 
-    
     public void cleanup(UUID player) {
         locks.remove(player);
         logs.remove(player);

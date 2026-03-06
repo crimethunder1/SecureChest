@@ -42,10 +42,8 @@ public final class GuiManager {
         this.plugin = plugin;
     }
 
-    
-
     public void openMain(Player p) {
-        // UX FIX: getLockStats iterates the cache once instead of two separate passes
+
         de.SecureChest.plugin.lock.LockStats stats = plugin.locks().getLockStats(p.getUniqueId());
 
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.MAIN, "");
@@ -149,8 +147,6 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    
-
     public void openLocksList(Player p, int page) {
         UiStateStore.LockListState st = plugin.ui().locks(p.getUniqueId());
         st.page = Math.max(0, page);
@@ -168,13 +164,11 @@ public final class GuiManager {
             views.add(new LockView(lockId, loc, type, trustedCount, createdAt));
         }
 
-        
         if (st.world == UiStateStore.WorldFilter.CURRENT) {
             views.removeIf(v -> v.loc.getWorld() == null || !v.loc.getWorld().equals(p.getWorld()));
         }
         views.removeIf(v -> !matchesTypeFilter(v.type, st.type));
 
-        
         views.sort(lockComparator(p, st.sort));
 
         int pageSize = 45;
@@ -192,12 +186,12 @@ public final class GuiManager {
         if (views.isEmpty()) {
             boolean hasAnyLocks = !plugin.locks().listLocks(p.getUniqueId()).isEmpty();
             if (hasAnyLocks) {
-                // Locks exist but filtered out
+
                 inv.setItem(22, info(Material.COMPASS, "No locks match current filters",
                         List.of(inf("Try changing World or Type filters below."),
                                 action("Reset filters: set World=ALL, Type=ALL"))));
             } else {
-                // Player has no locks at all
+
                 inv.setItem(22, info(Material.CHEST, "No locked blocks yet",
                         List.of(inf("Craft a Chest Key and right-click a chest,"),
                                 inf("barrel, hopper, or shulker box to lock it."),
@@ -211,7 +205,6 @@ public final class GuiManager {
             inv.setItem(slot++, lockItem(p, v));
         }
 
-        
         inv.setItem(45, button(Material.ARROW, "Back", List.of("Return to main menu"), "back_main", ""));
 
         inv.setItem(47, button(Material.HOPPER, "Sort: " + st.sort,
@@ -262,7 +255,6 @@ public final class GuiManager {
         inv.setItem(13, button(Material.PAPER, "Copy Coords",
                 List.of(inf("Prints coordinates to chat"), action("Click to copy")), "copy_lock", lockId));
 
-        // UX FIX U1: only show destructive/management buttons to owner or admin
         if (canManage) {
             inv.setItem(16, button(Material.BARRIER, "Remove Lock",
                     List.of(warn("Permanently removes this lock"), hint("Requires confirmation — undo available")), "confirm_unlock_one", lockId));
@@ -271,7 +263,6 @@ public final class GuiManager {
                     List.of(inf("Hand this lock to another player"), warn("Trust list will be reset"), hint("Undo available afterwards")),
                     "transfer_lock_name", lockId));
 
-            // UX FIX U10: use human-readable role labels
             inv.setItem(28, button(Material.PLAYER_HEAD, "Add Trusted Player (nearby)",
                     List.of(inf("Pick from online players within range")), "open_trust_nearby", lockId));
             inv.setItem(30, button(Material.MAP, "Add Viewer (by name)",
@@ -310,7 +301,6 @@ public final class GuiManager {
         Inventory inv = Bukkit.createInventory(holder, 54, Component.text("Nearby Players — Add Trust"));
         holder.setInventory(inv);
 
-        // Build a map of existing trust for this lock so we can show current roles
         java.util.Map<UUID, AccessLevel> existingTrust = plugin.locks().getLockFromId(lockId)
                 .map(le -> new java.util.HashMap<>(le.trusted()))
                 .orElse(new java.util.HashMap<>());
@@ -383,7 +373,6 @@ public final class GuiManager {
                         currentDesc, action(current == AccessLevel.CO_OWNER ? "Click to reapply" : "Click to assign")),
                 "set_trust_role", "CO_OWNER|" + lockId + "|" + target));
 
-        // Show a "Remove Access" button if the player is currently trusted
         if (current != null) {
             inv.setItem(26, button(Material.BARRIER, "Remove Access: " + name,
                     List.of(warn("Remove all access for this player"), hint("Requires confirmation")),
@@ -395,8 +384,6 @@ public final class GuiManager {
         p.openInventory(inv);
         soundClick(p);
     }
-
-    
 
     public void openHoppersList(Player p, int page) {
         List<Location> hoppers = plugin.locks().listSecureHoppers(p.getUniqueId());
@@ -414,7 +401,7 @@ public final class GuiManager {
         int slot = 0;
         for (int i = start; i < end; i++) {
             Location loc = hoppers.get(i);
-            if (loc.getWorld() == null) continue; 
+            if (loc.getWorld() == null) continue;
             String hopperId = LockKey.fromLocation(loc).asId();
             inv.setItem(slot++, hopperItem(loc, hopperId));
         }
@@ -433,8 +420,6 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    
-
     public void openRecipePreview(Player p, boolean keyRecipe) {
         ShapedRecipe recipe = keyRecipe ? plugin.recipes().chestKeyRecipe() : plugin.recipes().secureHopperRecipe();
         if (recipe == null) {
@@ -452,7 +437,6 @@ public final class GuiManager {
         String[] shape = recipe.getShape();
         Map<Character, ItemStack> ingredients = new HashMap<>();
 
-        
         for (Map.Entry<Character, RecipeChoice> me : recipe.getChoiceMap().entrySet()) {
             if (me.getValue() != null) {
                 ingredients.put(me.getKey(), me.getValue().getItemStack());
@@ -477,12 +461,6 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    
-
-    // -------------------------------------------------------------------------
-    // FEATURE: Lock Statistics screen
-    // -------------------------------------------------------------------------
-
     public void openStats(Player p) {
         de.SecureChest.plugin.lock.LockStats st = plugin.locks().getLockStats(p.getUniqueId());
 
@@ -502,7 +480,6 @@ public final class GuiManager {
         }
         inv.setItem(4, info(Material.NETHER_STAR, p.getName() + "'s Lock Overview", overviewLore));
 
-        // UX FIX U7: different icons so Hopper (locked) and Secure Hopper are distinct
         inv.setItem(10, info(Material.CHEST,               "Chests: "          + st.chestCount(),        List.of()));
         inv.setItem(11, info(Material.TRAPPED_CHEST,       "Trapped Chests: "  + st.trappedChestCount(), List.of()));
         inv.setItem(12, info(Material.BARREL,              "Barrels: "         + st.barrelCount(),       List.of()));
@@ -515,8 +492,6 @@ public final class GuiManager {
         p.openInventory(inv);
         soundClick(p);
     }
-
-    // -------------------------------------------------------------------------
 
     public void openAdmin(Player p) {
         if (!p.hasPermission("chestsecure.admin")) {
@@ -532,7 +507,7 @@ public final class GuiManager {
         boolean inspect = plugin.ui().inspect(p.getUniqueId());
 
         inv.setItem(19, button(Material.NETHER_STAR, "Get Admin Key", List.of("Click to receive Admin Key"), "give_admin_key", ""));
-        
+
         inv.setItem(21, button(Material.WRITTEN_BOOK, "Activity Log Book", List.of(inf("Latest log entries printed in a book")), "give_logs_book", ""));
         inv.setItem(23, button(Material.WRITTEN_BOOK, "Server Report", List.of(inf("Full server lock overview in a book")), "give_admin_report", ""));
         inv.setItem(25, button(Material.PAPER, "Browse Logs", List.of(inf("Filter and search activity logs"), inf("Click → compass  |  Shift+Click → teleport (OP)")), "open_logs", ""));
@@ -592,7 +567,6 @@ public final class GuiManager {
             inv.setItem(slot++, logItem(r));
         }
 
-        
         inv.setItem(45, button(Material.ARROW, "Back", List.of("Return to admin panel"), "back_admin", ""));
 
         inv.setItem(47, button(Material.BOOK, "Action: " + st.action,
@@ -629,14 +603,12 @@ public final class GuiManager {
         soundClick(p);
     }
 
-    
-
     private static final class LockView {
         final String lockId;
         final Location loc;
         final Material type;
         final int trusted;
-        final long createdAt; // B6 FIX: store here so RECENT sort needs no cache lookups
+        final long createdAt;
 
         private LockView(String lockId, Location loc, Material type, int trusted, long createdAt) {
             this.lockId    = lockId;
@@ -659,7 +631,7 @@ public final class GuiManager {
                     .thenComparingInt(v -> v.loc.getBlockX())
                     .thenComparingInt(v -> v.loc.getBlockY())
                     .thenComparingInt(v -> v.loc.getBlockZ());
-            // B6 FIX: createdAt is now stored in LockView — no getLockFromId calls during sort
+
             case RECENT -> Comparator.comparingLong((LockView v) -> v.createdAt).reversed();
             case DISTANCE -> Comparator.comparingDouble((LockView v) -> {
                 if (v.loc.getWorld() == null || !v.loc.getWorld().equals(p.getWorld())) return Double.MAX_VALUE;
@@ -679,7 +651,7 @@ public final class GuiManager {
 
     private ItemStack lockItem(Player viewer, LockView v) {
         String world  = v.loc.getWorld() != null ? v.loc.getWorld().getName() : "?";
-        // UX5: show block type as the item display name, coords in lore
+
         String typeName = v.type.name().replace('_', ' ');
 
         List<String> lore = new ArrayList<>();
@@ -699,7 +671,7 @@ public final class GuiManager {
 
     private ItemStack trustItem(UUID uuid, AccessLevel lvl, String lockId, boolean canManage) {
         String name = nameOf(uuid);
-        // UX FIX U10: human-readable role label
+
         String roleLabel = switch (lvl) {
             case VIEW     -> "Viewer";
             case STOCKER  -> "Stocker";
@@ -783,11 +755,9 @@ public final class GuiManager {
         ItemStack it = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta base = it.getItemMeta();
         if (base instanceof SkullMeta meta) {
-            // getOfflinePlayer is non-blocking here: it only accesses Bukkit's name cache
-            // (same as getOfflinePlayerIfCached). The SkullMeta uses it for skin texture
-            // resolution, which happens asynchronously by the client.
+
             org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayerIfCached(uuid.toString());
-            if (op == null) op = Bukkit.getOfflinePlayer(uuid); // fallback to cache-only fetch
+            if (op == null) op = Bukkit.getOfflinePlayer(uuid);
             meta.setOwningPlayer(op);
             meta.displayName(Component.text(name));
             meta.lore(lore.stream().map(Component::text).toList());
@@ -813,8 +783,7 @@ public final class GuiManager {
     }
 
     private String nameOf(UUID uuid) {
-        // B3 FIX: Bukkit.getOfflinePlayer(UUID) can do a blocking disk lookup for unknown UUIDs.
-        // Use the non-blocking cache variant; fall back to a short UUID prefix.
+
         org.bukkit.entity.Player online = Bukkit.getPlayer(uuid);
         if (online != null) return online.getName();
         org.bukkit.OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(uuid.toString());
@@ -822,14 +791,12 @@ public final class GuiManager {
         return uuid.toString().substring(0, 8) + "…";
     }
 
-    // ── Lore colour helpers ──────────────────────────────────────────────────
-    /** Dim gray — passive info text (coords, dates, counts). */
     private static String inf(String s) { return "§8" + s; }
-    /** Yellow — advisory hints ("Requires confirmation", "Undo available"). */
+
     private static String hint(String s) { return "§e" + s; }
-    /** Aqua — actionable prompt ("Click to …"). */
+
     private static String action(String s) { return "§b" + s; }
-    /** Red — destructive warning. */
+
     private static String warn(String s) { return "§c" + s; }
 
     private void soundClick(Player p) {
@@ -838,10 +805,9 @@ public final class GuiManager {
         }
     }
 
-    
     private static final class GuiLockUtil {
         private static Location toLocation(LockKey key) {
-            
+
             org.bukkit.World w = Bukkit.getWorld(key.worldUuid());
             return new Location(w, key.x(), key.y(), key.z());
         }

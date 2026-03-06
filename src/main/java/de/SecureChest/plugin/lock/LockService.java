@@ -18,10 +18,6 @@ public interface LockService {
 
     Optional<LockEntry> getLockFromId(String lockId);
 
-    /**
-     * Returns all LockEntry objects currently in the in-memory cache.
-     * Used by SignManager to iterate all locks without a DB round-trip.
-     */
     Collection<LockEntry> getAllCachedLocks();
 
     boolean lock(Player owner, Block block);
@@ -40,7 +36,6 @@ public interface LockService {
 
     boolean hasUndo(Player actor);
 
-    // NEW: Transfer ownership of a lock to another player
     boolean transferLock(Player actor, String lockId, UUID newOwner);
 
     boolean canOpen(Player player, Block block, boolean usingAdminKey);
@@ -59,7 +54,6 @@ public interface LockService {
 
     List<Location> listLocks(UUID owner);
 
-    // NEW: aggregate statistics for a player's locks
     LockStats getLockStats(UUID owner);
 
     boolean isSecureHopper(Block hopperBlock);
@@ -80,9 +74,8 @@ public interface LockService {
     void logUnauthorizedBreak(Player actor, Block target);
     void logAdminBreak(Player actor, Block target);
 
-    // NEW: Notification persistence
     void addNotification(UUID ownerUuid, String message);
-    List<Notification> fetchAndClearNotifications(UUID playerUuid); // called from async context
+    List<Notification> fetchAndClearNotifications(UUID playerUuid);
 
     ItemStack createLogsBook(int maxEntries);
 

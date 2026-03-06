@@ -7,5 +7,5 @@ public enum ConfirmType {
     REMOVE_TRUST,
     LOG_TELEPORT,
     UNDO_RESTORE,
-    TRANSFER_LOCK  // NEW: transfer lock ownership to another player
+    TRANSFER_LOCK
 }

@@ -24,7 +24,6 @@ public final class RecipeRegistry {
     public void registerAll() {
         Items items = plugin.items();
 
-        
         ConfigurationSection keySec = plugin.getConfig().getConfigurationSection("recipes.chest_key");
         if (keySec != null && keySec.getBoolean("enabled", true)) {
             String[] shape = keySec.getStringList("shape").toArray(new String[0]);
@@ -51,7 +50,6 @@ public final class RecipeRegistry {
             }
         }
 
-        
         ConfigurationSection hopSec = plugin.getConfig().getConfigurationSection("recipes.secure_hopper");
         if (hopSec != null && hopSec.getBoolean("enabled", true)) {
             String[] shape = hopSec.getStringList("shape").toArray(new String[0]);

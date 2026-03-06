@@ -113,7 +113,6 @@ public final class DatabaseManager {
                 ");"
             );
 
-            // FEATURE: Persistent offline notifications
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS notifications (" +
                 " id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -123,7 +122,6 @@ public final class DatabaseManager {
                 ");"
             );
 
-            // Indexes
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_locks_owner       ON locks(owner_uuid);");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_created      ON logs(created_at);");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_action       ON logs(action);");
@@ -142,6 +140,6 @@ public final class DatabaseManager {
     }
 
     public void close() {
-        // SQLite JDBC connections are closed per-use; nothing to close here.
+
     }
 }

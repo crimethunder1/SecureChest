@@ -66,8 +66,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         }
 
         this.signManager = new SignManager(this);
-        // BUG FIX: pass sign spawn callback directly into constructor so it is set
-        // BEFORE the async cache-warm task runs (eliminates the postWarm race condition).
+
         SqlLockService sls = new SqlLockService(this, database, () -> signManager.spawnAllSigns());
         this.lockService = sls;
 

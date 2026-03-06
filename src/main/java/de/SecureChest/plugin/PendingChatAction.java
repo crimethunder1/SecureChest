@@ -12,6 +12,5 @@ public sealed interface PendingChatAction
 
     record LogActorFilter() implements PendingChatAction {}
 
-    /** NEW: waiting for the name of the player to transfer a lock to. */
     record TransferLock(String lockId) implements PendingChatAction {}
 }

@@ -167,7 +167,7 @@ public final class GuiListener implements Listener {
                 ));
             }
             case "confirm_remove_trust" -> {
-                
+
                 int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
                 long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
                 String lockId = ctx.contains("|") ? ctx.split("\\|", 2)[0] : "";
@@ -189,7 +189,7 @@ public final class GuiListener implements Listener {
                 if (parts.length != 2) return;
                 String level  = parts[0];
                 String lockId = parts[1];
-                // UX2: friendly role label in prompt instead of raw enum name
+
                 String roleLabel = switch (level) {
                     case "VIEW"     -> "Viewer";
                     case "STOCKER"  -> "Stocker";
@@ -203,7 +203,7 @@ public final class GuiListener implements Listener {
             }
 
             case "open_trust_role" -> {
-                
+
                 String[] parts = ctx.split("\\|", 2);
                 if (parts.length != 2) return;
                 try {
@@ -214,7 +214,7 @@ public final class GuiListener implements Listener {
             }
             case "back_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
             case "set_trust_role" -> {
-                
+
                 String[] parts = ctx.split("\\|", 3);
                 if (parts.length != 3) return;
                 String level = parts[0];
@@ -326,7 +326,6 @@ public final class GuiListener implements Listener {
                     p.sendMessage(Component.text("Compass set to log location.", NamedTextColor.AQUA));
                 }
 
-                
                 if (e.getClick() == ClickType.SHIFT_LEFT || e.getClick() == ClickType.SHIFT_RIGHT) {
                     if (!p.isOp()) {
                         p.sendMessage(Component.text("Teleport requires OP.", NamedTextColor.RED));
@@ -369,14 +368,9 @@ public final class GuiListener implements Listener {
     @EventHandler
     public void onClose(InventoryCloseEvent e) {
         if (!(e.getPlayer() instanceof Player p)) return;
-        // BUG FIX (B1): Only intercept close events for our own GUIs.
-        // Previously this fired for ALL inventory closes (chests, furnaces, etc.), which
-        // incorrectly cleared a pending chat action when the player opened a regular container
-        // after starting a chat-input flow (e.g. "Add Viewer by name").
+
         if (!(e.getInventory().getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
 
-        // If a chat-input action was already started from the GUI that just closed,
-        // cancel it — the player left without typing.
         if (plugin.pendingChat().containsKey(p.getUniqueId())) {
             plugin.pendingChat().remove(p.getUniqueId());
             p.sendMessage(net.kyori.adventure.text.Component.text(
@@ -387,7 +381,7 @@ public final class GuiListener implements Listener {
     private void handleConfirm(Player p, boolean yes) {
         var reqOpt = plugin.confirms().get(p.getUniqueId());
         if (reqOpt.isEmpty()) {
-            // B5 FIX: "Nothing to confirm." was confusing — tell the player exactly what happened
+
             p.sendMessage(Component.text("Confirmation timed out — please try again.", NamedTextColor.YELLOW));
             plugin.gui().openMain(p);
             return;
@@ -420,7 +414,7 @@ public final class GuiListener implements Listener {
                 }
             }
             case TRANSFER_LOCK -> {
-                // data = "lockId|newOwnerUUID"
+
                 String[] parts = req.data().split("\\|", 2);
                 if (parts.length != 2) yield false;
                 try {

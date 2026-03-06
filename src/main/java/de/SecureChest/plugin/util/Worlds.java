@@ -22,7 +22,7 @@ public final class Worlds {
 
     public boolean isEnabled(World world) {
         if (world == null) return false;
-        if (enabled.isEmpty()) return true; 
+        if (enabled.isEmpty()) return true;
         return enabled.contains(world.getName());
     }
 }

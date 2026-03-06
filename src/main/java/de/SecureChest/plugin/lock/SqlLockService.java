@@ -31,15 +31,12 @@ public final class SqlLockService implements LockService {
     private final Map<UUID, Boolean>            quickLockCache  = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean>            quickRemoveCache = new ConcurrentHashMap<>();
 
-    /** Optional callback executed on the main thread after both caches are warm. */
     private final Runnable postWarmCallback;
 
     public SqlLockService(ChestSecurePlugin plugin, DatabaseManager db, Runnable postWarmCallback) {
         this.plugin = plugin;
         this.db = db;
-        // BUG FIX: accept callback in constructor so it is guaranteed to be set
-        // BEFORE warmCachesAsync() fires — eliminates the race where a fast
-        // async task finished before setPostCacheWarmCallback() was called.
+
         this.postWarmCallback = postWarmCallback;
         warmCachesAsync();
     }
@@ -74,8 +71,7 @@ public final class SqlLockService implements LockService {
                 lockCache.put(key.asId(), new LockEntry(key, type == null ? Material.CHEST : type, owner, created));
             }
         }
-        // BUG FIX (round-2): load ALL trusted rows in one query + one connection
-        // instead of N separate queries (N+1 problem).
+
         try (Connection c = db.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
@@ -103,10 +99,6 @@ public final class SqlLockService implements LockService {
             }
         }
     }
-
-    // =========================================================================
-    // LockService – basic queries
-    // =========================================================================
 
     @Override
     public boolean isLocked(Block block) {
@@ -166,10 +158,6 @@ public final class SqlLockService implements LockService {
         return Collections.unmodifiableCollection(lockCache.values());
     }
 
-    // =========================================================================
-    // Lock/Unlock
-    // =========================================================================
-
     @Override
     public boolean lock(Player owner, Block block) {
         if (!LockUtil.isLockable(block)) return false;
@@ -181,7 +169,6 @@ public final class SqlLockService implements LockService {
         LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
         lockCache.put(id, entry);
 
-        // Spawn sign on main thread (we are already on main thread here)
         plugin.signs().spawnSign(key, owner.getName());
 
         final String blockTypeName = block.getType().name();
@@ -236,12 +223,9 @@ public final class SqlLockService implements LockService {
 
         UndoSnapshot snapshot = snapshotForSingleLock(key, entry);
 
-        // Remove from cache and sign immediately (main thread)
         lockCache.remove(id);
         plugin.signs().removeSign(id);
 
-        // BUG FIX: DB delete was previously done synchronously on the main thread.
-        // Push to async task like every other unlock/modify method.
         final LockEntry finalEntry = entry;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
@@ -255,7 +239,7 @@ public final class SqlLockService implements LockService {
                 c.commit();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB unlockWithUndo failed", ex);
-                // Rollback cache on failure
+
                 lockCache.put(id, finalEntry);
                 Bukkit.getScheduler().runTask(plugin, () ->
                         plugin.signs().spawnSign(key, nonBlockingName(finalEntry.owner())));
@@ -291,7 +275,7 @@ public final class SqlLockService implements LockService {
                 ps.executeUpdate();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB unlock persist failed", ex);
-                // BUG FIX: restore cache + sign if DB write fails
+
                 lockCache.put(id, finalEntry);
                 Bukkit.getScheduler().runTask(plugin, () ->
                         plugin.signs().spawnSign(key, ownerName(finalEntry.owner())));
@@ -306,7 +290,6 @@ public final class SqlLockService implements LockService {
         boolean hasHoppers = hopperCache.values().stream().anyMatch(e -> e.owner().equals(owner));
         if (!hasLocks && !hasHoppers) return false;
 
-        // Remove signs for this owner's locks
         lockCache.entrySet().stream()
                 .filter(e -> e.getValue().owner().equals(owner))
                 .forEach(e -> plugin.signs().removeSign(e.getKey()));
@@ -345,7 +328,6 @@ public final class SqlLockService implements LockService {
             return false;
         }
 
-        // Remove signs for this owner's locks
         lockCache.entrySet().stream()
                 .filter(e -> e.getValue().owner().equals(owner))
                 .forEach(e -> plugin.signs().removeSign(e.getKey()));
@@ -386,7 +368,7 @@ public final class SqlLockService implements LockService {
             Material type = Material.matchMaterial(lr.blockType());
             LockEntry le  = new LockEntry(lr.key(), type == null ? Material.CHEST : type, lr.owner(), lr.createdAt());
             lockCache.put(lr.key().asId(), le);
-            // Respawn sign for restored lock
+
             plugin.signs().spawnSign(lr.key(), ownerName(lr.owner()));
         }
         for (UndoSnapshot.TrustRow tr : snapshot.trusts()) {
@@ -447,10 +429,6 @@ public final class SqlLockService implements LockService {
         return plugin.undos().hasUndo(actor.getUniqueId());
     }
 
-    // =========================================================================
-    // FEATURE: Lock Transfer
-    // =========================================================================
-
     @Override
     public boolean transferLock(Player actor, String lockId, UUID newOwner) {
         LockKey key;
@@ -461,26 +439,21 @@ public final class SqlLockService implements LockService {
         if (entry == null) entry = getLockFromId(id).orElse(null);
         if (entry == null) return false;
 
-        // entry is conditionally reassigned above, so it is NOT effectively-final.
-        // Capture effectively-final copies for the async lambdas below.
         final LockKey finalKey = key;
         final String finalId = id;
         final LockEntry originalEntry = entry;
 
         boolean allowed = actor.hasPermission("chestsecure.admin") || entry.owner().equals(actor.getUniqueId());
         if (!allowed) return false;
-        if (entry.owner().equals(newOwner)) return false; // already owner
+        if (entry.owner().equals(newOwner)) return false;
 
-        // Push undo snapshot BEFORE the transfer so it can be reverted
         long now = System.currentTimeMillis();
         int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
         UndoSnapshot snapshot = snapshotForSingleLock(key, entry);
 
-        // Update cache: replace entry with new owner, clear trust list (new owner decides)
         LockEntry transferred = new LockEntry(finalKey, originalEntry.blockType(), newOwner, originalEntry.createdAt());
         lockCache.put(finalId, transferred);
 
-        // Update sign to show new owner
         plugin.signs().removeSign(finalId);
         plugin.signs().spawnSign(finalKey, ownerName(newOwner));
 
@@ -488,7 +461,7 @@ public final class SqlLockService implements LockService {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
                 c.setAutoCommit(false);
-                // Change owner
+
                 try (PreparedStatement ps = c.prepareStatement(
                         "UPDATE locks SET owner_uuid=? WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
                     ps.setString(1, newOwnerStr);
@@ -496,7 +469,7 @@ public final class SqlLockService implements LockService {
                     ps.setInt(3, finalKey.x()); ps.setInt(4, finalKey.y()); ps.setInt(5, finalKey.z());
                     ps.executeUpdate();
                 }
-                // Clear trust list – new owner manages it from scratch
+
                 try (PreparedStatement ps = c.prepareStatement(
                         "DELETE FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
                     ps.setString(1, finalKey.worldUuid().toString());
@@ -506,7 +479,7 @@ public final class SqlLockService implements LockService {
                 c.commit();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB transferLock persist failed", ex);
-                // Rollback in-memory state
+
                 lockCache.put(finalId, originalEntry);
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     plugin.signs().removeSign(finalId);
@@ -521,10 +494,6 @@ public final class SqlLockService implements LockService {
         ));
         return true;
     }
-
-    // =========================================================================
-    // FEATURE: Lock Statistics
-    // =========================================================================
 
     @Override
     public LockStats getLockStats(UUID owner) {
@@ -554,10 +523,6 @@ public final class SqlLockService implements LockService {
         return new LockStats(totalLocks, chestCount, trappedChestCount, barrelCount,
                 shulkerCount, hopperCount, totalTrusted, totalHoppers, oldest, newest);
     }
-
-    // =========================================================================
-    // Access / Trust
-    // =========================================================================
 
     @Override
     public boolean canOpen(Player player, Block block, boolean usingAdminKey) {
@@ -604,9 +569,7 @@ public final class SqlLockService implements LockService {
     private boolean setTrustByKey(Player owner, LockKey key, UUID target, AccessLevel level) {
         String id       = key.asId();
         LockEntry entry = getLockFromId(id).orElse(null);
-        // BUG FIX (B2): admins could REMOVE trust (removeTrustById already allowed it) but
-        // could NOT add trust, causing a silent "Failed" when they clicked "Add Viewer/Stocker/Co-owner"
-        // from openLockManage where canManage=true for admins. Allow admin override here too.
+
         if (entry == null) return false;
         if (!entry.owner().equals(owner.getUniqueId()) && !owner.hasPermission("chestsecure.admin")) return false;
 
@@ -681,10 +644,6 @@ public final class SqlLockService implements LockService {
                 .thenComparingInt(Location::getBlockZ));
         return out;
     }
-
-    // =========================================================================
-    // Secure Hoppers
-    // =========================================================================
 
     @Override
     public boolean isSecureHopper(Block hopperBlock) {
@@ -804,10 +763,6 @@ public final class SqlLockService implements LockService {
         return out;
     }
 
-    // =========================================================================
-    // Player settings
-    // =========================================================================
-
     @Override
     public boolean getQuickLock(UUID player) {
         return quickLockCache.computeIfAbsent(player, u -> loadSetting(u, "quick_lock"));
@@ -819,12 +774,11 @@ public final class SqlLockService implements LockService {
     }
 
     private boolean loadSetting(UUID player, String field) {
-        // BUG FIX: this may be called on the main thread if the async preload hasn't
-        // finished yet (race on first join). Guard against it to avoid server freezes.
+
         if (Bukkit.isPrimaryThread()) {
             plugin.getLogger().warning("loadSetting('" + field + "') called on main thread for "
                     + player + " — returning default. Settings will preload shortly.");
-            // Schedule an async re-load so subsequent calls are served from cache
+
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 boolean v = loadSettingFromDb(player, field);
                 if (field.equals("quick_lock"))   quickLockCache.put(player, v);
@@ -890,15 +844,10 @@ public final class SqlLockService implements LockService {
         quickRemoveCache.remove(player);
     }
 
-    /** Pre-loads settings on join so first interactions never block the main thread. */
     public void preloadPlayerSettings(UUID player) {
         if (!quickLockCache.containsKey(player))   quickLockCache.put(player, loadSetting(player, "quick_lock"));
         if (!quickRemoveCache.containsKey(player)) quickRemoveCache.put(player, loadSetting(player, "quick_remove"));
     }
-
-    // =========================================================================
-    // FEATURE: Notifications
-    // =========================================================================
 
     @Override
     public void addNotification(UUID ownerUuid, String message) {
@@ -909,13 +858,13 @@ public final class SqlLockService implements LockService {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
                 c.setAutoCommit(false);
-                // Insert new notification
+
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO notifications(owner_uuid,message,created_at) VALUES(?,?,?)")) {
                     ps.setString(1, ownerStr); ps.setString(2, message); ps.setLong(3, now);
                     ps.executeUpdate();
                 }
-                // Purge oldest entries beyond max_per_player
+
                 try (PreparedStatement ps = c.prepareStatement(
                         "DELETE FROM notifications WHERE owner_uuid=? AND id NOT IN " +
                         "(SELECT id FROM notifications WHERE owner_uuid=? ORDER BY id DESC LIMIT ?)")) {
@@ -929,7 +878,6 @@ public final class SqlLockService implements LockService {
         });
     }
 
-    /** Must be called from an ASYNC context. Fetches and deletes all notifications for a player. */
     @Override
     public List<Notification> fetchAndClearNotifications(UUID playerUuid) {
         List<Notification> out = new ArrayList<>();
@@ -956,10 +904,6 @@ public final class SqlLockService implements LockService {
         }
         return out;
     }
-
-    // =========================================================================
-    // Logging
-    // =========================================================================
 
     @Override
     public void logUnauthorizedBreak(Player actor, Block target) {
@@ -1145,16 +1089,8 @@ public final class SqlLockService implements LockService {
         }
     }
 
-    // =========================================================================
-    // Undo snapshot helpers
-    // =========================================================================
-    // BUG FIX (round-3): Both snapshot helpers previously made synchronous DB reads on
-    // the main thread. Trust data is already fully loaded in LockEntry.trusted() and the
-    // hopper data is in hopperCache, so no DB round-trip is needed at all.
-    // =========================================================================
-
     private UndoSnapshot snapshotForSingleLock(LockKey key, LockEntry entry) {
-        // Trust data already in memory — no DB call required
+
         List<UndoSnapshot.TrustRow> trusts = entry.trusted().entrySet().stream()
                 .map(e -> new UndoSnapshot.TrustRow(key, e.getKey(), e.getValue().name()))
                 .collect(java.util.stream.Collectors.toList());
@@ -1165,8 +1101,6 @@ public final class SqlLockService implements LockService {
                 trusts, List.of(), now, now + (ttl * 1000L));
     }
 
-    // BUG FIX (round-3): previously opened a DB connection on the main thread.
-    // All required data (locks, trusted, hoppers) is already in the in-memory caches.
     private UndoSnapshot snapshotForOwner(UUID owner, long now, long expiresAt) {
         List<UndoSnapshot.LockRow>         locks   = new ArrayList<>();
         List<UndoSnapshot.TrustRow>        trusts  = new ArrayList<>();
@@ -1176,7 +1110,7 @@ public final class SqlLockService implements LockService {
             if (!entry.owner().equals(owner)) continue;
             LockKey key = entry.key();
             locks.add(new UndoSnapshot.LockRow(key, entry.blockType().name(), owner, entry.createdAt()));
-            // Trusted data already in memory
+
             for (Map.Entry<UUID, AccessLevel> te : entry.trusted().entrySet()) {
                 trusts.add(new UndoSnapshot.TrustRow(key, te.getKey(), te.getValue().name()));
             }
@@ -1187,10 +1121,6 @@ public final class SqlLockService implements LockService {
         }
         return new UndoSnapshot(locks, trusts, hoppers, now, expiresAt);
     }
-
-    // =========================================================================
-    // Helpers
-    // =========================================================================
 
     private void bindParams(PreparedStatement ps, List<Object> params) throws SQLException {
         for (int i = 0; i < params.size(); i++) {
@@ -1203,8 +1133,7 @@ public final class SqlLockService implements LockService {
     }
 
     private String nonBlockingName(UUID uuid) {
-        // BUG FIX: Bukkit.getOfflinePlayer(UUID) can do a disk read.
-        // Use getOfflinePlayerIfCached() + online lookup instead.
+
         org.bukkit.entity.Player online = Bukkit.getPlayer(uuid);
         if (online != null) return online.getName();
         org.bukkit.OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(uuid.toString());

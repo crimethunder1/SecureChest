@@ -41,8 +41,6 @@ public final class ProtectionListener implements Listener {
     private final ChestSecurePlugin plugin;
     private final Worlds worlds;
 
-    // BUG FIX: throttle break-attempt notifications (30s per attacker+block pair)
-    // to prevent grief bots from flooding the notifications DB table.
     private final java.util.concurrent.ConcurrentHashMap<String, Long> notifyCooldowns =
             new java.util.concurrent.ConcurrentHashMap<>();
     private static final long NOTIFY_COOLDOWN_MS = 30_000L;
@@ -51,8 +49,6 @@ public final class ProtectionListener implements Listener {
         this.plugin = plugin;
         this.worlds = new Worlds(plugin);
     }
-
-    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent e) {
@@ -64,12 +60,10 @@ public final class ProtectionListener implements Listener {
         if (!LockUtil.isLockable(b)) return;
 
         boolean isChestKey = plugin.items().is(e.getItem(), Items.Type.CHEST_KEY);
-        
+
         boolean isAdminKey = e.getPlayer().hasPermission("chestsecure.admin")
                 && plugin.items().is(e.getItem(), Items.Type.ADMIN_KEY);
 
-        
-        
         boolean inspectMode = plugin.ui().inspect(e.getPlayer().getUniqueId());
         ItemStack handItem = e.getItem();
         boolean emptyHand = (handItem == null || handItem.getType().isAir());
@@ -79,14 +73,12 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        
         if (isChestKey && b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             e.setCancelled(true);
             feedbackFail(e.getPlayer(), "Secure Hopper is already protected.");
             return;
         }
 
-        
         if (isChestKey) {
             e.setCancelled(true);
 
@@ -101,7 +93,6 @@ public final class ProtectionListener implements Listener {
                 return;
             }
 
-            
             boolean quickRemove = plugin.locks().getQuickRemove(e.getPlayer().getUniqueId());
             if (e.getPlayer().isSneaking() || quickRemove) {
                 boolean ok = plugin.locks().unlock(e.getPlayer(), b);
@@ -114,9 +105,8 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        
         boolean quickLock = plugin.locks().getQuickLock(e.getPlayer().getUniqueId());
-        
+
         boolean isSecureHopper = b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b);
         if (quickLock && emptyHand && !plugin.locks().isLocked(b) && !isSecureHopper && hasChestKey(e.getPlayer())) {
             e.setCancelled(true);
@@ -126,7 +116,6 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        // Access check — tell the player who owns it
         if (plugin.locks().isLocked(b)) {
             boolean allowed = plugin.locks().canOpen(e.getPlayer(), b, isAdminKey);
             if (!allowed) {
@@ -138,7 +127,6 @@ public final class ProtectionListener implements Listener {
             }
         }
 
-        // Secure Hopper access check
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             SecureHopperEntry shEntry = plugin.locks().getSecureHopper(b).orElse(null);
             if (shEntry != null) {
@@ -153,11 +141,8 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-
-    
-
     private void sendInspectInfo(Player p, Block b) {
-        
+
         if (b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b)) {
             Optional<SecureHopperEntry> shOpt = plugin.locks().getSecureHopper(b);
             if (shOpt.isEmpty()) {
@@ -174,7 +159,6 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        
         if (!plugin.locks().isLocked(b)) {
             p.sendMessage(Component.text("[Inspect] Not locked.", NamedTextColor.YELLOW));
             return;
@@ -196,15 +180,13 @@ public final class ProtectionListener implements Listener {
     }
 
     private String nameOf(UUID uuid) {
-        // Non-blocking: check online players first, then the server name cache
+
         org.bukkit.entity.Player online = Bukkit.getPlayer(uuid);
         if (online != null) return online.getName();
         OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(uuid.toString());
         if (cached != null && cached.getName() != null) return cached.getName();
         return uuid.toString().substring(0, 8);
     }
-
-    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
@@ -215,7 +197,6 @@ public final class ProtectionListener implements Listener {
         ItemStack inHand = e.getItemInHand();
         if (!plugin.items().is(inHand, Items.Type.SECURE_HOPPER)) return;
 
-        
         BlockData data = placed.getBlockData();
         if (!(data instanceof Hopper hopperData)) {
             e.setCancelled(true);
@@ -231,7 +212,6 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        
         Optional<LockEntry> lock = plugin.locks().getLock(bound);
         if (lock.isEmpty() || !lock.get().owner().equals(e.getPlayer().getUniqueId())) {
             e.setCancelled(true);
@@ -256,7 +236,6 @@ public final class ProtectionListener implements Listener {
         if (!plugin.getConfig().getBoolean("auto_lock.enabled", false)) return;
         if (!LockUtil.isLockable(placed)) return;
 
-        
         if (placed.getType() == Material.HOPPER && plugin.items().is(e.getItemInHand(), Items.Type.SECURE_HOPPER)) return;
 
         boolean sneakOnly = plugin.getConfig().getBoolean("auto_lock.sneak_only", false);
@@ -271,8 +250,6 @@ public final class ProtectionListener implements Listener {
             feedbackOk(e.getPlayer(), "Auto-locked.");
         }
     }
-
-    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamage(BlockDamageEvent e) {
@@ -301,17 +278,16 @@ public final class ProtectionListener implements Listener {
         if (!plugin.locks().canBreak(e.getPlayer(), b)) {
             e.setCancelled(true);
             plugin.locks().logUnauthorizedBreak(e.getPlayer(), b);
-            // Show owner name so the player knows who to contact
+
             String owner = plugin.locks().getLock(b).map(le -> nameOf(le.owner()))
                     .orElseGet(() -> plugin.locks().getSecureHopper(b)
                             .map(sh -> nameOf(sh.owner())).orElse("someone"));
             feedbackFail(e.getPlayer(), "You cannot break this — it belongs to " + owner + ".");
-            // FEATURE: notify the lock owner (online: immediate chat, offline: stored in DB)
+
             sendBreakNotification(e.getPlayer(), b, locked, secureHopper);
             return;
         }
 
-        
         if (e.getPlayer().hasPermission("chestsecure.admin")) {
             if (locked) {
                 LockEntry le = plugin.locks().getLock(b).orElse(null);
@@ -326,7 +302,6 @@ public final class ProtectionListener implements Listener {
             }
         }
 
-        // BUG FIX: use the undo-capable unlock so players can recover accidentally broken locks.
         if (locked) {
             String lockId = plugin.locks().getLock(b).map(le -> le.key().asId()).orElse(null);
             if (lockId != null) {
@@ -345,8 +320,6 @@ public final class ProtectionListener implements Listener {
             feedbackOk(e.getPlayer(), "Secure Hopper removed.");
         }
     }
-
-    
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent e) {
@@ -401,8 +374,6 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    
-
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent e) {
         if (!worlds.isEnabled(e.getBlock().getWorld())) return;
@@ -425,8 +396,6 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    
-
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMoveItem(InventoryMoveItemEvent e) {
         Inventory source = e.getSource();
@@ -440,7 +409,6 @@ public final class ProtectionListener implements Listener {
 
         if (!sourceLocked && !destLocked) return;
 
-        
         InventoryHolder sh = source.getHolder();
         InventoryHolder dh = dest.getHolder();
 
@@ -450,25 +418,23 @@ public final class ProtectionListener implements Listener {
         } else if (dh instanceof org.bukkit.block.Hopper bh) {
             hopperBlock = bh.getBlock();
         } else if (sh instanceof HopperMinecart || dh instanceof HopperMinecart) {
-            
+
             e.setCancelled(true);
             return;
         }
 
         if (hopperBlock == null) {
-            
+
             e.setCancelled(true);
             return;
         }
 
-        
         SecureHopperEntry shEntry = plugin.locks().getSecureHopper(hopperBlock).orElse(null);
         if (shEntry == null) {
             e.setCancelled(true);
             return;
         }
 
-        
         if (sourceLocked) {
             LockKey lk = LockUtil.canonicalKey(sourceBlock);
             if (!lk.asId().equals(shEntry.boundLock().asId())) {
@@ -494,8 +460,6 @@ public final class ProtectionListener implements Listener {
         return w.getBlockAt(loc);
     }
 
-    
-
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInvClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
@@ -508,30 +472,21 @@ public final class ProtectionListener implements Listener {
         if (!plugin.locks().isLocked(container)) return;
 
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
-        // BUG FIX: null means the player has no access at all (e.g. trust was revoked
-        // while the inventory was open). Cancel ALL interactions for null-access players.
+
         if (level == null) {
             e.setCancelled(true);
             return;
         }
         if (level != AccessLevel.VIEW) return;
 
-        
-        
-        
-        
-        
-        
-        
-        
         InventoryAction action = e.getAction();
         boolean affectsTop =
-                e.getClickedInventory() == top                          
-                || e.isShiftClick()                                     
-                || action == InventoryAction.COLLECT_TO_CURSOR          
-                || action == InventoryAction.MOVE_TO_OTHER_INVENTORY    
-                || action == InventoryAction.HOTBAR_SWAP                
-                || action == InventoryAction.HOTBAR_MOVE_AND_READD;    
+                e.getClickedInventory() == top
+                || e.isShiftClick()
+                || action == InventoryAction.COLLECT_TO_CURSOR
+                || action == InventoryAction.MOVE_TO_OTHER_INVENTORY
+                || action == InventoryAction.HOTBAR_SWAP
+                || action == InventoryAction.HOTBAR_MOVE_AND_READD;
 
         if (affectsTop) {
             e.setCancelled(true);
@@ -550,14 +505,13 @@ public final class ProtectionListener implements Listener {
         if (!plugin.locks().isLocked(container)) return;
 
         AccessLevel level = plugin.locks().getAccessLevel(p, container);
-        // BUG FIX: null means no access (e.g. trust revoked while chest is open) — block drags too.
+
         if (level == null) {
             e.setCancelled(true);
             return;
         }
         if (level != AccessLevel.VIEW) return;
 
-        
         int topSize = top.getSize();
         for (int rawSlot : e.getRawSlots()) {
             if (rawSlot < topSize) {
@@ -567,7 +521,6 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    
     private boolean hasChestKey(Player p) {
         for (ItemStack it : p.getInventory().getContents()) {
             if (plugin.items().is(it, Items.Type.CHEST_KEY)) return true;
@@ -575,7 +528,6 @@ public final class ProtectionListener implements Listener {
         return plugin.items().is(p.getInventory().getItemInOffHand(), Items.Type.CHEST_KEY);
     }
 
-    /** Notify the lock owner when someone attempts to break their protected block. */
     private void sendBreakNotification(Player attacker, Block b, boolean isLocked, boolean isHopper) {
         if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
 
@@ -591,13 +543,12 @@ public final class ProtectionListener implements Listener {
         }
         if (ownerUuid == null || ownerUuid.equals(attacker.getUniqueId())) return;
 
-        // BUG FIX: rate-limit so a grief bot can't spam the notifications table.
         String cooldownKey = attacker.getUniqueId() + ":" + b.getX() + ":" + b.getY() + ":" + b.getZ();
         long now = System.currentTimeMillis();
         Long last = notifyCooldowns.get(cooldownKey);
         if (last != null && (now - last) < NOTIFY_COOLDOWN_MS) return;
         notifyCooldowns.put(cooldownKey, now);
-        // Prune old entries to prevent memory accumulation
+
         if (notifyCooldowns.size() > 500) {
             notifyCooldowns.entrySet().removeIf(e -> (now - e.getValue()) > NOTIFY_COOLDOWN_MS);
         }
@@ -620,15 +571,13 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-
-
     private void feedbackOk(Player p, String msg) {
         p.sendMessage(Component.text(msg, NamedTextColor.GREEN));
         if (plugin.getConfig().getBoolean("sounds.enabled", true)) {
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.5f);
         }
         if (plugin.getConfig().getBoolean("particles.enabled", true)) {
-            
+
             p.spawnParticle(Particle.HAPPY_VILLAGER, p.getLocation().add(0, 1.0, 0), 8, 0.2, 0.4, 0.2, 0.01);
         }
     }

@@ -28,26 +28,19 @@ public final class PlayerQuitListener implements Listener {
         this.plugin = plugin;
     }
 
-    /**
-     * On join:
-     *  1) Pre-load player settings asynchronously (avoids sync DB reads on first interaction).
-     *  2) Fetch and schedule any pending offline notifications (shown 10 s after join).
-     */
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
         UUID uuid = e.getPlayer().getUniqueId();
 
         if (plugin.locks() instanceof SqlLockService sls) {
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                // 1) Pre-load settings
+
                 sls.preloadPlayerSettings(uuid);
 
-                // 2) Fetch offline notifications
                 if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
                 List<Notification> notifications = sls.fetchAndClearNotifications(uuid);
                 if (notifications.isEmpty()) return;
 
-                // Schedule display on main thread, 10 seconds after join
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {
                     var player = Bukkit.getPlayer(uuid);
                     if (player == null || !player.isOnline()) return;
@@ -66,7 +59,7 @@ public final class PlayerQuitListener implements Listener {
                     }
                     player.sendMessage(
                         Component.text("Use /cs to manage your locks.", NamedTextColor.GRAY));
-                }, 200L); // 200 ticks = 10 seconds
+                }, 200L);
             });
         }
     }
