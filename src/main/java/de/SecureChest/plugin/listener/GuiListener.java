@@ -35,457 +35,476 @@ public final class GuiListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
-    public void onClick(InventoryClickEvent e) {
-        if (!(e.getWhoClicked() instanceof Player p)) return;
-        Inventory top = e.getView().getTopInventory();
-        if (!(top.getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        Inventory topInventory = event.getView().getTopInventory();
+        if (!(topInventory.getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
 
-        e.setCancelled(true);
+        event.setCancelled(true);
 
-        ItemStack clicked = e.getCurrentItem();
-        if (clicked == null || clicked.getType().isAir()) return;
-        var meta = clicked.getItemMeta();
-        if (meta == null) return;
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        ItemStack clickedItem = event.getCurrentItem();
+        if (clickedItem == null || clickedItem.getType().isAir()) return;
+        var itemMeta = clickedItem.getItemMeta();
+        if (itemMeta == null) return;
+        PersistentDataContainer persistentDataContainer = itemMeta.getPersistentDataContainer();
 
-        String action = pdc.get(plugin.keyGuiAction(), PersistentDataType.STRING);
+        String action = persistentDataContainer.get(plugin.keyGuiAction(), PersistentDataType.STRING);
         if (action == null || action.isBlank() || action.equals("noop")) return;
-        String ctx = pdc.get(plugin.keyGuiContext(), PersistentDataType.STRING);
-        if (ctx == null) ctx = "";
+        String actionContext = persistentDataContainer.get(plugin.keyGuiContext(), PersistentDataType.STRING);
+        if (actionContext == null) actionContext = "";
 
         switch (action) {
-            case "back_main" -> plugin.gui().openMain(p);
-            case "open_help" -> plugin.gui().openHelp(p);
-            case "open_stats" -> plugin.gui().openStats(p);
-            case "open_locks", "back_locks" -> plugin.gui().openLocksList(p, plugin.ui().locks(p.getUniqueId()).page);
-            case "open_hoppers" -> plugin.gui().openHoppersList(p, 0);
-            case "open_recipe_key" -> plugin.gui().openRecipePreview(p, true);
-            case "open_recipe_hopper" -> plugin.gui().openRecipePreview(p, false);
+            case "back_main"         -> plugin.gui().openMain(player);
+            case "open_help"         -> plugin.gui().openHelp(player);
+            case "open_stats"        -> plugin.gui().openStats(player);
+            case "open_locks", "back_locks" ->
+                    plugin.gui().openLocksList(player, plugin.ui().locks(player.getUniqueId()).page);
+            case "open_hoppers"      -> plugin.gui().openHoppersList(player, 0);
+            case "open_recipe_key"   -> plugin.gui().openRecipePreview(player, true);
+            case "open_recipe_hopper"-> plugin.gui().openRecipePreview(player, false);
 
             case "toggle_quicklock" -> {
-                boolean now = !plugin.locks().getQuickLock(p.getUniqueId());
-                plugin.locks().setQuickLock(p.getUniqueId(), now);
-                plugin.gui().openMain(p);
+                boolean newQuickLockState = !plugin.locks().getQuickLock(player.getUniqueId());
+                plugin.locks().setQuickLock(player.getUniqueId(), newQuickLockState);
+                plugin.gui().openMain(player);
             }
             case "toggle_quickremove" -> {
-                boolean now = !plugin.locks().getQuickRemove(p.getUniqueId());
-                plugin.locks().setQuickRemove(p.getUniqueId(), now);
-                plugin.gui().openMain(p);
+                boolean newQuickRemoveState = !plugin.locks().getQuickRemove(player.getUniqueId());
+                plugin.locks().setQuickRemove(player.getUniqueId(), newQuickRemoveState);
+                plugin.gui().openMain(player);
             }
 
             case "confirm_unlock_all_self" -> {
-                int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
-                long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
-                plugin.confirms().set(p.getUniqueId(), new ConfirmRequest(
-                        ConfirmType.UNLOCK_ALL_SELF,
-                        p.getUniqueId().toString(),
-                        "MAIN",
-                        expiresAt
-                ));
-                plugin.gui().openConfirm(p, "Unlock ALL", List.of(
-                        "This will unlock all your locked blocks",
-                        "and your secure hoppers.",
+                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                        ConfirmType.UNLOCK_ALL_SELF, player.getUniqueId().toString(), "MAIN", expiresAt));
+                plugin.gui().openConfirm(player, "Alle Schlösser entfernen", List.of(
+                        "§7Alle deine gesperrten Blöcke wirklich entfernen?",
+                        "§7Dies schließt alle Secure Hopper ein.",
                         "",
-                        "An Undo will be available afterwards."
+                        "§eEin Undo ist danach verfügbar."
                 ));
             }
 
             case "confirm_undo_restore" -> {
-                int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
-                long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
-                int undoCount = plugin.undos().count(p.getUniqueId());
-                plugin.confirms().set(p.getUniqueId(), new ConfirmRequest(
-                        ConfirmType.UNDO_RESTORE,
+                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                int undoCount  = plugin.undos().count(player.getUniqueId());
+                plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                        ConfirmType.UNDO_RESTORE, "", "MAIN", expiresAt));
+                plugin.gui().openConfirm(player, "Rückgängig machen", List.of(
+                        "§7Letzte Aktion (Entsperren oder Transfer) rückgängig?",
                         "",
-                        "MAIN",
-                        expiresAt
-                ));
-                plugin.gui().openConfirm(p, "Undo", List.of(
-                        "Restore the most recent unlock or transfer?",
-                        "",
-                        undoCount + " snapshot(s) remaining in history.",
-                        ""
+                        "§7" + undoCount + " Snapshot(s) im Verlauf."
                 ));
             }
 
-            case "locks_page" -> plugin.gui().openLocksList(p, parseInt(ctx));
-            case "locks_cycle_sort" -> {
-                var st = plugin.ui().locks(p.getUniqueId());
-                st.sort = st.sort.next();
-                plugin.gui().openLocksList(p, st.page);
+            case "locks_page"        -> plugin.gui().openLocksList(player, parseIntSafe(actionContext));
+            case "locks_cycle_sort"  -> {
+                var lockListState = plugin.ui().locks(player.getUniqueId());
+                lockListState.sort = lockListState.sort.next();
+                plugin.gui().openLocksList(player, lockListState.page);
             }
             case "locks_cycle_world" -> {
-                var st = plugin.ui().locks(p.getUniqueId());
-                st.world = st.world.next();
-                plugin.gui().openLocksList(p, st.page);
+                var lockListState = plugin.ui().locks(player.getUniqueId());
+                lockListState.world = lockListState.world.next();
+                plugin.gui().openLocksList(player, lockListState.page);
             }
-            case "locks_cycle_type" -> {
-                var st = plugin.ui().locks(p.getUniqueId());
-                st.type = st.type.next();
-                plugin.gui().openLocksList(p, st.page);
+            case "locks_cycle_type"  -> {
+                var lockListState = plugin.ui().locks(player.getUniqueId());
+                lockListState.type = lockListState.type.next();
+                plugin.gui().openLocksList(player, lockListState.page);
             }
 
-            case "manage_lock", "back_lock_manage" -> plugin.gui().openLockManage(p, ctx);
+            case "manage_lock", "back_lock_manage" -> plugin.gui().openLockManage(player, actionContext);
+
             case "ping_lock" -> {
-                var le = plugin.locks().getLockFromId(ctx).orElse(null);
-                if (le == null) {
-                    p.sendMessage(Component.text("Lock nicht gefunden.", NamedTextColor.RED));
-                    plugin.gui().openLocksList(p, 0);
+                var lockEntry = plugin.locks().getLockFromId(actionContext).orElse(null);
+                if (lockEntry == null) {
+                    player.sendMessage(Component.text("Schloss nicht gefunden.", NamedTextColor.RED));
+                    plugin.gui().openLocksList(player, 0);
                     return;
                 }
-                World targetWorld = Bukkit.getWorld(le.key().worldUuid());
+                World targetWorld = Bukkit.getWorld(lockEntry.key().worldUuid());
                 if (targetWorld == null) {
-                    p.sendMessage(Component.text("Welt ist nicht geladen – Ping nicht möglich.", NamedTextColor.RED));
-                    plugin.gui().openLockManage(p, ctx);
+                    player.sendMessage(Component.text(
+                            "Welt ist nicht geladen — Ping nicht möglich.", NamedTextColor.RED));
+                    plugin.gui().openLockManage(player, actionContext);
                     return;
                 }
-                Location pingLoc = new Location(targetWorld,
-                        le.key().x() + 0.5, le.key().y() + 0.5, le.key().z() + 0.5);
-                plugin.ping().startPing(p, pingLoc);
-                p.sendMessage(Component.text("Kompass gesetzt! Richtungsanzeige über der Hotbar aktiv.", NamedTextColor.AQUA));
-                p.closeInventory();
+                Location pingLocation = new Location(targetWorld,
+                        lockEntry.key().x() + 0.5,
+                        lockEntry.key().y() + 0.5,
+                        lockEntry.key().z() + 0.5);
+                plugin.ping().startPing(player, pingLocation);
+                player.sendMessage(Component.text(
+                        "Ping aktiv! Richtungsanzeige über der Hotbar gestartet.", NamedTextColor.AQUA));
+                player.closeInventory();
             }
+
             case "copy_lock" -> {
-                var le = plugin.locks().getLockFromId(ctx).orElse(null);
-                if (le != null) {
-                    World w = Bukkit.getWorld(le.key().worldUuid());
-                    String worldName = w != null ? w.getName() : le.key().worldUuid().toString();
-                    p.sendMessage(Component.text("Lock coords: " + worldName + " " + le.key().x() + " " + le.key().y() + " " + le.key().z(), NamedTextColor.AQUA));
+                var lockEntry = plugin.locks().getLockFromId(actionContext).orElse(null);
+                if (lockEntry != null) {
+                    World lockWorld = Bukkit.getWorld(lockEntry.key().worldUuid());
+                    String worldName = lockWorld != null ? lockWorld.getName()
+                            : lockEntry.key().worldUuid().toString();
+                    player.sendMessage(Component.text(
+                            "Koordinaten: " + worldName
+                                    + " " + lockEntry.key().x()
+                                    + " " + lockEntry.key().y()
+                                    + " " + lockEntry.key().z(),
+                            NamedTextColor.AQUA));
                 }
-                plugin.gui().openLockManage(p, ctx);
+                plugin.gui().openLockManage(player, actionContext);
             }
+
             case "confirm_unlock_one" -> {
-                int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
-                long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
-                plugin.confirms().set(p.getUniqueId(), new ConfirmRequest(
-                        ConfirmType.UNLOCK_ONE,
-                        ctx,
-                        "LOCK_MANAGE|" + ctx,
-                        expiresAt
-                ));
-                plugin.gui().openConfirm(p, "Unlock", List.of(
-                        "Unlock this lock?",
+                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                        ConfirmType.UNLOCK_ONE, actionContext,
+                        "LOCK_MANAGE|" + actionContext, expiresAt));
+                plugin.gui().openConfirm(player, "Schloss entfernen", List.of(
+                        "§7Dieses Schloss wirklich entfernen?",
                         "",
-                        "An Undo will be available afterwards."
+                        "§eEin Undo ist danach verfügbar."
                 ));
             }
+
             case "confirm_remove_trust" -> {
-
-                int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
-                long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
-                String lockId = ctx.contains("|") ? ctx.split("\\|", 2)[0] : "";
-                plugin.confirms().set(p.getUniqueId(), new ConfirmRequest(
-                        ConfirmType.REMOVE_TRUST,
-                        ctx,
-                        "LOCK_MANAGE|" + lockId,
-                        expiresAt
-                ));
-                plugin.gui().openConfirm(p, "Remove Trust", List.of(
-                        "Remove this player's access?",
+                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                String lockId = actionContext.contains("|") ? actionContext.split("\\|", 2)[0] : "";
+                plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                        ConfirmType.REMOVE_TRUST, actionContext,
+                        "LOCK_MANAGE|" + lockId, expiresAt));
+                plugin.gui().openConfirm(player, "Zugriff entfernen", List.of(
+                        "§7Zugriff dieses Spielers wirklich entfernen?",
                         "",
-                        "This cannot be undone."
+                        "§cDies kann nicht rückgängig gemacht werden."
                 ));
             }
-            case "open_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
-            case "add_trust_name" -> {
-                String[] parts = ctx.split("\\|", 2);
-                if (parts.length != 2) return;
-                String level  = parts[0];
-                String lockId = parts[1];
 
-                String roleLabel = switch (level) {
+            case "open_trust_nearby" -> plugin.gui().openTrustNearby(player, actionContext);
+
+            case "add_trust_name" -> {
+                String[] contextParts = actionContext.split("\\|", 2);
+                if (contextParts.length != 2) return;
+                String trustLevel  = contextParts[0];
+                String lockId      = contextParts[1];
+                String roleLabel = switch (trustLevel) {
                     case "VIEW"     -> "Viewer";
                     case "STOCKER"  -> "Stocker";
-                    case "CO_OWNER" -> "Co-owner";
-                    default         -> level;
+                    case "CO_OWNER" -> "Co-Owner";
+                    default         -> trustLevel;
                 };
-                p.closeInventory();
-                plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.AddTrust(lockId, level));
-                p.sendMessage(Component.text("Type the name of the player to add as " + roleLabel
-                        + ".  Type 'cancel' to abort.", NamedTextColor.YELLOW));
+                player.closeInventory();
+                plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.AddTrust(lockId, trustLevel));
+                player.sendMessage(Component.text(
+                        "Namen des Spielers eingeben, der als " + roleLabel
+                                + " hinzugefügt werden soll.  'cancel' zum Abbrechen.",
+                        NamedTextColor.YELLOW));
             }
 
             case "open_trust_role" -> {
-
-                String[] parts = ctx.split("\\|", 2);
-                if (parts.length != 2) return;
+                String[] contextParts = actionContext.split("\\|", 2);
+                if (contextParts.length != 2) return;
                 try {
-                    plugin.gui().openTrustRole(p, parts[0], UUID.fromString(parts[1]));
+                    plugin.gui().openTrustRole(player, contextParts[0], UUID.fromString(contextParts[1]));
                 } catch (IllegalArgumentException ignored) {
-                    p.sendMessage(Component.text("Invalid data.", NamedTextColor.RED));
+                    player.sendMessage(Component.text("Ungültige Daten.", NamedTextColor.RED));
                 }
             }
-            case "back_trust_nearby" -> plugin.gui().openTrustNearby(p, ctx);
-            case "set_trust_role" -> {
 
-                String[] parts = ctx.split("\\|", 3);
-                if (parts.length != 3) return;
-                String level = parts[0];
-                String lockId = parts[1];
+            case "back_trust_nearby" -> plugin.gui().openTrustNearby(player, actionContext);
+
+            case "set_trust_role" -> {
+                String[] contextParts = actionContext.split("\\|", 3);
+                if (contextParts.length != 3) return;
+                String trustLevel  = contextParts[0];
+                String lockId      = contextParts[1];
                 try {
-                    UUID target = UUID.fromString(parts[2]);
-                    var lvl = de.SecureChest.plugin.lock.AccessLevel.fromString(level);
-                    boolean ok = lvl != null && plugin.locks().setTrustById(p, lockId, target, lvl);
-                    p.sendMessage(ok ? Component.text("Trust updated.", NamedTextColor.GREEN) : Component.text("Failed (not owner / lock missing).", NamedTextColor.RED));
+                    UUID targetPlayerUuid = UUID.fromString(contextParts[2]);
+                    var accessLevel = de.SecureChest.plugin.lock.AccessLevel.fromString(trustLevel);
+                    boolean actionSuccessful = accessLevel != null
+                            && plugin.locks().setTrustById(player, lockId, targetPlayerUuid, accessLevel);
+                    player.sendMessage(actionSuccessful
+                            ? Component.text("Vertrauen aktualisiert.", NamedTextColor.GREEN)
+                            : Component.text("Fehlgeschlagen (kein Besitzer / Schloss nicht gefunden).",
+                                    NamedTextColor.RED));
                 } catch (IllegalArgumentException ignored) {
-                    p.sendMessage(Component.text("Invalid data.", NamedTextColor.RED));
+                    player.sendMessage(Component.text("Ungültige Daten.", NamedTextColor.RED));
                 }
-                plugin.gui().openLockManage(p, lockId);
+                plugin.gui().openLockManage(player, lockId);
             }
 
             case "transfer_lock_name" -> {
-                p.closeInventory();
-                plugin.pendingChat().put(p.getUniqueId(), new de.SecureChest.plugin.PendingChatAction.TransferLock(ctx));
-                p.sendMessage(Component.text(
-                        "Type the name of the player to receive this lock.  Type 'cancel' to abort.",
+                player.closeInventory();
+                plugin.pendingChat().put(player.getUniqueId(),
+                        new de.SecureChest.plugin.PendingChatAction.TransferLock(actionContext));
+                player.sendMessage(Component.text(
+                        "Namen des Spielers eingeben, an den dieses Schloss übertragen werden soll."
+                                + "  'cancel' zum Abbrechen.",
                         NamedTextColor.YELLOW));
             }
 
-            case "hoppers_page" -> plugin.gui().openHoppersList(p, parseInt(ctx));
+            case "hoppers_page"      -> plugin.gui().openHoppersList(player, parseIntSafe(actionContext));
+            case "open_admin", "back_admin" -> plugin.gui().openAdmin(player);
 
-            case "open_admin", "back_admin" -> plugin.gui().openAdmin(p);
             case "give_admin_key" -> {
-                if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
-                    plugin.gui().openMain(p);
+                if (!player.hasPermission("chestsecure.admin")) {
+                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    plugin.gui().openMain(player);
                     return;
                 }
-                p.getInventory().addItem(plugin.items().adminKey());
-                p.sendMessage(Component.text("Admin Key given.", NamedTextColor.GREEN));
-                plugin.gui().openAdmin(p);
+                player.getInventory().addItem(plugin.items().adminKey());
+                player.sendMessage(Component.text("Admin-Key erhalten.", NamedTextColor.GREEN));
+                plugin.gui().openAdmin(player);
             }
+
             case "give_logs_book" -> {
-                if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
-                    plugin.gui().openMain(p);
+                if (!player.hasPermission("chestsecure.admin")) {
+                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    plugin.gui().openMain(player);
                     return;
                 }
-                int max = plugin.getConfig().getInt("admin.logs.book_entries", plugin.getConfig().getInt("admin.logs_book_entries", 200));
-                p.getInventory().addItem(plugin.locks().createLogsBook(max));
-                p.sendMessage(Component.text("Logs book given.", NamedTextColor.GREEN));
-                plugin.gui().openAdmin(p);
+                int maxBookEntries = plugin.getConfig().getInt("admin.logs.book_entries",
+                        plugin.getConfig().getInt("admin.logs_book_entries", 200));
+                player.getInventory().addItem(plugin.locks().createLogsBook(maxBookEntries));
+                player.sendMessage(Component.text("Log-Buch erhalten.", NamedTextColor.GREEN));
+                plugin.gui().openAdmin(player);
             }
+
             case "give_admin_report" -> {
-                if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
-                    plugin.gui().openMain(p);
+                if (!player.hasPermission("chestsecure.admin")) {
+                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    plugin.gui().openMain(player);
                     return;
                 }
-                p.getInventory().addItem(plugin.locks().createAdminReportBook());
-                p.sendMessage(Component.text("Admin report given.", NamedTextColor.GREEN));
-                plugin.gui().openAdmin(p);
+                player.getInventory().addItem(plugin.locks().createAdminReportBook());
+                player.sendMessage(Component.text("Admin-Bericht erhalten.", NamedTextColor.GREEN));
+                plugin.gui().openAdmin(player);
             }
+
             case "toggle_inspect" -> {
-                boolean now = !plugin.ui().inspect(p.getUniqueId());
-                plugin.ui().setInspect(p.getUniqueId(), now);
-                plugin.gui().openAdmin(p);
+                boolean newInspectModeState = !plugin.ui().inspect(player.getUniqueId());
+                plugin.ui().setInspect(player.getUniqueId(), newInspectModeState);
+                plugin.gui().openAdmin(player);
             }
+
             case "global_unlock" -> {
-                if (!p.hasPermission("chestsecure.admin")) {
-                    p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
-                    plugin.gui().openMain(p);
+                if (!player.hasPermission("chestsecure.admin")) {
+                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    plugin.gui().openMain(player);
                     return;
                 }
-                p.closeInventory();
-                plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.GlobalUnlock());
-                p.sendMessage(Component.text(
-                        "Type the player name whose locks you want to remove.  Type 'cancel' to abort.",
+                player.closeInventory();
+                plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.GlobalUnlock());
+                player.sendMessage(Component.text(
+                        "Namen des Spielers eingeben, dessen Schlösser entfernt werden sollen."
+                                + "  'cancel' zum Abbrechen.",
                         NamedTextColor.YELLOW));
             }
-            case "open_logs" -> plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
-            case "logs_page" -> plugin.gui().openLogs(p, parseInt(ctx));
+
+            case "open_logs"         -> plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
+            case "logs_page"         -> plugin.gui().openLogs(player, parseIntSafe(actionContext));
             case "logs_cycle_action" -> {
-                var st = plugin.ui().logs(p.getUniqueId());
-                st.action = st.action.next();
-                plugin.gui().openLogs(p, st.page);
+                var logsState = plugin.ui().logs(player.getUniqueId());
+                logsState.action = logsState.action.next();
+                plugin.gui().openLogs(player, logsState.page);
             }
-            case "logs_cycle_time" -> {
-                var st = plugin.ui().logs(p.getUniqueId());
-                st.time = st.time.next();
-                plugin.gui().openLogs(p, st.page);
+            case "logs_cycle_time"   -> {
+                var logsState = plugin.ui().logs(player.getUniqueId());
+                logsState.time = logsState.time.next();
+                plugin.gui().openLogs(player, logsState.page);
             }
-            case "logs_set_actor" -> {
-                p.closeInventory();
-                plugin.pendingChat().put(p.getUniqueId(), new PendingChatAction.LogActorFilter());
-                p.sendMessage(Component.text(
-                        "Type a player name to filter logs, or 'clear' to reset.  Type 'cancel' to abort.",
+            case "logs_set_actor"    -> {
+                player.closeInventory();
+                plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.LogActorFilter());
+                player.sendMessage(Component.text(
+                        "Spielernamen zum Filtern der Logs eingeben, oder 'clear' zum Zurücksetzen."
+                                + "  'cancel' zum Abbrechen.",
                         NamedTextColor.YELLOW));
             }
+
             case "log_entry" -> {
-                long logId = parseLong(ctx);
-                if (logId <= 0) return;
+                long logEntryId = parseLongSafe(actionContext);
+                if (logEntryId <= 0) return;
 
-                Optional<LogRecord> recOpt = plugin.locks().getLogById(logId);
-                if (recOpt.isEmpty()) {
-                    p.sendMessage(Component.text("Log not found.", NamedTextColor.RED));
-                    plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
+                Optional<LogRecord> logRecordOptional = plugin.locks().getLogById(logEntryId);
+                if (logRecordOptional.isEmpty()) {
+                    player.sendMessage(Component.text("Log-Eintrag nicht gefunden.", NamedTextColor.RED));
+                    plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                     return;
                 }
-                LogRecord r = recOpt.get();
-                World w = Bukkit.getWorld(r.worldUuid());
-                if (w != null) {
-                    Location loc = new Location(w, r.x(), r.y(), r.z());
-                    p.setCompassTarget(loc);
-                    p.sendMessage(Component.text("Compass set to log location.", NamedTextColor.AQUA));
+                LogRecord logRecord = logRecordOptional.get();
+                World targetWorld = Bukkit.getWorld(logRecord.worldUuid());
+                if (targetWorld != null) {
+                    Location targetLocation = new Location(targetWorld,
+                            logRecord.x(), logRecord.y(), logRecord.z());
+                    player.setCompassTarget(targetLocation);
+                    player.sendMessage(Component.text("Kompass auf Log-Position gesetzt.", NamedTextColor.AQUA));
                 }
 
-                if (e.getClick() == ClickType.SHIFT_LEFT || e.getClick() == ClickType.SHIFT_RIGHT) {
-                    if (!p.isOp()) {
-                        p.sendMessage(Component.text("Teleport requires OP.", NamedTextColor.RED));
-                        plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
+                if (event.getClick() == ClickType.SHIFT_LEFT
+                        || event.getClick() == ClickType.SHIFT_RIGHT) {
+                    if (!player.isOp()) {
+                        player.sendMessage(Component.text("Teleport erfordert OP.", NamedTextColor.RED));
+                        plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                         return;
                     }
-                    boolean teleportEnabled = plugin.getConfig().getBoolean("admin.logs.teleport_enabled", plugin.getConfig().getBoolean("admin.allow_teleport", false));
+                    boolean teleportEnabled = plugin.getConfig().getBoolean(
+                            "admin.logs.teleport_enabled",
+                            plugin.getConfig().getBoolean("admin.allow_teleport", false));
                     if (!teleportEnabled) {
-                        p.sendMessage(Component.text("Teleport is disabled in config.", NamedTextColor.RED));
-                        plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
+                        player.sendMessage(Component.text(
+                                "Teleport ist in der Config deaktiviert.", NamedTextColor.RED));
+                        plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                         return;
                     }
-                    int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
-                    long expiresAt = System.currentTimeMillis() + ttlSeconds * 1000L;
-                    plugin.confirms().set(p.getUniqueId(), new ConfirmRequest(
-                            ConfirmType.LOG_TELEPORT,
-                            String.valueOf(logId),
-                            "LOGS",
-                            expiresAt
-                    ));
-                    plugin.gui().openConfirm(p, "Teleport", List.of(
-                            "Teleport to this log location?",
-                            r.worldName() + " " + r.x() + " " + r.y() + " " + r.z(),
+                    int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                    long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                    plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                            ConfirmType.LOG_TELEPORT, String.valueOf(logEntryId), "LOGS", expiresAt));
+                    plugin.gui().openConfirm(player, "Teleportieren", List.of(
+                            "§7Zu dieser Log-Position teleportieren?",
+                            "§f" + logRecord.worldName()
+                                    + " " + logRecord.x()
+                                    + " " + logRecord.y()
+                                    + " " + logRecord.z(),
                             "",
-                            "OP only."
+                            "§eNur für OPs."
                     ));
                     return;
                 }
-                plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
+                plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
             }
 
-            case "confirm_yes" -> handleConfirm(p, true);
-            case "confirm_no" -> handleConfirm(p, false);
+            case "confirm_yes" -> handleConfirmAction(player, true);
+            case "confirm_no"  -> handleConfirmAction(player, false);
 
-            default -> {
-            }
+            default -> { }
         }
     }
 
     @EventHandler
-    public void onClose(InventoryCloseEvent e) {
-        if (!(e.getPlayer() instanceof Player p)) return;
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!(event.getInventory().getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
 
-        if (!(e.getInventory().getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
-
-        if (plugin.pendingChat().containsKey(p.getUniqueId())) {
-            plugin.pendingChat().remove(p.getUniqueId());
-            p.sendMessage(net.kyori.adventure.text.Component.text(
-                    "Chat input cancelled.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+        if (plugin.pendingChat().containsKey(player.getUniqueId())) {
+            plugin.pendingChat().remove(player.getUniqueId());
+            player.sendMessage(Component.text("Chat-Eingabe abgebrochen.",
+                    net.kyori.adventure.text.format.NamedTextColor.GRAY));
         }
     }
 
-    private void handleConfirm(Player p, boolean yes) {
-        var reqOpt = plugin.confirms().get(p.getUniqueId());
-        if (reqOpt.isEmpty()) {
-
-            p.sendMessage(Component.text("Confirmation timed out — please try again.", NamedTextColor.YELLOW));
-            plugin.gui().openMain(p);
+    private void handleConfirmAction(Player player, boolean confirmed) {
+        var confirmRequestOptional = plugin.confirms().get(player.getUniqueId());
+        if (confirmRequestOptional.isEmpty()) {
+            player.sendMessage(Component.text(
+                    "Bestätigung abgelaufen — bitte erneut versuchen.", NamedTextColor.YELLOW));
+            plugin.gui().openMain(player);
             return;
         }
-        ConfirmRequest req = reqOpt.get();
-        plugin.confirms().clear(p.getUniqueId());
+        ConfirmRequest confirmRequest = confirmRequestOptional.get();
+        plugin.confirms().clear(player.getUniqueId());
 
-        if (!yes) {
-            route(p, req.returnTo());
+        if (!confirmed) {
+            routeToDestination(player, confirmRequest.returnTo());
             return;
         }
 
-        boolean ok = switch (req.type()) {
-            case UNLOCK_ONE -> plugin.locks().unlockByIdWithUndo(p, req.data());
-            case UNLOCK_ALL_SELF -> plugin.locks().unlockAllWithUndo(p, p.getUniqueId());
-            case GLOBAL_UNLOCK -> {
+        boolean actionSuccessful = switch (confirmRequest.type()) {
+            case UNLOCK_ONE      -> plugin.locks().unlockByIdWithUndo(player, confirmRequest.data());
+            case UNLOCK_ALL_SELF -> plugin.locks().unlockAllWithUndo(player, player.getUniqueId());
+            case GLOBAL_UNLOCK   -> {
                 try {
-                    yield plugin.locks().unlockAllWithUndo(p, UUID.fromString(req.data()));
+                    yield plugin.locks().unlockAllWithUndo(player, UUID.fromString(confirmRequest.data()));
                 } catch (IllegalArgumentException ignored) {
                     yield false;
                 }
             }
             case REMOVE_TRUST -> {
-                String[] parts = req.data().split("\\|", 2);
+                String[] parts = confirmRequest.data().split("\\|", 2);
                 if (parts.length != 2) yield false;
                 try {
-                    yield plugin.locks().removeTrustById(p, parts[0], UUID.fromString(parts[1]));
+                    yield plugin.locks().removeTrustById(player, parts[0], UUID.fromString(parts[1]));
                 } catch (IllegalArgumentException ignored) {
                     yield false;
                 }
             }
             case TRANSFER_LOCK -> {
-
-                String[] parts = req.data().split("\\|", 2);
+                String[] parts = confirmRequest.data().split("\\|", 2);
                 if (parts.length != 2) yield false;
                 try {
-                    yield plugin.locks().transferLock(p, parts[0], UUID.fromString(parts[1]));
+                    yield plugin.locks().transferLock(player, parts[0], UUID.fromString(parts[1]));
                 } catch (IllegalArgumentException ignored) {
                     yield false;
                 }
             }
-            case UNDO_RESTORE -> plugin.locks().restoreUndo(p);
-            case LOG_TELEPORT -> handleLogTeleport(p, req.data());
+            case UNDO_RESTORE  -> plugin.locks().restoreUndo(player);
+            case LOG_TELEPORT  -> handleLogTeleport(player, confirmRequest.data());
         };
 
-        p.sendMessage(ok ? Component.text("Done.", NamedTextColor.GREEN) : Component.text("Failed.", NamedTextColor.RED));
-        route(p, req.returnTo());
+        player.sendMessage(actionSuccessful
+                ? Component.text("Erledigt.", NamedTextColor.GREEN)
+                : Component.text("Fehlgeschlagen.", NamedTextColor.RED));
+        routeToDestination(player, confirmRequest.returnTo());
     }
 
-    private void route(Player p, String route) {
-        if (route == null || route.isBlank() || route.equals("MAIN")) {
-            plugin.gui().openMain(p);
+    private void routeToDestination(Player player, String destination) {
+        if (destination == null || destination.isBlank() || destination.equals("MAIN")) {
+            plugin.gui().openMain(player);
             return;
         }
-        if (route.equals("ADMIN")) {
-            plugin.gui().openAdmin(p);
+        if (destination.equals("ADMIN")) {
+            plugin.gui().openAdmin(player);
             return;
         }
-        if (route.equals("LOGS")) {
-            plugin.gui().openLogs(p, plugin.ui().logs(p.getUniqueId()).page);
+        if (destination.equals("LOGS")) {
+            plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
             return;
         }
-        if (route.startsWith("LOCK_MANAGE|")) {
-            String lockId = route.substring("LOCK_MANAGE|".length());
-            plugin.gui().openLockManage(p, lockId);
+        if (destination.startsWith("LOCK_MANAGE|")) {
+            String lockId = destination.substring("LOCK_MANAGE|".length());
+            plugin.gui().openLockManage(player, lockId);
             return;
         }
-        if (route.equals("LOCKS")) {
-            plugin.gui().openLocksList(p, plugin.ui().locks(p.getUniqueId()).page);
+        if (destination.equals("LOCKS")) {
+            plugin.gui().openLocksList(player, plugin.ui().locks(player.getUniqueId()).page);
         }
     }
 
-    private int parseInt(String s) {
-        try { return Integer.parseInt(s); } catch (Exception ignored) { return 0; }
+    private int parseIntSafe(String value) {
+        try { return Integer.parseInt(value); } catch (Exception ignored) { return 0; }
     }
 
-    private long parseLong(String s) {
-        try { return Long.parseLong(s); } catch (Exception ignored) { return -1L; }
+    private long parseLongSafe(String value) {
+        try { return Long.parseLong(value); } catch (Exception ignored) { return -1L; }
     }
 
-    private boolean handleLogTeleport(Player p, String logIdStr) {
-        if (!p.isOp()) return false;
-
+    private boolean handleLogTeleport(Player player, String logIdString) {
+        if (!player.isOp()) return false;
         boolean teleportEnabled = plugin.getConfig().getBoolean(
                 "admin.logs.teleport_enabled",
-                plugin.getConfig().getBoolean("admin.allow_teleport", false)
-        );
+                plugin.getConfig().getBoolean("admin.allow_teleport", false));
         if (!teleportEnabled) return false;
 
-        long logId = parseLong(logIdStr);
+        long logId = parseLongSafe(logIdString);
         if (logId <= 0) return false;
 
-        Optional<LogRecord> recOpt = plugin.locks().getLogById(logId);
-        if (recOpt.isEmpty()) return false;
+        Optional<LogRecord> logRecordOptional = plugin.locks().getLogById(logId);
+        if (logRecordOptional.isEmpty()) return false;
 
-        LogRecord r = recOpt.get();
-        World w = Bukkit.getWorld(r.worldUuid());
-        if (w == null) return false;
+        LogRecord logRecord = logRecordOptional.get();
+        World targetWorld = Bukkit.getWorld(logRecord.worldUuid());
+        if (targetWorld == null) return false;
 
-        Location loc = new Location(w, r.x() + 0.5, r.y() + 1.0, r.z() + 0.5);
-        p.teleportAsync(loc);
+        Location teleportLocation = new Location(
+                targetWorld, logRecord.x() + 0.5, logRecord.y() + 1.0, logRecord.z() + 0.5);
+        player.teleportAsync(teleportLocation);
         return true;
     }
 }

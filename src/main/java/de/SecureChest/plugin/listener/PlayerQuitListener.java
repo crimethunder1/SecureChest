@@ -19,7 +19,7 @@ import java.util.UUID;
 
 public final class PlayerQuitListener implements Listener {
 
-    private static final DateTimeFormatter DF =
+    private static final DateTimeFormatter NOTIFICATION_DATE_FORMATTER =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final ChestSecurePlugin plugin;
@@ -29,52 +29,51 @@ public final class PlayerQuitListener implements Listener {
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
-        UUID uuid = e.getPlayer().getUniqueId();
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        UUID playerUuid = event.getPlayer().getUniqueId();
 
-        if (plugin.locks() instanceof SqlLockService sls) {
+        if (plugin.locks() instanceof SqlLockService sqlLockService) {
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-
-                sls.preloadPlayerSettings(uuid);
+                sqlLockService.preloadPlayerSettings(playerUuid);
 
                 if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
-                List<Notification> notifications = sls.fetchAndClearNotifications(uuid);
+                List<Notification> notifications = sqlLockService.fetchAndClearNotifications(playerUuid);
                 if (notifications.isEmpty()) return;
 
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    var player = Bukkit.getPlayer(uuid);
-                    if (player == null || !player.isOnline()) return;
+                    var onlinePlayer = Bukkit.getPlayer(playerUuid);
+                    if (onlinePlayer == null || !onlinePlayer.isOnline()) return;
 
-                    int count = notifications.size();
-                    String plural = count == 1 ? "alert" : "alerts";
-                    player.sendMessage(
+                    int notificationCount = notifications.size();
+                    String pluralLabel = notificationCount == 1 ? "Meldung" : "Meldungen";
+                    onlinePlayer.sendMessage(
                         Component.text("[ ChestSecure ] ", NamedTextColor.GOLD)
-                            .append(Component.text(count + " missed " + plural + " while you were offline:",
+                            .append(Component.text(notificationCount + " verpasste " + pluralLabel + " während deiner Abwesenheit:",
                                     NamedTextColor.YELLOW)));
-                    for (Notification n : notifications) {
-                        String time = DF.format(Instant.ofEpochMilli(n.createdAt()));
-                        player.sendMessage(
-                            Component.text("  " + time + "  ", NamedTextColor.DARK_GRAY)
-                                .append(Component.text(n.message(), NamedTextColor.WHITE)));
+                    for (Notification notification : notifications) {
+                        String formattedTime = NOTIFICATION_DATE_FORMATTER.format(Instant.ofEpochMilli(notification.createdAt()));
+                        onlinePlayer.sendMessage(
+                            Component.text("  " + formattedTime + "  ", NamedTextColor.DARK_GRAY)
+                                .append(Component.text(notification.message(), NamedTextColor.WHITE)));
                     }
-                    player.sendMessage(
-                        Component.text("Use /cs to manage your locks.", NamedTextColor.GRAY));
+                    onlinePlayer.sendMessage(
+                        Component.text("Tippe /cs um deine Locks zu verwalten.", NamedTextColor.GRAY));
                 }, 200L);
             });
         }
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent e) {
-        UUID uuid = e.getPlayer().getUniqueId();
-        plugin.pendingChat().remove(uuid);
-        plugin.confirms().clear(uuid);
-        plugin.undos().clear(uuid);
-        plugin.ui().cleanup(uuid);
-        plugin.ping().onPlayerQuit(uuid);
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        UUID playerUuid = event.getPlayer().getUniqueId();
+        plugin.pendingChat().remove(playerUuid);
+        plugin.confirms().clear(playerUuid);
+        plugin.undos().clear(playerUuid);
+        plugin.ui().cleanup(playerUuid);
+        plugin.ping().stopPing(playerUuid);
 
-        if (plugin.locks() instanceof SqlLockService sls) {
-            sls.evictPlayerCache(uuid);
+        if (plugin.locks() instanceof SqlLockService sqlLockService) {
+            sqlLockService.evictPlayerCache(playerUuid);
         }
     }
 }

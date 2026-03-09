@@ -1,6 +1,7 @@
 package de.SecureChest.plugin.ui;
 
 public enum ConfirmType {
+    LOCK_BLOCK,
     UNLOCK_ONE,
     UNLOCK_ALL_SELF,
     GLOBAL_UNLOCK,

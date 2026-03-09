@@ -13,8 +13,17 @@ public final class UiStateStore {
         RECENT;
 
         public LockSort next() {
-            LockSort[] v = values();
-            return v[(ordinal() + 1) % v.length];
+            LockSort[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String label() {
+            return switch (this) {
+                case DISTANCE -> "Entfernung";
+                case WORLD    -> "Welt";
+                case TYPE     -> "Typ";
+                case RECENT   -> "Neueste";
+            };
         }
     }
 
@@ -23,8 +32,15 @@ public final class UiStateStore {
         CURRENT;
 
         public WorldFilter next() {
-            WorldFilter[] v = values();
-            return v[(ordinal() + 1) % v.length];
+            WorldFilter[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String label() {
+            return switch (this) {
+                case ALL     -> "Alle Welten";
+                case CURRENT -> "Aktuelle Welt";
+            };
         }
     }
 
@@ -35,8 +51,17 @@ public final class UiStateStore {
         SHULKERS;
 
         public LockTypeFilter next() {
-            LockTypeFilter[] v = values();
-            return v[(ordinal() + 1) % v.length];
+            LockTypeFilter[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String label() {
+            return switch (this) {
+                case ALL      -> "Alle Typen";
+                case CHESTS   -> "Kisten";
+                case BARRELS  -> "Fässer";
+                case SHULKERS -> "Shulker-Boxen";
+            };
         }
     }
 
@@ -46,20 +71,55 @@ public final class UiStateStore {
         ADMIN_BREAK;
 
         public LogsActionFilter next() {
-            LogsActionFilter[] v = values();
-            return v[(ordinal() + 1) % v.length];
+            LogsActionFilter[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String label() {
+            return switch (this) {
+                case ALL                -> "Alle Aktionen";
+                case UNAUTHORIZED_BREAK -> "Unerlaubte Breaks";
+                case ADMIN_BREAK        -> "Admin-Breaks";
+            };
+        }
+
+        public String databaseValue() {
+            return switch (this) {
+                case UNAUTHORIZED_BREAK -> "UNAUTHORIZED_BREAK";
+                case ADMIN_BREAK        -> "ADMIN_BREAK";
+                default                 -> "ALL";
+            };
         }
     }
 
     public enum LogsTimeFilter {
-        H24,
-        D7,
-        D30,
-        ALL;
+        LAST_24_HOURS,
+        LAST_7_DAYS,
+        LAST_30_DAYS,
+        ALL_TIME;
 
         public LogsTimeFilter next() {
-            LogsTimeFilter[] v = values();
-            return v[(ordinal() + 1) % v.length];
+            LogsTimeFilter[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String label() {
+            return switch (this) {
+                case LAST_24_HOURS -> "Letzte 24 Std";
+                case LAST_7_DAYS   -> "Letzte 7 Tage";
+                case LAST_30_DAYS  -> "Letzte 30 Tage";
+                case ALL_TIME      -> "Gesamte Zeit";
+            };
+        }
+
+        public long minTimestamp() {
+            long now = System.currentTimeMillis();
+            return switch (this) {
+                case LAST_24_HOURS -> now - 24L * 60L * 60L * 1000L;
+                case LAST_7_DAYS   -> now - 7L  * 24L * 60L * 60L * 1000L;
+                case LAST_30_DAYS  -> now - 30L * 24L * 60L * 60L * 1000L;
+                case ALL_TIME      -> 0L;
+            };
         }
     }
 
@@ -73,33 +133,33 @@ public final class UiStateStore {
     public static final class LogsState {
         public int page = 0;
         public LogsActionFilter action = LogsActionFilter.ALL;
-        public LogsTimeFilter time = LogsTimeFilter.H24;
+        public LogsTimeFilter time = LogsTimeFilter.LAST_24_HOURS;
         public String actorFilter = "";
     }
 
-    private final Map<UUID, LockListState> locks = new ConcurrentHashMap<>();
-    private final Map<UUID, LogsState> logs = new ConcurrentHashMap<>();
-    private final Map<UUID, Boolean> inspectMode = new ConcurrentHashMap<>();
+    private final Map<UUID, LockListState> lockListStates = new ConcurrentHashMap<>();
+    private final Map<UUID, LogsState>     logStates      = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean>       inspectModes   = new ConcurrentHashMap<>();
 
-    public LockListState locks(UUID player) {
-        return locks.computeIfAbsent(player, u -> new LockListState());
+    public LockListState locks(UUID playerUuid) {
+        return lockListStates.computeIfAbsent(playerUuid, ignored -> new LockListState());
     }
 
-    public LogsState logs(UUID player) {
-        return logs.computeIfAbsent(player, u -> new LogsState());
+    public LogsState logs(UUID playerUuid) {
+        return logStates.computeIfAbsent(playerUuid, ignored -> new LogsState());
     }
 
-    public boolean inspect(UUID player) {
-        return inspectMode.getOrDefault(player, false);
+    public boolean inspect(UUID playerUuid) {
+        return inspectModes.getOrDefault(playerUuid, false);
     }
 
-    public void setInspect(UUID player, boolean on) {
-        inspectMode.put(player, on);
+    public void setInspect(UUID playerUuid, boolean enabled) {
+        inspectModes.put(playerUuid, enabled);
     }
 
-    public void cleanup(UUID player) {
-        locks.remove(player);
-        logs.remove(player);
-        inspectMode.remove(player);
+    public void cleanup(UUID playerUuid) {
+        lockListStates.remove(playerUuid);
+        logStates.remove(playerUuid);
+        inspectModes.remove(playerUuid);
     }
 }
