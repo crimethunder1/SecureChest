@@ -19,6 +19,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -44,7 +45,7 @@ public final class GuiListener implements Listener {
 
         ItemStack clickedItem = event.getCurrentItem();
         if (clickedItem == null || clickedItem.getType().isAir()) return;
-        var itemMeta = clickedItem.getItemMeta();
+        ItemMeta itemMeta = clickedItem.getItemMeta();
         if (itemMeta == null) return;
         PersistentDataContainer persistentDataContainer = itemMeta.getPersistentDataContainer();
 
@@ -232,7 +233,7 @@ public final class GuiListener implements Listener {
                     player.sendMessage(actionSuccessful
                             ? Component.text("Vertrauen aktualisiert.", NamedTextColor.GREEN)
                             : Component.text("Fehlgeschlagen (kein Besitzer / Schloss nicht gefunden).",
-                                    NamedTextColor.RED));
+                            NamedTextColor.RED));
                 } catch (IllegalArgumentException ignored) {
                     player.sendMessage(Component.text("Ungültige Daten.", NamedTextColor.RED));
                 }
@@ -417,6 +418,7 @@ public final class GuiListener implements Listener {
         }
 
         boolean actionSuccessful = switch (confirmRequest.type()) {
+            case LOCK_BLOCK      -> handleLockBlockConfirmation(player, confirmRequest.data());
             case UNLOCK_ONE      -> plugin.locks().unlockByIdWithUndo(player, confirmRequest.data());
             case UNLOCK_ALL_SELF -> plugin.locks().unlockAllWithUndo(player, player.getUniqueId());
             case GLOBAL_UNLOCK   -> {
@@ -483,6 +485,18 @@ public final class GuiListener implements Listener {
 
     private long parseLongSafe(String value) {
         try { return Long.parseLong(value); } catch (Exception ignored) { return -1L; }
+    }
+
+    private boolean handleLockBlockConfirmation(Player player, String lockKeyId) {
+        try {
+            de.SecureChest.plugin.lock.LockKey lockKey = de.SecureChest.plugin.lock.LockKey.fromId(lockKeyId);
+            org.bukkit.World targetWorld = org.bukkit.Bukkit.getWorld(lockKey.worldUuid());
+            if (targetWorld == null) return false;
+            org.bukkit.block.Block targetBlock = targetWorld.getBlockAt(lockKey.x(), lockKey.y(), lockKey.z());
+            return plugin.locks().lock(player, targetBlock);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private boolean handleLogTeleport(Player player, String logIdString) {

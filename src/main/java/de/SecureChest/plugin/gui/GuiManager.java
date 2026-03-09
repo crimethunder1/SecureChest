@@ -25,7 +25,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public final class GuiManager {
 
@@ -168,10 +167,10 @@ public final class GuiManager {
         }
 
         if (lockListState.world == UiStateStore.WorldFilter.CURRENT) {
-            lockViews.removeIf(lockView -> lockView.location.getWorld() == null
-                    || !lockView.location.getWorld().equals(player.getWorld()));
+            lockViews.removeIf(lockView -> lockView.location().getWorld() == null
+                    || !lockView.location().getWorld().equals(player.getWorld()));
         }
-        lockViews.removeIf(lockView -> !matchesTypeFilter(lockView.blockType, lockListState.type));
+        lockViews.removeIf(lockView -> !matchesTypeFilter(lockView.blockType(), lockListState.type));
         lockViews.sort(buildLockComparator(player, lockListState.sort));
 
         int pageSize = 45;
@@ -306,14 +305,14 @@ public final class GuiManager {
         int trustSlot = 36;
         List<Map.Entry<UUID, AccessLevel>> trustList = lockEntry.trusted().entrySet().stream()
                 .sorted(Comparator.comparing(e -> e.getValue().name()))
-                .collect(Collectors.toList());
+                .toList();
 
         int trustPlayerCount = trustList.size();
         String trustCountLabel = trustPlayerCount == 0
                 ? "§7Keine vertrauten Spieler"
                 : "§f" + trustPlayerCount + " vertraute"
-                  + (trustPlayerCount == 1 ? "r Spieler" : " Spieler")
-                  + (trustPlayerCount > 9 ? " §8(erste 9 angezeigt)" : "");
+                + (trustPlayerCount == 1 ? "r Spieler" : " Spieler")
+                + (trustPlayerCount > 9 ? " §8(erste 9 angezeigt)" : "");
         inventory.setItem(35, buildInfoItem(Material.NAME_TAG, trustCountLabel, List.of()));
 
         for (var trustEntry : trustList) {
@@ -491,8 +490,11 @@ public final class GuiManager {
         Map<Character, ItemStack> ingredientMap = new HashMap<>();
 
         for (Map.Entry<Character, RecipeChoice> choiceEntry : recipe.getChoiceMap().entrySet()) {
-            if (choiceEntry.getValue() != null) {
-                ingredientMap.put(choiceEntry.getKey(), choiceEntry.getValue().getItemStack());
+            RecipeChoice choice = choiceEntry.getValue();
+            if (choice instanceof RecipeChoice.ExactChoice exactChoice) {
+                ingredientMap.put(choiceEntry.getKey(), exactChoice.getChoices().get(0));
+            } else if (choice instanceof RecipeChoice.MaterialChoice materialChoice) {
+                ingredientMap.put(choiceEntry.getKey(), new ItemStack(materialChoice.getChoices().get(0)));
             }
         }
 
@@ -605,18 +607,8 @@ public final class GuiManager {
         UiStateStore.LogsState logsState = plugin.ui().logs(player.getUniqueId());
         logsState.page = Math.max(0, page);
 
-        String actionFilterString = switch (logsState.action) {
-            case UNAUTHORIZED_BREAK -> "UNAUTHORIZED_BREAK";
-            case ADMIN_BREAK        -> "ADMIN_BREAK";
-            default                 -> "ALL";
-        };
-        long currentTimeMillis = System.currentTimeMillis();
-        long minimumTimestamp  = switch (logsState.time) {
-            case H24 -> currentTimeMillis - 24L * 60L * 60L * 1000L;
-            case D7  -> currentTimeMillis - 7L  * 24L * 60L * 60L * 1000L;
-            case D30 -> currentTimeMillis - 30L * 24L * 60L * 60L * 1000L;
-            case ALL -> 0L;
-        };
+        String actionFilterString = logsState.action.databaseValue();
+        long minimumTimestamp     = logsState.time.minTimestamp();
         String actorNameFilter = logsState.actorFilter == null ? "" : logsState.actorFilter;
 
         int pageSize  = 45;
@@ -643,17 +635,8 @@ public final class GuiManager {
         inventory.setItem(45, buildButton(Material.ARROW, "§fZurück",
                 List.of("§7Zurück zum Admin-Panel"), "back_admin", ""));
 
-        String actionFilterDisplayLabel = switch (logsState.action) {
-            case UNAUTHORIZED_BREAK -> "§cUnerlaubter Abbau";
-            case ADMIN_BREAK        -> "§6Admin-Abbau";
-            default                 -> "§7Alle Aktionen";
-        };
-        String timeFilterDisplayLabel = switch (logsState.time) {
-            case H24 -> "Letzte 24 Std";
-            case D7  -> "Letzte 7 Tage";
-            case D30 -> "Letzte 30 Tage";
-            case ALL -> "Alle";
-        };
+        String actionFilterDisplayLabel = logsState.action.label();
+        String timeFilterDisplayLabel   = logsState.time.label();
 
         inventory.setItem(47, buildButton(Material.BOOK,
                 "§fAktion: " + actionFilterDisplayLabel,
@@ -702,44 +685,30 @@ public final class GuiManager {
         playMenuClickSound(player);
     }
 
-    private static final class LockView {
-        final String lockId;
-        final Location location;
-        final Material blockType;
-        final int trustedCount;
-        final long createdAt;
-
-        private LockView(String lockId, Location location, Material blockType,
-                         int trustedCount, long createdAt) {
-            this.lockId       = lockId;
-            this.location     = location;
-            this.blockType    = blockType;
-            this.trustedCount = trustedCount;
-            this.createdAt    = createdAt;
-        }
-    }
+    private record LockView(String lockId, Location location, Material blockType,
+                            int trustedCount, long createdAt) {}
 
     private Comparator<LockView> buildLockComparator(Player player, UiStateStore.LockSort sortMode) {
         return switch (sortMode) {
             case WORLD -> Comparator
                     .comparing((LockView lockView) ->
-                            lockView.location.getWorld() != null
-                                    ? lockView.location.getWorld().getName() : "")
-                    .thenComparingInt(lockView -> lockView.location.getBlockX())
-                    .thenComparingInt(lockView -> lockView.location.getBlockY())
-                    .thenComparingInt(lockView -> lockView.location.getBlockZ());
+                            lockView.location().getWorld() != null
+                                    ? lockView.location().getWorld().getName() : "")
+                    .thenComparingInt(lockView -> lockView.location().getBlockX())
+                    .thenComparingInt(lockView -> lockView.location().getBlockY())
+                    .thenComparingInt(lockView -> lockView.location().getBlockZ());
             case TYPE -> Comparator
-                    .comparing((LockView lockView) -> lockView.blockType.name())
-                    .thenComparingInt(lockView -> lockView.location.getBlockX())
-                    .thenComparingInt(lockView -> lockView.location.getBlockY())
-                    .thenComparingInt(lockView -> lockView.location.getBlockZ());
+                    .comparing((LockView lockView) -> lockView.blockType().name())
+                    .thenComparingInt(lockView -> lockView.location().getBlockX())
+                    .thenComparingInt(lockView -> lockView.location().getBlockY())
+                    .thenComparingInt(lockView -> lockView.location().getBlockZ());
             case RECENT -> Comparator
-                    .comparingLong((LockView lockView) -> lockView.createdAt).reversed();
+                    .comparingLong((LockView lockView) -> lockView.createdAt()).reversed();
             case DISTANCE -> Comparator.comparingDouble((LockView lockView) -> {
-                if (lockView.location.getWorld() == null
-                        || !lockView.location.getWorld().equals(player.getWorld()))
+                if (lockView.location().getWorld() == null
+                        || !lockView.location().getWorld().equals(player.getWorld()))
                     return Double.MAX_VALUE;
-                return lockView.location.distanceSquared(player.getLocation());
+                return lockView.location().distanceSquared(player.getLocation());
             });
         };
     }
@@ -754,29 +723,29 @@ public final class GuiManager {
     }
 
     private ItemStack buildLockListEntry(Player viewer, LockView lockView) {
-        String worldName = lockView.location.getWorld() != null
-                ? lockView.location.getWorld().getName() : "?";
-        String blockDisplayName = lockView.blockType.name().replace('_', ' ');
+        String worldName = lockView.location().getWorld() != null
+                ? lockView.location().getWorld().getName() : "?";
+        String blockDisplayName = lockView.blockType().name().replace('_', ' ');
 
         List<String> lore = new ArrayList<>();
         lore.add("§7" + worldName + "  §f"
-                + lockView.location.getBlockX() + " "
-                + lockView.location.getBlockY() + " "
-                + lockView.location.getBlockZ());
-        if (lockView.location.getWorld() != null
-                && lockView.location.getWorld().equals(viewer.getWorld())) {
+                + lockView.location().getBlockX() + " "
+                + lockView.location().getBlockY() + " "
+                + lockView.location().getBlockZ());
+        if (lockView.location().getWorld() != null
+                && lockView.location().getWorld().equals(viewer.getWorld())) {
             long distanceBlocks = Math.round(
-                    Math.sqrt(lockView.location.distanceSquared(viewer.getLocation())));
+                    Math.sqrt(lockView.location().distanceSquared(viewer.getLocation())));
             lore.add("§8Entfernung: §f" + distanceBlocks + " Blöcke");
         } else {
             lore.add("§8Andere Welt");
         }
-        if (lockView.trustedCount > 0)
-            lore.add("§8Vertraute Spieler: §f" + lockView.trustedCount);
+        if (lockView.trustedCount() > 0)
+            lore.add("§8Vertraute Spieler: §f" + lockView.trustedCount());
         lore.add(formatActionLine("Klicken zum Verwalten"));
 
-        Material iconMaterial = lockView.blockType.isItem() ? lockView.blockType : Material.CHEST;
-        return buildButton(iconMaterial, "§f" + blockDisplayName, lore, "manage_lock", lockView.lockId);
+        Material iconMaterial = lockView.blockType().isItem() ? lockView.blockType() : Material.CHEST;
+        return buildButton(iconMaterial, "§f" + blockDisplayName, lore, "manage_lock", lockView.lockId());
     }
 
     private ItemStack buildTrustListEntry(UUID playerUuid, AccessLevel accessLevel,
@@ -881,7 +850,7 @@ public final class GuiManager {
         Material glassPaneMaterial = isEnabled
                 ? Material.LIME_STAINED_GLASS_PANE
                 : Material.RED_STAINED_GLASS_PANE;
-        net.kyori.adventure.text.Component displayName = Component.text(label + " \u2014 ")
+        net.kyori.adventure.text.Component displayName = Component.text(label + " — ")
                 .append(Component.text(isEnabled ? "AN" : "AUS",
                         isEnabled ? NamedTextColor.GREEN : NamedTextColor.RED));
         ItemStack itemStack = new ItemStack(glassPaneMaterial);
@@ -959,7 +928,7 @@ public final class GuiManager {
         org.bukkit.OfflinePlayer cachedPlayer =
                 Bukkit.getOfflinePlayerIfCached(playerUuid.toString());
         if (cachedPlayer != null && cachedPlayer.getName() != null) return cachedPlayer.getName();
-        return playerUuid.toString().substring(0, 8) + "\u2026";
+        return playerUuid.toString().substring(0, 8) + "…";
     }
 
     private static String formatInfoLine(String text)    { return "§8" + text; }

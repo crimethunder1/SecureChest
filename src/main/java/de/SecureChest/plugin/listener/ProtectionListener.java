@@ -536,6 +536,7 @@ public final class ProtectionListener implements Listener {
 
         if (accessLevel == null) {
             event.setCancelled(true);
+            player.updateInventory();
             return;
         }
         if (accessLevel != AccessLevel.VIEW) return;
@@ -551,6 +552,7 @@ public final class ProtectionListener implements Listener {
 
         if (affectsTopInventory) {
             event.setCancelled(true);
+            player.updateInventory();
         }
     }
 
@@ -569,6 +571,7 @@ public final class ProtectionListener implements Listener {
 
         if (accessLevel == null) {
             event.setCancelled(true);
+            player.updateInventory();
             return;
         }
         if (accessLevel != AccessLevel.VIEW) return;
@@ -577,6 +580,7 @@ public final class ProtectionListener implements Listener {
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot < topInventorySize) {
                 event.setCancelled(true);
+                player.updateInventory();
                 return;
             }
         }

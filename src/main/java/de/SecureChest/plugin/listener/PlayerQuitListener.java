@@ -47,17 +47,17 @@ public final class PlayerQuitListener implements Listener {
                     int notificationCount = notifications.size();
                     String pluralLabel = notificationCount == 1 ? "Meldung" : "Meldungen";
                     onlinePlayer.sendMessage(
-                        Component.text("[ ChestSecure ] ", NamedTextColor.GOLD)
-                            .append(Component.text(notificationCount + " verpasste " + pluralLabel + " während deiner Abwesenheit:",
-                                    NamedTextColor.YELLOW)));
+                            Component.text("[ ChestSecure ] ", NamedTextColor.GOLD)
+                                    .append(Component.text(notificationCount + " verpasste " + pluralLabel + " während deiner Abwesenheit:",
+                                            NamedTextColor.YELLOW)));
                     for (Notification notification : notifications) {
                         String formattedTime = NOTIFICATION_DATE_FORMATTER.format(Instant.ofEpochMilli(notification.createdAt()));
                         onlinePlayer.sendMessage(
-                            Component.text("  " + formattedTime + "  ", NamedTextColor.DARK_GRAY)
-                                .append(Component.text(notification.message(), NamedTextColor.WHITE)));
+                                Component.text("  " + formattedTime + "  ", NamedTextColor.DARK_GRAY)
+                                        .append(Component.text(notification.message(), NamedTextColor.WHITE)));
                     }
                     onlinePlayer.sendMessage(
-                        Component.text("Tippe /cs um deine Locks zu verwalten.", NamedTextColor.GRAY));
+                            Component.text("Tippe /cs um deine Locks zu verwalten.", NamedTextColor.GRAY));
                 }, 200L);
             });
         }
@@ -70,7 +70,7 @@ public final class PlayerQuitListener implements Listener {
         plugin.confirms().clear(playerUuid);
         plugin.undos().clear(playerUuid);
         plugin.ui().cleanup(playerUuid);
-        plugin.ping().stopPing(playerUuid);
+        plugin.ping().stopPing(event.getPlayer());
 
         if (plugin.locks() instanceof SqlLockService sqlLockService) {
             sqlLockService.evictPlayerCache(playerUuid);
