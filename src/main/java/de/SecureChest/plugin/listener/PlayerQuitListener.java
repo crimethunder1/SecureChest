@@ -71,6 +71,7 @@ public final class PlayerQuitListener implements Listener {
         plugin.confirms().clear(uuid);
         plugin.undos().clear(uuid);
         plugin.ui().cleanup(uuid);
+        plugin.ping().onPlayerQuit(uuid);
 
         if (plugin.locks() instanceof SqlLockService sls) {
             sls.evictPlayerCache(uuid);

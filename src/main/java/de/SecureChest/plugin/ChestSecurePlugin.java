@@ -8,6 +8,7 @@ import de.SecureChest.plugin.listener.ProtectionListener;
 import de.SecureChest.plugin.listener.TrustChatListener;
 import de.SecureChest.plugin.lock.LockService;
 import de.SecureChest.plugin.lock.SqlLockService;
+import de.SecureChest.plugin.ping.PingManager;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
 import de.SecureChest.plugin.sign.SignManager;
 import de.SecureChest.plugin.ui.ConfirmManager;
@@ -39,6 +40,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private ConfirmManager confirmManager;
     private UndoManager undoManager;
     private UiStateStore uiState;
+    private PingManager pingManager;
 
     private final Map<UUID, PendingChatAction> pendingChat = new ConcurrentHashMap<>();
 
@@ -57,6 +59,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         this.confirmManager = new ConfirmManager();
         this.undoManager    = new UndoManager(maxUndoHistory);
         this.uiState        = new UiStateStore();
+        this.pingManager    = new PingManager(this);
 
         this.database = new DatabaseManager(this);
         if (!database.init()) {
@@ -110,6 +113,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public ConfirmManager confirms()   { return confirmManager; }
     public UndoManager undos()         { return undoManager; }
     public UiStateStore ui()           { return uiState; }
+    public PingManager ping()          { return pingManager; }
     public Items items()               { return items; }
     public SignManager signs()         { return signManager; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChat; }

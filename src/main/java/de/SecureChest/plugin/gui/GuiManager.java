@@ -699,16 +699,75 @@ public final class GuiManager {
     }
 
     private ItemStack logItem(LogRecord r) {
-        String t = DF.format(Instant.ofEpochMilli(r.createdAt()));
-        String name = r.action() + " | " + r.actorName();
-        List<String> lore = new ArrayList<>();
-        lore.add(inf("Time: " + t));
-        lore.add(inf("World: " + r.worldName() + "  " + r.x() + " " + r.y() + " " + r.z()));
-        if (r.extra() != null && !r.extra().isBlank()) lore.add(inf("Note: " + r.extra()));
-        lore.add(action("Click → compass"));
-        lore.add(action("Shift+Click → teleport (OP, confirm)"));
 
-        return button(Material.PAPER, name, lore, "log_entry", String.valueOf(r.id()));
+        // ── Time formatting ──────────────────────────────────────────────
+        long nowMs  = System.currentTimeMillis();
+        long ageMs  = nowMs - r.createdAt();
+        String relativeTime;
+        if (ageMs < 60_000L) {
+            relativeTime = "Gerade eben";
+        } else if (ageMs < 3_600_000L) {
+            relativeTime = "vor " + (ageMs / 60_000L) + " Min";
+        } else if (ageMs < 86_400_000L) {
+            relativeTime = "vor " + (ageMs / 3_600_000L) + " Std";
+        } else {
+            relativeTime = "vor " + (ageMs / 86_400_000L) + " Tag(en)";
+        }
+        String absoluteTime = DF.format(Instant.ofEpochMilli(r.createdAt()));
+
+        // ── Action label & icon ──────────────────────────────────────────
+        Material icon;
+        String   actionLabel;
+        String   actionColor;   // legacy § color for lore
+        switch (r.action()) {
+            case "UNAUTHORIZED_BREAK" -> {
+                icon        = Material.RED_CONCRETE;
+                actionLabel = "⚠ Unerlaubter Break-Versuch";
+                actionColor = "§c";
+            }
+            case "ADMIN_BREAK" -> {
+                icon        = Material.ORANGE_CONCRETE;
+                actionLabel = "🔧 Admin-Break";
+                actionColor = "§6";
+            }
+            case "LOCK" -> {
+                icon        = Material.LIME_CONCRETE;
+                actionLabel = "🔒 Gesperrt";
+                actionColor = "§a";
+            }
+            case "UNLOCK" -> {
+                icon        = Material.YELLOW_CONCRETE;
+                actionLabel = "🔓 Entsperrt";
+                actionColor = "§e";
+            }
+            default -> {
+                icon        = Material.PAPER;
+                actionLabel = r.action().replace('_', ' ');
+                actionColor = "§7";
+            }
+        }
+
+        // ── Display name ─────────────────────────────────────────────────
+        String title = actionColor + actionLabel
+                     + "  §8│  §f" + r.actorName()
+                     + "  §8│  §7" + relativeTime;
+
+        // ── Lore lines ───────────────────────────────────────────────────
+        List<String> lore = new ArrayList<>();
+        lore.add("§8────────────────────────────");
+        lore.add("§7Spieler : §f" + r.actorName());
+        lore.add("§7Aktion  : " + actionColor + actionLabel);
+        lore.add("§7Zeit    : §f" + absoluteTime + "  §8(" + relativeTime + ")");
+        lore.add("§7Ort     : §b" + r.worldName()
+                + "  §f" + r.x() + " " + r.y() + " " + r.z());
+        if (r.extra() != null && !r.extra().isBlank()) {
+            lore.add("§7Hinweis : §e" + r.extra());
+        }
+        lore.add("§8────────────────────────────");
+        lore.add("§bKlick §7→ Kompass setzen");
+        lore.add("§bShift+Klick §7→ Teleportieren §8(OP, Bestätigung)");
+
+        return button(icon, title, lore, "log_entry", String.valueOf(r.id()));
     }
 
     private ItemStack toggle(String name, boolean on, String action) {

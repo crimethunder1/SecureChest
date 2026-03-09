@@ -129,18 +129,21 @@ public final class GuiListener implements Listener {
             case "ping_lock" -> {
                 var le = plugin.locks().getLockFromId(ctx).orElse(null);
                 if (le == null) {
-                    p.sendMessage(Component.text("Lock not found.", NamedTextColor.RED));
+                    p.sendMessage(Component.text("Lock nicht gefunden.", NamedTextColor.RED));
                     plugin.gui().openLocksList(p, 0);
                     return;
                 }
-                Location loc = new Location(Bukkit.getWorld(le.key().worldUuid()), le.key().x(), le.key().y(), le.key().z());
-                if (loc.getWorld() != null) {
-                    p.setCompassTarget(loc);
-                    p.sendMessage(Component.text("Compass set to lock location.", NamedTextColor.AQUA));
-                } else {
-                    p.sendMessage(Component.text("World is unloaded - cannot set compass.", NamedTextColor.RED));
+                World targetWorld = Bukkit.getWorld(le.key().worldUuid());
+                if (targetWorld == null) {
+                    p.sendMessage(Component.text("Welt ist nicht geladen – Ping nicht möglich.", NamedTextColor.RED));
+                    plugin.gui().openLockManage(p, ctx);
+                    return;
                 }
-                plugin.gui().openLockManage(p, ctx);
+                Location pingLoc = new Location(targetWorld,
+                        le.key().x() + 0.5, le.key().y() + 0.5, le.key().z() + 0.5);
+                plugin.ping().startPing(p, pingLoc);
+                p.sendMessage(Component.text("Kompass gesetzt! Richtungsanzeige über der Hotbar aktiv.", NamedTextColor.AQUA));
+                p.closeInventory();
             }
             case "copy_lock" -> {
                 var le = plugin.locks().getLockFromId(ctx).orElse(null);

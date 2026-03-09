@@ -45,6 +45,11 @@ public final class ProtectionListener implements Listener {
             new java.util.concurrent.ConcurrentHashMap<>();
     private static final long NOTIFY_COOLDOWN_MS = 30_000L;
 
+    /** Per-player cooldown for lock/unlock interactions (1 second). */
+    private final java.util.concurrent.ConcurrentHashMap<UUID, Long> lockActionCooldowns =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long LOCK_ACTION_COOLDOWN_MS = 1_000L;
+
     public ProtectionListener(ChestSecurePlugin plugin) {
         this.plugin = plugin;
         this.worlds = new Worlds(plugin);
@@ -82,6 +87,16 @@ public final class ProtectionListener implements Listener {
         if (isChestKey) {
             e.setCancelled(true);
 
+            // --- 1-second cooldown ---
+            UUID uid     = e.getPlayer().getUniqueId();
+            long nowMs   = System.currentTimeMillis();
+            Long lastAct = lockActionCooldowns.get(uid);
+            if (lastAct != null && (nowMs - lastAct) < LOCK_ACTION_COOLDOWN_MS) {
+                return; // silent – too fast
+            }
+            lockActionCooldowns.put(uid, nowMs);
+            // -------------------------
+
             boolean locked = plugin.locks().isLocked(b);
             if (!locked) {
                 boolean ok = plugin.locks().lock(e.getPlayer(), b);
@@ -109,6 +124,16 @@ public final class ProtectionListener implements Listener {
 
         boolean isSecureHopper = b.getType() == Material.HOPPER && plugin.locks().isSecureHopper(b);
         if (quickLock && emptyHand && !plugin.locks().isLocked(b) && !isSecureHopper && hasChestKey(e.getPlayer())) {
+            // --- 1-second cooldown ---
+            UUID uid     = e.getPlayer().getUniqueId();
+            long nowMs   = System.currentTimeMillis();
+            Long lastAct = lockActionCooldowns.get(uid);
+            if (lastAct != null && (nowMs - lastAct) < LOCK_ACTION_COOLDOWN_MS) {
+                e.setCancelled(true);
+                return;
+            }
+            lockActionCooldowns.put(uid, nowMs);
+            // -------------------------
             e.setCancelled(true);
             boolean ok = plugin.locks().lock(e.getPlayer(), b);
             if (ok) feedbackOk(e.getPlayer(), "Locked.");
