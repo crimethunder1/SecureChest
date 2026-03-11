@@ -1,6 +1,8 @@
 worlds:
   enabled:
     - world
+    - world_nether
+    - world_the_end
 
 sounds:
   enabled: true

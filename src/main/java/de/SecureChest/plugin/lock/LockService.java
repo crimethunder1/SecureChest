@@ -71,6 +71,22 @@ public interface LockService {
     void setQuickLock(UUID player, boolean value);
     void setQuickRemove(UUID player, boolean value);
 
+    /**
+     * Entfernt einen Lock vollständig ohne Player-Referenz (systemseitig, z.B. Endportal, Strukturen).
+     * Löscht den Cache-Eintrag, das Nametag-Sign und persistiert die Löschung asynchron in der DB.
+     */
+    void forceRemoveLockAt(LockKey key);
+
+    /**
+     * Entfernt einen Secure Hopper vollständig ohne Player-Referenz (systemseitig).
+     */
+    void forceRemoveHopperAt(LockKey key);
+
+    /**
+     * Gibt alle gecachten Secure Hopper zurück (für Validierungsaufgaben).
+     */
+    Collection<SecureHopperEntry> getAllCachedHoppers();
+
     void logUnauthorizedBreak(Player actor, Block target);
     void logAdminBreak(Player actor, Block target);
 

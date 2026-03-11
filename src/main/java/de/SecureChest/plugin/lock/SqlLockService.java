@@ -154,6 +154,66 @@ public final class SqlLockService implements LockService {
     }
 
     @Override
+    public Collection<SecureHopperEntry> getAllCachedHoppers() {
+        return Collections.unmodifiableCollection(hopperCache.values());
+    }
+
+    /**
+     * Systemseitiges Entfernen eines Locks ohne Player (Endportal, Strukturen, Weltmechaniken).
+     * Räumt Cache, Sign/Nametag und DB-Einträge atomar auf.
+     */
+    @Override
+    public void forceRemoveLockAt(LockKey key) {
+        String id = key.asId();
+        if (lockCache.remove(id) == null) return; // Bereits entfernt oder unbekannt
+        plugin.signs().removeSign(id);
+        plugin.getLogger().info("[SecureChest] ForceRemove lock " + id + " (block zerstört durch Weltmechanik)");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try (PreparedStatement ps = c.prepareStatement(
+                        "DELETE FROM locks WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
+                    ps.setString(1, key.worldUuid().toString());
+                    ps.setInt(2, key.x()); ps.setInt(3, key.y()); ps.setInt(4, key.z());
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement(
+                        "DELETE FROM trusted WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
+                    ps.setString(1, key.worldUuid().toString());
+                    ps.setInt(2, key.x()); ps.setInt(3, key.y()); ps.setInt(4, key.z());
+                    ps.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB forceRemoveLockAt failed for " + id, ex);
+            }
+        });
+    }
+
+    /**
+     * Systemseitiges Entfernen eines Secure Hoppers ohne Player.
+     */
+    @Override
+    public void forceRemoveHopperAt(LockKey key) {
+        String id = key.asId();
+        if (hopperCache.remove(id) == null) return; // Bereits entfernt oder unbekannt
+        plugin.getLogger().info("[SecureChest] ForceRemove hopper " + id + " (block zerstört durch Weltmechanik)");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "DELETE FROM secure_hoppers WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
+                ps.setString(1, key.worldUuid().toString());
+                ps.setInt(2, key.x()); ps.setInt(3, key.y()); ps.setInt(4, key.z());
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB forceRemoveHopperAt failed for " + id, ex);
+            }
+        });
+    }
+
+    @Override
     public Collection<LockEntry> getAllCachedLocks() {
         return Collections.unmodifiableCollection(lockCache.values());
     }

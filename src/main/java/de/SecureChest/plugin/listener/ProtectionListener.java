@@ -10,11 +10,13 @@ import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
 import de.SecureChest.plugin.util.Items;
 import de.SecureChest.plugin.util.Worlds;
+import com.destroystokyo.paper.event.block.BlockDestroyEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Hopper;
 import org.bukkit.entity.Player;
@@ -25,6 +27,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -59,8 +62,15 @@ public final class ProtectionListener implements Listener {
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
 
         Block block = event.getClickedBlock();
-        if (!worlds.isEnabled(block.getWorld())) return;
         if (!LockUtil.isLockable(block)) return;
+
+        // Getrennte Prüfung: Weltfreigabe gilt nur für neue Aktionen.
+        // Bestehende Locks werden IMMER geschützt – unabhängig von worlds.enabled.
+        boolean worldEnabled       = worlds.isEnabled(block.getWorld());
+        boolean blockAlreadyLocked = plugin.locks().isLocked(block);
+        boolean isProtectedHopper  = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
+
+        if (!worldEnabled && !blockAlreadyLocked && !isProtectedHopper) return;
 
         Player player = event.getPlayer();
         ItemStack heldItem = event.getItem();
@@ -84,6 +94,10 @@ public final class ProtectionListener implements Listener {
 
         if (isHoldingChestKey) {
             event.setCancelled(true);
+            if (!worldEnabled) {
+                sendFailFeedback(player, "Das Plugin ist in dieser Welt nicht aktiv.");
+                return;
+            }
             if (!consumeActionCooldown(player.getUniqueId())) return;
 
             boolean isBlockLocked = plugin.locks().isLocked(block);
@@ -97,7 +111,8 @@ public final class ProtectionListener implements Listener {
 
         boolean isQuickLockEnabled = plugin.locks().getQuickLock(player.getUniqueId());
         boolean isBlockASecureHopper = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
-        if (isQuickLockEnabled && isHandEmpty && !plugin.locks().isLocked(block) && !isBlockASecureHopper && playerHasChestKeyInInventory(player)) {
+        if (isQuickLockEnabled && isHandEmpty && !blockAlreadyLocked && !isBlockASecureHopper
+                && worldEnabled && playerHasChestKeyInInventory(player)) {
             event.setCancelled(true);
             if (!consumeActionCooldown(player.getUniqueId())) return;
             lockBlockDirectly(player, block);
@@ -169,14 +184,14 @@ public final class ProtectionListener implements Listener {
         ));
         String blockTypeName = block.getType().name().replace('_', ' ');
         Bukkit.getScheduler().runTask(plugin, () ->
-            plugin.gui().openConfirm(player, "Block sperren",
-                List.of(
-                    "Diesen " + blockTypeName + " sperren?",
-                    "",
-                    "Tipp: Schalte Quick Lock ein,",
-                    "um diesen Schritt zu überspringen."
+                plugin.gui().openConfirm(player, "Block sperren",
+                        List.of(
+                                "Diesen " + blockTypeName + " sperren?",
+                                "",
+                                "Tipp: Schalte Quick Lock ein,",
+                                "um diesen Schritt zu überspringen."
+                        )
                 )
-            )
         );
     }
 
@@ -313,7 +328,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
         Block block = event.getBlock();
-        if (!worlds.isEnabled(block.getWorld())) return;
+        // Schutz bestehender Locks gilt unabhängig von worlds.enabled
         if (!LockUtil.isLockable(block) && block.getType() != Material.HOPPER) return;
 
         boolean isProtected = plugin.locks().isLocked(block) || plugin.locks().isSecureHopper(block);
@@ -328,8 +343,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
-        if (!worlds.isEnabled(block.getWorld())) return;
-
+        // Schutz bestehender Locks gilt unabhängig von worlds.enabled
         boolean isLockedBlock   = LockUtil.isLockable(block) && plugin.locks().isLocked(block);
         boolean isSecureHopper  = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
         if (!isLockedBlock && !isSecureHopper) return;
@@ -383,13 +397,11 @@ public final class ProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        if (!worlds.isEnabled(event.getLocation().getWorld())) return;
         removeProtectedBlocksFromList(event.blockList().iterator());
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        if (!worlds.isEnabled(event.getBlock().getWorld())) return;
         removeProtectedBlocksFromList(event.blockList().iterator());
     }
 
@@ -406,6 +418,46 @@ public final class ProtectionListener implements Listener {
         }
     }
 
+    /**
+     * BUG FIX 2 & 3: Endportal- und ähnliche Weltmechaniken können Blöcke ersetzen
+     * ohne BlockBreakEvent zu feuern. PortalCreateEvent wird MONITOR (nach Bestätigung)
+     * gefeuert → wir räumen Lock-Daten & Nametags für betroffene Positionen auf.
+     *
+     * Funktioniert für: Endportal-Aktivierung, Netherporal-Entstehung.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPortalCreate(PortalCreateEvent event) {
+        for (BlockState futurePortalBlock : event.getBlocks()) {
+            Block currentBlock = futurePortalBlock.getBlock();
+            cleanupProtectedBlockIfNeeded(currentBlock);
+        }
+    }
+
+    /**
+     * BUG FIX 3 (Paper-spezifisch): BlockDestroyEvent feuert, wenn ein Block durch
+     * interne Weltmechaniken ersetzt/gelöscht wird (Strukturgenerierung, Dragon-Pillars,
+     * End-Plattform, sonstige Block-Updates). Safety-Net für alle nicht-Player-Ursachen.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBlockDestroy(BlockDestroyEvent event) {
+        cleanupProtectedBlockIfNeeded(event.getBlock());
+    }
+
+    /**
+     * Gemeinsame Cleanup-Logik: Entfernt Lock-Daten und Nametag für einen Block,
+     * der durch Weltmechaniken zerstört/ersetzt wird.
+     */
+    private void cleanupProtectedBlockIfNeeded(Block block) {
+        if (block == null) return;
+        if (LockUtil.isLockable(block) && plugin.locks().isLocked(block)) {
+            LockKey key = LockUtil.canonicalKey(block);
+            plugin.locks().forceRemoveLockAt(key);
+        }
+        if (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block)) {
+            plugin.locks().forceRemoveHopperAt(LockKey.fromLocation(block.getLocation()));
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBurn(BlockBurnEvent event) {
         Block block = event.getBlock();
@@ -419,7 +471,6 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockIgnite(BlockIgniteEvent event) {
         Block block = event.getBlock();
-        if (block == null) return;
         if (!worlds.isEnabled(block.getWorld())) return;
         if ((LockUtil.isLockable(block) && plugin.locks().isLocked(block))
                 || (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block))) {
@@ -544,11 +595,10 @@ public final class ProtectionListener implements Listener {
         InventoryAction clickAction = event.getAction();
         boolean affectsTopInventory =
                 event.getClickedInventory() == topInventory
-                || event.isShiftClick()
-                || clickAction == InventoryAction.COLLECT_TO_CURSOR
-                || clickAction == InventoryAction.MOVE_TO_OTHER_INVENTORY
-                || clickAction == InventoryAction.HOTBAR_SWAP
-                || clickAction == InventoryAction.HOTBAR_MOVE_AND_READD;
+                        || event.isShiftClick()
+                        || clickAction == InventoryAction.COLLECT_TO_CURSOR
+                        || clickAction == InventoryAction.MOVE_TO_OTHER_INVENTORY
+                        || clickAction == InventoryAction.HOTBAR_SWAP;
 
         if (affectsTopInventory) {
             event.setCancelled(true);
@@ -618,21 +668,17 @@ public final class ProtectionListener implements Listener {
             breakNotificationCooldowns.entrySet().removeIf(entry -> (currentTime - entry.getValue()) > BREAK_NOTIFICATION_COOLDOWN_MS);
         }
 
-        World blockWorld = block.getWorld();
-        String locationString = (blockWorld != null ? blockWorld.getName() : "?") + " " + block.getX() + " " + block.getY() + " " + block.getZ();
+        String locationString = block.getWorld().getName() + " " + block.getX() + " " + block.getY() + " " + block.getZ();
         String notificationMessage = attacker.getName() + " hat versucht, dein " + blockTypeName + " bei " + locationString + " zu zerstören";
-
-        final UUID finalOwnerUuid    = ownerUuid;
-        final String finalMessage    = notificationMessage;
 
         Player onlineOwner = Bukkit.getPlayer(ownerUuid);
         if (onlineOwner != null && onlineOwner.isOnline()) {
             onlineOwner.sendMessage(
-                Component.text("⚠ [ChestSecure] ", NamedTextColor.RED)
-                    .append(Component.text(finalMessage, NamedTextColor.YELLOW))
+                    Component.text("⚠ [ChestSecure] ", NamedTextColor.RED)
+                            .append(Component.text(notificationMessage, NamedTextColor.YELLOW))
             );
         } else {
-            plugin.locks().addNotification(finalOwnerUuid, finalMessage);
+            plugin.locks().addNotification(ownerUuid, notificationMessage);
         }
     }
 
