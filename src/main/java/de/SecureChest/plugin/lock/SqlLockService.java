@@ -84,7 +84,7 @@ public final class SqlLockService implements LockService {
                 UUID target  = UUID.fromString(rs.getString(5));
                 AccessLevel lvl = AccessLevel.fromString(rs.getString(6));
                 LockEntry entry = lockCache.get(key.asId());
-                if (entry != null && lvl != null) entry.trusted().put(target, lvl);
+                if (entry != null && lvl != null) entry.trustedMutable().put(target, lvl);
             }
         }
     }
@@ -151,7 +151,7 @@ public final class SqlLockService implements LockService {
                     try (ResultSet rs2 = ps2.executeQuery()) {
                         while (rs2.next()) {
                             AccessLevel lvl = AccessLevel.fromString(rs2.getString(2));
-                            if (lvl != null) entry.trusted().put(UUID.fromString(rs2.getString(1)), lvl);
+                            if (lvl != null) entry.trustedMutable().put(UUID.fromString(rs2.getString(1)), lvl);
                         }
                     }
                 }
@@ -234,9 +234,7 @@ public final class SqlLockService implements LockService {
         if (!LockUtil.isLockable(block)) return false;
         LockKey key = LockUtil.canonicalKey(block);
         String id   = key.asId();
-        if (lockCache.containsKey(id)) return false;
-
-        // Max-Locks-Limit pruefen
+        // Max-Locks-Limit pruefen (vor dem atomaren Insert)
         int maxLocks = plugin.cfg().maxLocksPerPlayer();
         if (maxLocks > 0) {
             long owned = lockCache.values().stream()
@@ -252,7 +250,11 @@ public final class SqlLockService implements LockService {
 
         long now = Instant.now().toEpochMilli();
         LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
-        lockCache.put(id, entry);
+
+        // Atomar: putIfAbsent gibt null zurueck wenn der Slot frei war.
+        // So kann kein zweites gleichzeitiges lock() denselben Block doppelt eintragen,
+        // selbst wenn zwei Events fast zeitgleich den containsKey-Check passieren.
+        if (lockCache.putIfAbsent(id, entry) != null) return false;
 
         plugin.signs().spawnSign(key, owner.getName());
 
@@ -460,7 +462,7 @@ public final class SqlLockService implements LockService {
             LockEntry le = lockCache.get(tr.key().asId());
             if (le != null) {
                 AccessLevel lvl = AccessLevel.fromString(tr.level());
-                if (lvl != null) le.trusted().put(tr.target(), lvl);
+                if (lvl != null) le.trustedMutable().put(tr.target(), lvl);
             }
         }
         for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
@@ -504,6 +506,22 @@ public final class SqlLockService implements LockService {
                 c.commit();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB undo restore persist failed", ex);
+                // Cache-Rollback: wiederhergestellte Eintraege rueckgaengig machen
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    for (UndoSnapshot.LockRow lr : snapshot.locks()) {
+                        lockCache.remove(lr.key().asId());
+                        plugin.signs().removeSign(lr.key().asId());
+                    }
+                    for (UndoSnapshot.TrustRow tr : snapshot.trusts()) {
+                        LockEntry le = lockCache.get(tr.key().asId());
+                        if (le != null) le.trustedMutable().remove(tr.target());
+                    }
+                    for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
+                        hopperCache.remove(hr.hopperKey().asId());
+                    }
+                    plugin.getLogger().warning("[SecureChest] Undo-Restore fehlgeschlagen – "
+                            + "Cache-Rollback durchgeführt. Bitte DB prüfen.");
+                });
             }
         });
         return true;
@@ -658,7 +676,7 @@ public final class SqlLockService implements LockService {
         if (entry == null) return false;
         if (!entry.owner().equals(owner.getUniqueId()) && !owner.hasPermission("chestsecure.admin")) return false;
 
-        entry.trusted().put(target, level);
+        entry.trustedMutable().put(target, level);
         lockCache.put(id, entry);
 
         final String targetStr = target.toString(), levelName = level.name();
@@ -696,7 +714,7 @@ public final class SqlLockService implements LockService {
         if (entry == null) return false;
         if (!owner.hasPermission("chestsecure.admin") && !entry.owner().equals(owner.getUniqueId())) return false;
 
-        entry.trusted().remove(target);
+        entry.trustedMutable().remove(target);
         lockCache.put(id, entry);
 
         final String targetStr = target.toString();
@@ -717,6 +735,11 @@ public final class SqlLockService implements LockService {
 
     @Override
     public List<Location> listLocks(UUID owner) {
+        return listLocks(owner, 0, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public List<Location> listLocks(UUID owner, int offset, int limit) {
         List<Location> out = new ArrayList<>();
         for (LockEntry entry : lockCache.values()) {
             if (!entry.owner().equals(owner)) continue;
@@ -727,7 +750,18 @@ public final class SqlLockService implements LockService {
                 .thenComparingInt(Location::getBlockX)
                 .thenComparingInt(Location::getBlockY)
                 .thenComparingInt(Location::getBlockZ));
-        return out;
+        int from = Math.min(offset, out.size());
+        int to   = Math.min(from + limit, out.size());
+        return out.subList(from, to);
+    }
+
+    @Override
+    public int countLocks(UUID owner) {
+        int count = 0;
+        for (LockEntry entry : lockCache.values()) {
+            if (entry.owner().equals(owner)) count++;
+        }
+        return count;
     }
 
     @Override

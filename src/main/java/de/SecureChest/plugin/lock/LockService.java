@@ -52,7 +52,17 @@ public interface LockService {
 
     boolean removeTrustById(Player owner, String lockId, UUID target);
 
+    /** Gibt alle Locks des Spielers sortiert zurueck (ungepaginiert – nur fuer isEmpty-Checks). */
     List<Location> listLocks(UUID owner);
+
+    /**
+     * Paginierte Variante: gibt maximal {@code limit} Locks ab {@code offset} zurueck.
+     * Effizienter als listLocks() fuer GUI-Paginierung mit vielen Locks.
+     */
+    List<Location> listLocks(UUID owner, int offset, int limit);
+
+    /** Zaehlt alle Locks des Spielers (fuer Paginierungs-Berechnung). */
+    int countLocks(UUID owner);
 
     LockStats getLockStats(UUID owner);
 

@@ -120,3 +120,31 @@ logs-filter-gesetzt: "Logs-Filter gesetzt: {0}"
 gui-vertrauen-aktualisiert: "Vertrauen aktualisiert."
 gui-erledigt: "Erledigt."
 teleport-deaktiviert: "Teleport ist in der Config deaktiviert."
+
+reload-erfolg: "&aChestSecure Konfiguration neu geladen."
+reload-keine-berechtigung: "&cDu hast keine Berechtigung für diesen Befehl."
+
+
+# ──────────────────────────────────────────────
+# TrustChatListener – Confirm-Dialoge
+# ──────────────────────────────────────────────
+confirm-global-unlock-titel: "Global Unlock"
+confirm-global-unlock-zeile1: "Alle Locks und Secure Hopper entfernen von:"
+confirm-global-unlock-zeile2: "{0}"
+confirm-global-unlock-zeile3: ""
+confirm-global-unlock-zeile4: "Rueckgaengig moeglich danach."
+
+confirm-transfer-titel: "Lock Uebertragen"
+confirm-transfer-zeile1: "Diesen Lock uebertragen an:"
+confirm-transfer-zeile2: "{0}"
+confirm-transfer-zeile3: ""
+confirm-transfer-zeile4: "Trust-Liste wird geloescht."
+confirm-transfer-zeile5: "Rueckgaengig moeglich danach."
+
+trust-eingabe-ungueltig: "Ungueltige Eingabe. Nur Spielernamen erlaubt (3-16 Zeichen, a-z, 0-9, _)."
+
+# ──────────────────────────────────────────────
+# PingManager (Action-Bar)
+# ──────────────────────────────────────────────
+ping-andere-welt: "Storage befindet sich in einer anderen Welt"
+ping-angekommen: "&aStorage erreicht!"

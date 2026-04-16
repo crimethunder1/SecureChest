@@ -41,6 +41,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private UndoManager undoManager;
     private UiStateStore uiStateStore;
     private PingManager pingManager;
+    private ProtectionListener protectionListener;
 
     private PluginConfig pluginConfig;
     private MessageService messageService;
@@ -90,7 +91,8 @@ public final class ChestSecurePlugin extends JavaPlugin {
             getLogger().warning("Command 'chestsecure' not found in plugin.yml.");
         }
 
-        getServer().getPluginManager().registerEvents(new ProtectionListener(this), this);
+        this.protectionListener = new ProtectionListener(this);
+        getServer().getPluginManager().registerEvents(protectionListener, this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
         getServer().getPluginManager().registerEvents(new TrustChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerQuitListener(this), this);
@@ -130,6 +132,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public Items items()                   { return items; }
     public SignManager signs()             { return signManager; }
     public PingManager ping()              { return pingManager; }
+    public ProtectionListener protectionListener() { return protectionListener; }
     public PluginConfig cfg()                  { return pluginConfig; }
     public MessageService msg()                { return messageService; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChatActions; }

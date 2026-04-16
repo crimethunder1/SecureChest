@@ -56,6 +56,18 @@ public final class ProtectionListener implements Listener {
         this.worlds = new Worlds(plugin);
     }
 
+    /**
+     * Raeumen spieler-bezogene Cooldown-Eintraege auf (beim Logout aufrufen).
+     * Verhindert unbegrenztes Wachstum der {@code lockActionCooldowns}-Map.
+     */
+    public void evictPlayer(UUID playerUuid) {
+        lockActionCooldowns.remove(playerUuid);
+        // breakNotificationCooldowns ist nach Blockposition + Spieler-UUID gekeyt;
+        // beim Logout alle Eintraege dieses Spielers entfernen.
+        String prefix = playerUuid.toString() + ":";
+        breakNotificationCooldowns.keySet().removeIf(k -> k.startsWith(prefix));
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
@@ -75,9 +87,8 @@ public final class ProtectionListener implements Listener {
         Player player = event.getPlayer();
         ItemStack heldItem = event.getItem();
         boolean isHandEmpty        = (heldItem == null || heldItem.getType().isAir());
-        boolean isHoldingChestKey  = plugin.items().is(heldItem, Items.Type.CHEST_KEY);
-        boolean isHoldingAdminKey  = player.hasPermission("chestsecure.admin")
-                && plugin.items().is(heldItem, Items.Type.ADMIN_KEY);
+        boolean isHoldingChestKey  = plugin.items().isHoldingChestKey(player);
+        boolean isHoldingAdminKey  = plugin.items().isHoldingAdminKey(player);
         boolean isInspectModeActive = plugin.ui().inspect(player.getUniqueId());
 
         if (isInspectModeActive && player.hasPermission("chestsecure.admin") && player.isSneaking() && isHandEmpty) {
@@ -637,10 +648,7 @@ public final class ProtectionListener implements Listener {
     }
 
     private boolean playerHasChestKeyInInventory(Player player) {
-        for (ItemStack itemStack : player.getInventory().getContents()) {
-            if (plugin.items().is(itemStack, Items.Type.CHEST_KEY)) return true;
-        }
-        return plugin.items().is(player.getInventory().getItemInOffHand(), Items.Type.CHEST_KEY);
+        return plugin.items().hasChestKeyInInventory(player);
     }
 
     private void sendBreakAttemptNotification(Player attacker, Block block, boolean isLockedBlock, boolean isSecureHopper) {

@@ -77,12 +77,36 @@ public final class SignManager implements Listener {
         if (e != null && e.isValid()) e.remove();
     }
 
+    /**
+     * Spawnt Signs fuer alle gecachten Locks in Haeppchen von je {@code BATCH_SIZE}
+     * Eintraegen pro Tick. Verhindert, dass ein Server mit vielen Locks beim Start
+     * kurz einfriert.
+     */
     public void spawnAllSigns() {
         if (!isEnabled()) return;
-        for (LockEntry entry : plugin.locks().getAllCachedLocks()) {
-            spawnSign(entry.key(), ownerName(entry.owner()));
+
+        java.util.List<LockEntry> all = new java.util.ArrayList<>(plugin.locks().getAllCachedLocks());
+        if (all.isEmpty()) return;
+
+        final int BATCH_SIZE  = 50;   // Signs pro Tick
+        final int TICK_DELAY  = 1;    // Abstand zwischen Batches in Ticks
+        final int total       = all.size();
+
+        for (int batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
+            final int start = batchStart;
+            long delay = (long) (batchStart / BATCH_SIZE) * TICK_DELAY;
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                int end = Math.min(start + BATCH_SIZE, total);
+                for (int i = start; i < end; i++) {
+                    LockEntry entry = all.get(i);
+                    spawnSign(entry.key(), ownerName(entry.owner()));
+                }
+                if (end == total) {
+                    plugin.getLogger().info("SignManager: " + signEntities.size()
+                            + " Signs gespawnt (Batches à " + BATCH_SIZE + ").");
+                }
+            }, delay);
         }
-        plugin.getLogger().info("SignManager: spawned signs for " + signEntities.size() + " lock(s).");
     }
 
     @EventHandler

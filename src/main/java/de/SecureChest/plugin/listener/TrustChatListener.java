@@ -42,6 +42,15 @@ public final class TrustChatListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> handleOnMain(uuid, msg));
     }
 
+    /**
+     * Prüft ob ein Spielername syntaktisch gültig ist (3–16 Zeichen, a-z, A-Z, 0-9, _).
+     * Verhindert dass UUIDs oder Sonderzeichen als Name akzeptiert werden.
+     */
+    private static boolean isValidPlayerName(String name) {
+        return name.length() >= 3 && name.length() <= 16
+                && name.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '_');
+    }
+
     private void handleOnMain(UUID uuid, String msg) {
         Player p = Bukkit.getPlayer(uuid);
         if (p == null) return;
@@ -63,6 +72,11 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
+            if (!isValidPlayerName(msg)) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
+                return;
+            }
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
@@ -114,13 +128,12 @@ public final class TrustChatListener implements Listener {
 
             String display = target.getName() != null ? target.getName() : msg;
             plugin.gui().openConfirm(p,
-                    "Global Unlock",
+                    plugin.msg().get("confirm-global-unlock-titel"),
                     java.util.List.of(
-                            "Unlock ALL locks & secure hoppers of:",
-                            display,
-                            "",
-                            "Undo will be available after.",
-                            ""
+                            plugin.msg().get("confirm-global-unlock-zeile1"),
+                            plugin.msg().get("confirm-global-unlock-zeile2", display),
+                            plugin.msg().get("confirm-global-unlock-zeile3"),
+                            plugin.msg().get("confirm-global-unlock-zeile4")
                     )
             );
             return;
@@ -142,6 +155,11 @@ public final class TrustChatListener implements Listener {
         }
 
         if (action instanceof PendingChatAction.TransferLock tl) {
+            if (!isValidPlayerName(msg)) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
+                return;
+            }
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
@@ -163,14 +181,13 @@ public final class TrustChatListener implements Listener {
             ));
 
             plugin.gui().openConfirm(p,
-                    "Transfer Lock",
+                    plugin.msg().get("confirm-transfer-titel"),
                     java.util.List.of(
-                            "Transfer this lock to:",
-                            display,
-                            "",
-                            "The trust list will be cleared.",
-                            "An Undo will be available after.",
-                            ""
+                            plugin.msg().get("confirm-transfer-zeile1"),
+                            plugin.msg().get("confirm-transfer-zeile2", display),
+                            plugin.msg().get("confirm-transfer-zeile3"),
+                            plugin.msg().get("confirm-transfer-zeile4"),
+                            plugin.msg().get("confirm-transfer-zeile5")
                     )
             );
         }

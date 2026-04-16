@@ -18,6 +18,22 @@ public final class ChestSecureCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+
+        // /cs reload – nur für OPs / chestsecure.admin
+        if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission("chestsecure.admin")) {
+                sender.sendMessage(Component.text(
+                        plugin.msg().get("reload-keine-berechtigung"), NamedTextColor.RED));
+                return true;
+            }
+            plugin.reloadConfig();
+            plugin.cfg().reload();
+            plugin.msg().reload();
+            sender.sendMessage(Component.text(
+                    plugin.msg().get("reload-erfolg"), NamedTextColor.GREEN));
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text(plugin.msg().get("nur-spieler"), NamedTextColor.RED));
             return true;

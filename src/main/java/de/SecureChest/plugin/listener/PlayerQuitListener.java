@@ -19,7 +19,7 @@ import java.util.UUID;
 public final class PlayerQuitListener implements Listener {
 
     private static final DateTimeFormatter NOTIFICATION_DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final ChestSecurePlugin plugin;
 
@@ -71,5 +71,6 @@ public final class PlayerQuitListener implements Listener {
         plugin.ping().stopPing(event.getPlayer());
 
         plugin.locks().evictPlayerCache(playerUuid);
+        plugin.protectionListener().evictPlayer(playerUuid);
     }
 }

@@ -95,12 +95,11 @@ public final class PingManager {
     }
 
     private Component buildArrivalActionBarMessage() {
-        return Component.text("✔ Storage erreicht!", NamedTextColor.GREEN);
+        return Component.text(plugin.msg().get("ping-angekommen"), NamedTextColor.GREEN);
     }
 
     private Component buildOtherWorldActionBarMessage() {
-        return Component.text(
-                "⟶ Storage befindet sich in einer anderen Welt", NamedTextColor.YELLOW);
+        return Component.text(plugin.msg().get("ping-andere-welt"), NamedTextColor.YELLOW);
     }
 
     private String calculateDirectionLabel(Location playerLocation, Location targetLocation) {

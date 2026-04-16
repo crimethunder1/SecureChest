@@ -1,0 +1,98 @@
+package de.SecureChest.plugin.lock;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+
+@DisplayName("LockEntry – Trust-Logik und Modell-Integritaet")
+class LockEntryTest {
+
+    private static final UUID WORLD  = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID OWNER  = UUID.randomUUID();
+    private static final UUID USER_A = UUID.randomUUID();
+    private static final UUID USER_B = UUID.randomUUID();
+
+    private LockEntry entry;
+
+    @BeforeEach
+    void setUp() {
+        LockKey key = new LockKey(WORLD, 0, 64, 0);
+        // Material mocken, da kein Bukkit-Server läuft
+        org.bukkit.Material mat = mock(org.bukkit.Material.class);
+        entry = new LockEntry(key, mat, OWNER, System.currentTimeMillis());
+    }
+
+    // ── Erstellt / leer ───────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Neuer LockEntry hat keine vertrauten Spieler")
+    void neuErstellterEntry_keineTrusted() {
+        assertTrue(entry.trusted().isEmpty());
+    }
+
+    @Test
+    @DisplayName("owner() gibt den gesetzten Besitzer zurück")
+    void owner_korrekt() {
+        assertEquals(OWNER, entry.owner());
+    }
+
+    // ── Trust hinzufügen ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("put() fügt einen Trusted-Eintrag hinzu")
+    void trusted_put_einEintrag() {
+        entry.trusted().put(USER_A, AccessLevel.VIEW);
+        assertEquals(1, entry.trusted().size());
+        assertEquals(AccessLevel.VIEW, entry.trusted().get(USER_A));
+    }
+
+    @Test
+    @DisplayName("Mehrere Spieler können mit unterschiedlichen Levels vertraut sein")
+    void trusted_mehrereEintraege() {
+        entry.trusted().put(USER_A, AccessLevel.VIEW);
+        entry.trusted().put(USER_B, AccessLevel.CO_OWNER);
+        assertEquals(AccessLevel.VIEW,     entry.trusted().get(USER_A));
+        assertEquals(AccessLevel.CO_OWNER, entry.trusted().get(USER_B));
+    }
+
+    @Test
+    @DisplayName("Trust-Level kann überschrieben werden (VIEW → STOCKER)")
+    void trusted_levelUeberschreiben() {
+        entry.trusted().put(USER_A, AccessLevel.VIEW);
+        entry.trusted().put(USER_A, AccessLevel.STOCKER);
+        assertEquals(AccessLevel.STOCKER, entry.trusted().get(USER_A));
+        assertEquals(1, entry.trusted().size(), "Kein doppelter Eintrag erwartet");
+    }
+
+    // ── Trust entfernen ───────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("remove() löscht den Trust-Eintrag")
+    void trusted_remove() {
+        entry.trusted().put(USER_A, AccessLevel.VIEW);
+        entry.trusted().remove(USER_A);
+        assertFalse(entry.trusted().containsKey(USER_A));
+        assertTrue(entry.trusted().isEmpty());
+    }
+
+    @Test
+    @DisplayName("remove() eines nicht existierenden Eintrags ist fehlerfrei")
+    void trusted_removeNichtVorhanden() {
+        assertDoesNotThrow(() -> entry.trusted().remove(USER_A));
+    }
+
+    // ── Besitzer nie im Trust-Check benötigt ──────────────────────────────────
+
+    @Test
+    @DisplayName("Besitzer ist nicht im trusted()-Map eingetragen (Sonderbehandlung in Service)")
+    void owner_nichtInTrustedMap() {
+        // Der Besitzer wird nie über trusted() geprüft, sondern direkt per owner().equals()
+        assertFalse(entry.trusted().containsKey(OWNER),
+                "Besitzer sollte nicht in der trusted-Map stehen");
+    }
+}

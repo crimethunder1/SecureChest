@@ -43,9 +43,22 @@ public final class PluginConfig {
         reload();
     }
 
+    /**
+     * Test-Konstruktor: laedt Werte direkt aus einer {@code FileConfiguration}
+     * ohne laufenden Bukkit-Server. {@code plugin} bleibt {@code null}.
+     */
+    PluginConfig(FileConfiguration cfg) {
+        this.plugin = null;
+        loadFrom(cfg);
+    }
+
     /** Liest alle gecachten Werte neu aus der aktuellen {@code FileConfiguration}. */
     public void reload() {
         FileConfiguration cfg = plugin.getConfig();
+        loadFrom(cfg);
+    }
+
+    private void loadFrom(FileConfiguration cfg) {
 
         soundsEnabled              = cfg.getBoolean("sounds.enabled",                 true);
         particlesEnabled           = cfg.getBoolean("particles.enabled",               true);
