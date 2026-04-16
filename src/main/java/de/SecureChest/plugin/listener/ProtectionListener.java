@@ -88,14 +88,14 @@ public final class ProtectionListener implements Listener {
 
         if (isHoldingChestKey && block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block)) {
             event.setCancelled(true);
-            sendFailFeedback(player, "Dieses Secure Hopper ist bereits geschützt.");
+            sendFailFeedback(player, plugin.msg().get("hopper-bereits-geschuetzt"));
             return;
         }
 
         if (isHoldingChestKey) {
             event.setCancelled(true);
             if (!worldEnabled) {
-                sendFailFeedback(player, "Das Plugin ist in dieser Welt nicht aktiv.");
+                sendFailFeedback(player, plugin.msg().get("welt-nicht-aktiv"));
                 return;
             }
             if (!consumeActionCooldown(player.getUniqueId())) return;
@@ -126,7 +126,7 @@ public final class ProtectionListener implements Listener {
                 String ownerName = plugin.locks().getLock(block)
                         .map(entry -> resolvePlayerName(entry.owner()))
                         .orElse("jemandem");
-                sendFailFeedback(player, "Dieser Block gehört " + ownerName + ".");
+                sendFailFeedback(player, plugin.msg().get("block-gehoert", ownerName));
                 return;
             }
         }
@@ -138,7 +138,7 @@ public final class ProtectionListener implements Listener {
                         || secureHopperEntry.owner().equals(player.getUniqueId());
                 if (!playerMayOpenHopper) {
                     event.setCancelled(true);
-                    sendFailFeedback(player, "Dieses Secure Hopper gehört " + resolvePlayerName(secureHopperEntry.owner()) + ".");
+                    sendFailFeedback(player, plugin.msg().get("hopper-gehoert", resolvePlayerName(secureHopperEntry.owner())));
                 }
             }
         }
@@ -166,15 +166,15 @@ public final class ProtectionListener implements Listener {
     private void lockBlockDirectly(Player player, Block block) {
         boolean success = plugin.locks().lock(player, block);
         if (success) {
-            sendSuccessFeedback(player, "Block gesperrt.");
+            sendSuccessFeedback(player, plugin.msg().get("block-gesperrt"));
         } else {
-            sendFailFeedback(player, "Block ist bereits gesperrt.");
+            sendFailFeedback(player, plugin.msg().get("block-bereits-gesperrt"));
         }
     }
 
     private void scheduleLockConfirmationGui(Player player, Block block) {
         LockKey blockKey = LockKey.fromLocation(block.getLocation());
-        int ttlSeconds   = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+        int ttlSeconds   = plugin.cfg().confirmTimeoutSeconds();
         long expiresAt   = System.currentTimeMillis() + ttlSeconds * 1000L;
         plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
                 ConfirmType.LOCK_BLOCK,
@@ -198,7 +198,7 @@ public final class ProtectionListener implements Listener {
     private void processUnlockRequest(Player player, Block block) {
         Optional<LockEntry> lockEntryOptional = plugin.locks().getLock(block);
         if (lockEntryOptional.isEmpty()) {
-            sendFailFeedback(player, "Lock-Eintrag nicht gefunden.");
+            sendFailFeedback(player, plugin.msg().get("lock-eintrag-fehlt"));
             return;
         }
         LockEntry lockEntry = lockEntryOptional.get();
@@ -207,7 +207,7 @@ public final class ProtectionListener implements Listener {
         boolean playerCanUnlock = playerOwnsLock || playerIsAdmin;
 
         if (!playerCanUnlock) {
-            sendFailFeedback(player, "Dieser Block gehört " + resolvePlayerName(lockEntry.owner()) + ".");
+            sendFailFeedback(player, plugin.msg().get("block-gehoert", resolvePlayerName(lockEntry.owner())));
             return;
         }
 
@@ -216,9 +216,9 @@ public final class ProtectionListener implements Listener {
         if (isQuickRemoveEnabled || player.isSneaking()) {
             boolean success = plugin.locks().unlockByIdWithUndo(player, lockId);
             if (success) {
-                sendSuccessFeedback(player, "Block entsperrt. Rückgängig: /cs");
+                sendSuccessFeedback(player, plugin.msg().get("block-entsperrt"));
             } else {
-                sendFailFeedback(player, "Entsperren fehlgeschlagen.");
+                sendFailFeedback(player, plugin.msg().get("block-entsperren-fehlgeschlagen"));
             }
         } else {
             Bukkit.getScheduler().runTask(plugin, () -> plugin.gui().openLockManage(player, lockId));
@@ -229,37 +229,37 @@ public final class ProtectionListener implements Listener {
         if (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block)) {
             Optional<SecureHopperEntry> hopperEntryOptional = plugin.locks().getSecureHopper(block);
             if (hopperEntryOptional.isEmpty()) {
-                player.sendMessage(Component.text("[Inspect] Secure Hopper: DB-Eintrag fehlt.", NamedTextColor.RED));
+                player.sendMessage(Component.text(plugin.msg().get("inspect-hopper-kein-eintrag"), NamedTextColor.RED));
                 return;
             }
             SecureHopperEntry hopperEntry = hopperEntryOptional.get();
             LockKey boundKey = hopperEntry.boundLock();
             World boundWorld = Bukkit.getWorld(boundKey.worldUuid());
             String worldName = boundWorld != null ? boundWorld.getName() : boundKey.worldUuid().toString();
-            player.sendMessage(Component.text("[Inspect] Secure Hopper", NamedTextColor.GOLD));
-            player.sendMessage(Component.text("Besitzer: " + resolvePlayerName(hopperEntry.owner()), NamedTextColor.AQUA));
-            player.sendMessage(Component.text("Ziel: " + worldName + " " + boundKey.x() + " " + boundKey.y() + " " + boundKey.z(), NamedTextColor.AQUA));
+            player.sendMessage(Component.text(plugin.msg().get("inspect-hopper-titel"), NamedTextColor.GOLD));
+            player.sendMessage(Component.text(plugin.msg().get("inspect-besitzer", resolvePlayerName(hopperEntry.owner())), NamedTextColor.AQUA));
+            player.sendMessage(Component.text(plugin.msg().get("inspect-ziel", worldName, boundKey.x(), boundKey.y(), boundKey.z()), NamedTextColor.AQUA));
             return;
         }
 
         if (!plugin.locks().isLocked(block)) {
-            player.sendMessage(Component.text("[Inspect] Kein Lock.", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text(plugin.msg().get("inspect-kein-lock"), NamedTextColor.YELLOW));
             return;
         }
 
         Optional<LockEntry> lockEntryOptional = plugin.locks().getLock(block);
         if (lockEntryOptional.isEmpty()) {
-            player.sendMessage(Component.text("[Inspect] Gesperrt, aber Eintrag fehlt.", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.msg().get("inspect-lock-fehlt"), NamedTextColor.RED));
             return;
         }
         LockEntry lockEntry = lockEntryOptional.get();
         LockKey lockKey = lockEntry.key();
         World lockWorld = Bukkit.getWorld(lockKey.worldUuid());
         String lockWorldName = lockWorld != null ? lockWorld.getName() : lockKey.worldUuid().toString();
-        player.sendMessage(Component.text("[Inspect] Gesperrt: " + lockEntry.blockType().name(), NamedTextColor.GOLD));
-        player.sendMessage(Component.text("Besitzer: " + resolvePlayerName(lockEntry.owner()), NamedTextColor.AQUA));
-        player.sendMessage(Component.text("Position: " + lockWorldName + " " + lockKey.x() + " " + lockKey.y() + " " + lockKey.z(), NamedTextColor.AQUA));
-        player.sendMessage(Component.text("Vertraute: " + lockEntry.trusted().size(), NamedTextColor.AQUA));
+        player.sendMessage(Component.text(plugin.msg().get("inspect-gesperrt", lockEntry.blockType().name()), NamedTextColor.GOLD));
+        player.sendMessage(Component.text(plugin.msg().get("inspect-besitzer", resolvePlayerName(lockEntry.owner())), NamedTextColor.AQUA));
+        player.sendMessage(Component.text(plugin.msg().get("inspect-position", lockWorldName, lockKey.x(), lockKey.y(), lockKey.z()), NamedTextColor.AQUA));
+        player.sendMessage(Component.text(plugin.msg().get("inspect-vertraute", lockEntry.trusted().size()), NamedTextColor.AQUA));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -274,7 +274,7 @@ public final class ProtectionListener implements Listener {
         BlockData blockData = placedBlock.getBlockData();
         if (!(blockData instanceof Hopper hopperData)) {
             event.setCancelled(true);
-            sendFailFeedback(event.getPlayer(), "Ungültige Hopper-Daten.");
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("hopper-ungueltige-daten"));
             return;
         }
         BlockFace facingDirection = hopperData.getFacing();
@@ -282,46 +282,46 @@ public final class ProtectionListener implements Listener {
 
         if (!LockUtil.isLockable(targetBlock) || !plugin.locks().isLocked(targetBlock)) {
             event.setCancelled(true);
-            sendFailFeedback(event.getPlayer(), "Platziere ihn so, dass er auf deinen GESPERRTEN Behälter zeigt.");
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("hopper-kein-lock"));
             return;
         }
 
         Optional<LockEntry> targetLockEntry = plugin.locks().getLock(targetBlock);
         if (targetLockEntry.isEmpty() || !targetLockEntry.get().owner().equals(event.getPlayer().getUniqueId())) {
             event.setCancelled(true);
-            sendFailFeedback(event.getPlayer(), "Du kannst nur an deinen eigenen Lock binden.");
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("hopper-fremder-lock"));
             return;
         }
 
         boolean bindingSuccess = plugin.locks().bindSecureHopper(event.getPlayer(), placedBlock, targetBlock);
         if (!bindingSuccess) {
             event.setCancelled(true);
-            sendFailFeedback(event.getPlayer(), "Secure Hopper konnte nicht gebunden werden.");
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("hopper-bind-fehlgeschlagen"));
             return;
         }
-        sendSuccessFeedback(event.getPlayer(), "Secure Hopper gebunden.");
+        sendSuccessFeedback(event.getPlayer(), plugin.msg().get("hopper-gebunden"));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPlaceAutoLock(BlockPlaceEvent event) {
         Block placedBlock = event.getBlockPlaced();
         if (!worlds.isEnabled(placedBlock.getWorld())) return;
-        if (!plugin.getConfig().getBoolean("auto_lock.enabled", false)) return;
+        if (!plugin.cfg().autoLockEnabled()) return;
         if (!LockUtil.isLockable(placedBlock)) return;
 
         if (placedBlock.getType() == Material.HOPPER && plugin.items().is(event.getItemInHand(), Items.Type.SECURE_HOPPER)) return;
 
-        boolean sneakOnlyMode = plugin.getConfig().getBoolean("auto_lock.sneak_only", false);
+        boolean sneakOnlyMode = plugin.cfg().autoLockSneakOnly();
         if (sneakOnlyMode && !event.getPlayer().isSneaking()) return;
 
-        boolean requiresKey = plugin.getConfig().getBoolean("auto_lock.require_key", true);
+        boolean requiresKey = plugin.cfg().autoLockRequireKey();
         if (requiresKey && !playerHasChestKeyInInventory(event.getPlayer())) return;
 
         if (plugin.locks().isLocked(placedBlock)) return;
 
         boolean autoLockSuccess = plugin.locks().lock(event.getPlayer(), placedBlock);
         if (autoLockSuccess) {
-            sendSuccessFeedback(event.getPlayer(), "Automatisch gesperrt.");
+            sendSuccessFeedback(event.getPlayer(), plugin.msg().get("automatisch-gesperrt"));
         }
     }
 
@@ -336,7 +336,7 @@ public final class ProtectionListener implements Listener {
 
         if (!plugin.locks().canBreak(event.getPlayer(), block)) {
             event.setCancelled(true);
-            sendFailFeedback(event.getPlayer(), "Du kannst diesen geschützten Block nicht abbauen.");
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("block-nicht-abbaubar"));
         }
     }
 
@@ -357,7 +357,7 @@ public final class ProtectionListener implements Listener {
                     .orElseGet(() -> plugin.locks().getSecureHopper(block)
                             .map(entry -> resolvePlayerName(entry.owner()))
                             .orElse("jemandem"));
-            sendFailFeedback(event.getPlayer(), "Dieser Block gehört " + ownerName + ".");
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("block-gehoert", ownerName));
             sendBreakAttemptNotification(event.getPlayer(), block, isLockedBlock, isSecureHopper);
             return;
         }
@@ -389,9 +389,9 @@ public final class ProtectionListener implements Listener {
         }
 
         if (isLockedBlock) {
-            sendSuccessFeedback(event.getPlayer(), "Lock entfernt. Rückgängig: /cs");
+            sendSuccessFeedback(event.getPlayer(), plugin.msg().get("lock-entfernt"));
         } else {
-            sendSuccessFeedback(event.getPlayer(), "Secure Hopper entfernt.");
+            sendSuccessFeedback(event.getPlayer(), plugin.msg().get("hopper-entfernt"));
         }
     }
 
@@ -644,7 +644,7 @@ public final class ProtectionListener implements Listener {
     }
 
     private void sendBreakAttemptNotification(Player attacker, Block block, boolean isLockedBlock, boolean isSecureHopper) {
-        if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
+        if (!plugin.cfg().notificationsEnabled()) return;
 
         UUID ownerUuid        = null;
         String blockTypeName  = block.getType().name().replace("_", " ").toLowerCase();
@@ -692,20 +692,20 @@ public final class ProtectionListener implements Listener {
 
     private void sendSuccessFeedback(Player player, String message) {
         player.sendMessage(Component.text(message, NamedTextColor.GREEN));
-        if (plugin.getConfig().getBoolean("sounds.enabled", true)) {
+        if (plugin.cfg().soundsEnabled()) {
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.5f);
         }
-        if (plugin.getConfig().getBoolean("particles.enabled", true)) {
+        if (plugin.cfg().particlesEnabled()) {
             player.spawnParticle(Particle.HAPPY_VILLAGER, player.getLocation().add(0, 1.0, 0), 8, 0.2, 0.4, 0.2, 0.01);
         }
     }
 
     private void sendFailFeedback(Player player, String message) {
         player.sendMessage(Component.text(message, NamedTextColor.RED));
-        if (plugin.getConfig().getBoolean("sounds.enabled", true)) {
+        if (plugin.cfg().soundsEnabled()) {
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.6f);
         }
-        if (plugin.getConfig().getBoolean("particles.enabled", true)) {
+        if (plugin.cfg().particlesEnabled()) {
             player.spawnParticle(Particle.SMOKE, player.getLocation().add(0, 1.0, 0), 6, 0.1, 0.2, 0.1, 0.01);
         }
     }

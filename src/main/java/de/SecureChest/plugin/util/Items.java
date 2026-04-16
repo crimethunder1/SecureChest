@@ -28,11 +28,11 @@ public final class Items {
     public ItemStack chestKey() {
         ItemStack it = new ItemStack(Material.TRIPWIRE_HOOK);
         ItemMeta meta = it.getItemMeta();
-        meta.displayName(Component.text("Chest Key"));
+        meta.displayName(Component.text(plugin.msg().get("item-chest-key-name")));
         meta.lore(List.of(
-                Component.text("Right-click a container to lock it."),
-                Component.text("Sneak-right-click with Quick Remove to unlock."),
-                Component.text("Used for crafting Secure Hopper.")
+                Component.text(plugin.msg().get("item-chest-key-lore-1")),
+                Component.text(plugin.msg().get("item-chest-key-lore-2")),
+                Component.text(plugin.msg().get("item-chest-key-lore-3"))
         ));
         mark(meta, Type.CHEST_KEY);
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
@@ -44,10 +44,10 @@ public final class Items {
     public ItemStack adminKey() {
         ItemStack it = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = it.getItemMeta();
-        meta.displayName(Component.text("Admin Key"));
+        meta.displayName(Component.text(plugin.msg().get("item-admin-key-name")));
         meta.lore(List.of(
-                Component.text("Admins can open any locked container."),
-                Component.text("Not craftable.")
+                Component.text(plugin.msg().get("item-admin-key-lore-1")),
+                Component.text(plugin.msg().get("item-admin-key-lore-2"))
         ));
         mark(meta, Type.ADMIN_KEY);
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
@@ -59,11 +59,11 @@ public final class Items {
     public ItemStack secureHopper() {
         ItemStack it = new ItemStack(Material.HOPPER);
         ItemMeta meta = it.getItemMeta();
-        meta.displayName(Component.text("Secure Hopper"));
+        meta.displayName(Component.text(plugin.msg().get("item-secure-hopper-name")));
         meta.lore(List.of(
-                Component.text("Only Secure Hoppers can move items"),
-                Component.text("into/from locked containers."),
-                Component.text("Place it facing your locked container to bind it.")
+                Component.text(plugin.msg().get("item-secure-hopper-lore-1")),
+                Component.text(plugin.msg().get("item-secure-hopper-lore-2")),
+                Component.text(plugin.msg().get("item-secure-hopper-lore-3"))
         ));
         mark(meta, Type.SECURE_HOPPER);
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);

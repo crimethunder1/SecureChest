@@ -28,6 +28,12 @@ notifications:
   enabled: true
   max_per_player: 20
 
+limits:
+  # Maximale Anzahl Locks pro Spieler (0 = kein Limit)
+  max_locks_per_player: 0
+  # Maximale Anzahl Secure Hopper pro Spieler (0 = kein Limit)
+  max_hoppers_per_player: 0
+
 admin:
   logs:
     book_entries: 200

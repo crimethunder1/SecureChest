@@ -51,7 +51,7 @@ public final class TrustChatListener implements Listener {
 
         if (msg.equalsIgnoreCase("cancel")) {
             plugin.pendingChat().remove(uuid);
-            p.sendMessage(Component.text("Cancelled.", NamedTextColor.YELLOW));
+            p.sendMessage(Component.text(plugin.msg().get("trust-abgebrochen"), NamedTextColor.YELLOW));
             return;
         }
 
@@ -59,7 +59,7 @@ public final class TrustChatListener implements Listener {
             AccessLevel level = AccessLevel.fromString(at.level());
             if (level == null) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("Invalid trust level.", NamedTextColor.RED));
+                p.sendMessage(Component.text(plugin.msg().get("trust-ungueltige-stufe"), NamedTextColor.RED));
                 return;
             }
 
@@ -67,7 +67,7 @@ public final class TrustChatListener implements Listener {
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("Player '" + msg + "' not found. They must have joined this server at least once.", NamedTextColor.RED));
+                p.sendMessage(Component.text(plugin.msg().get("trust-spieler-nicht-gefunden", msg), NamedTextColor.RED));
                 return;
             }
 
@@ -76,8 +76,8 @@ public final class TrustChatListener implements Listener {
 
             String name = target.getName() != null ? target.getName() : msg;
             p.sendMessage(ok
-                    ? Component.text("Trusted " + name + " as " + level + ".", NamedTextColor.GREEN)
-                    : Component.text("Failed (not owner / lock missing).", NamedTextColor.RED));
+                    ? Component.text(plugin.msg().get("trust-vergeben", name, level), NamedTextColor.GREEN)
+                    : Component.text(plugin.msg().get("trust-vergeben-fehlgeschlagen"), NamedTextColor.RED));
 
             plugin.gui().openLockManage(p, at.lockId());
             return;
@@ -86,7 +86,7 @@ public final class TrustChatListener implements Listener {
         if (action instanceof PendingChatAction.GlobalUnlock) {
             if (!p.hasPermission("chestsecure.admin")) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("No permission.", NamedTextColor.RED));
+                p.sendMessage(Component.text(plugin.msg().get("trust-keine-berechtigung"), NamedTextColor.RED));
                 return;
             }
 
@@ -95,14 +95,14 @@ public final class TrustChatListener implements Listener {
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("Player '" + msg + "' not found. They must have joined this server at least once.", NamedTextColor.RED));
+                p.sendMessage(Component.text(plugin.msg().get("trust-spieler-nicht-gefunden", msg), NamedTextColor.RED));
                 return;
             }
 
             plugin.pendingChat().remove(uuid);
 
             UUID targetId = target.getUniqueId();
-            int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+            int ttlSeconds = plugin.cfg().confirmTimeoutSeconds();
             long expiresAt = System.currentTimeMillis() + (ttlSeconds * 1000L);
 
             plugin.confirms().set(uuid, new ConfirmRequest(
@@ -133,8 +133,8 @@ public final class TrustChatListener implements Listener {
             plugin.ui().logs(uuid).actorFilter = filter;
 
             p.sendMessage(filter.isEmpty()
-                    ? Component.text("Logs actor filter cleared.", NamedTextColor.YELLOW)
-                    : Component.text("Logs actor filter set to: " + filter, NamedTextColor.YELLOW));
+                    ? Component.text(plugin.msg().get("logs-filter-geloescht"), NamedTextColor.YELLOW)
+                    : Component.text(plugin.msg().get("logs-filter-gesetzt", filter), NamedTextColor.YELLOW));
 
             plugin.gui().openLogs(p, 0);
             return;
@@ -146,13 +146,13 @@ public final class TrustChatListener implements Listener {
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
             if (target == null || target.getUniqueId() == null) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text("Player '" + msg + "' not found. They must have joined this server at least once.", NamedTextColor.RED));
+                p.sendMessage(Component.text(plugin.msg().get("trust-spieler-nicht-gefunden", msg), NamedTextColor.RED));
                 return;
             }
             plugin.pendingChat().remove(uuid);
 
             String display = target.getName() != null ? target.getName() : msg;
-            int ttlSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+            int ttlSeconds = plugin.cfg().confirmTimeoutSeconds();
             long expiresAt = System.currentTimeMillis() + (ttlSeconds * 1000L);
 
             plugin.confirms().set(uuid, new de.SecureChest.plugin.ui.ConfirmRequest(

@@ -2,7 +2,6 @@ package de.SecureChest.plugin.listener;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.lock.Notification;
-import de.SecureChest.plugin.lock.SqlLockService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -32,12 +31,11 @@ public final class PlayerQuitListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         UUID playerUuid = event.getPlayer().getUniqueId();
 
-        if (plugin.locks() instanceof SqlLockService sqlLockService) {
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                sqlLockService.preloadPlayerSettings(playerUuid);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            plugin.locks().preloadPlayerSettings(playerUuid);
 
-                if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
-                List<Notification> notifications = sqlLockService.fetchAndClearNotifications(playerUuid);
+            if (!plugin.cfg().notificationsEnabled()) return;
+            List<Notification> notifications = plugin.locks().fetchAndClearNotifications(playerUuid);
                 if (notifications.isEmpty()) return;
 
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -45,11 +43,12 @@ public final class PlayerQuitListener implements Listener {
                     if (onlinePlayer == null || !onlinePlayer.isOnline()) return;
 
                     int notificationCount = notifications.size();
-                    String pluralLabel = notificationCount == 1 ? "Meldung" : "Meldungen";
+                    String pluralLabel = notificationCount == 1
+                            ? plugin.msg().get("notification-singular")
+                            : plugin.msg().get("notification-plural");
                     onlinePlayer.sendMessage(
-                            Component.text("[ ChestSecure ] ", NamedTextColor.GOLD)
-                                    .append(Component.text(notificationCount + " verpasste " + pluralLabel + " während deiner Abwesenheit:",
-                                            NamedTextColor.YELLOW)));
+                            Component.text(plugin.msg().get("notification-header",
+                                    notificationCount, pluralLabel)));
                     for (Notification notification : notifications) {
                         String formattedTime = NOTIFICATION_DATE_FORMATTER.format(Instant.ofEpochMilli(notification.createdAt()));
                         onlinePlayer.sendMessage(
@@ -57,10 +56,9 @@ public final class PlayerQuitListener implements Listener {
                                         .append(Component.text(notification.message(), NamedTextColor.WHITE)));
                     }
                     onlinePlayer.sendMessage(
-                            Component.text("Tippe /cs um deine Locks zu verwalten.", NamedTextColor.GRAY));
+                            Component.text(plugin.msg().get("notification-hinweis"), NamedTextColor.GRAY));
                 }, 200L);
-            });
-        }
+        });
     }
 
     @EventHandler
@@ -72,8 +70,6 @@ public final class PlayerQuitListener implements Listener {
         plugin.ui().cleanup(playerUuid);
         plugin.ping().stopPing(event.getPlayer());
 
-        if (plugin.locks() instanceof SqlLockService sqlLockService) {
-            sqlLockService.evictPlayerCache(playerUuid);
-        }
+        plugin.locks().evictPlayerCache(playerUuid);
     }
 }

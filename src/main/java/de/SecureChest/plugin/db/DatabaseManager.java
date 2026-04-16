@@ -4,12 +4,24 @@ import de.SecureChest.plugin.ChestSecurePlugin;
 
 import java.io.File;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.logging.Level;
 
 public final class DatabaseManager {
 
+    /** Poolgröße: für SQLite reichen 4 gleichzeitige Verbindungen problemlos. */
+    private static final int POOL_SIZE = 4;
+
     private final ChestSecurePlugin plugin;
     private String jdbcUrl;
+
+    /** Pool gepoolter, sofort einsatzbereiter Verbindungen. */
+    private final BlockingQueue<Connection> pool = new ArrayBlockingQueue<>(POOL_SIZE);
+    /** Separate Liste für sauberes Shutdown. */
+    private final List<Connection> allConnections = new ArrayList<>(POOL_SIZE);
 
     public DatabaseManager(ChestSecurePlugin plugin) {
         this.plugin = plugin;
@@ -27,19 +39,34 @@ public final class DatabaseManager {
 
             try { Class.forName("org.sqlite.JDBC"); }
             catch (ClassNotFoundException ignored) {
-                plugin.getLogger().warning("SQLite JDBC driver not found — trying to continue...");
+                plugin.getLogger().warning("SQLite JDBC driver nicht gefunden – versuche fortzufahren...");
             }
 
-            try (Connection c = getConnection(); Statement st = c.createStatement()) {
-                st.execute("PRAGMA foreign_keys = ON;");
+            // Pool befüllen
+            for (int i = 0; i < POOL_SIZE; i++) {
+                Connection c = createConnection();
+                pool.add(c);
+                allConnections.add(c);
             }
 
             createTables();
+            plugin.getLogger().info("Datenbankverbindungen initialisiert (Pool-Größe: " + POOL_SIZE + ").");
             return true;
         } catch (Exception ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB init failed", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB-Initialisierung fehlgeschlagen", ex);
             return false;
         }
+    }
+
+    /** Erstellt eine neue, konfigurierte Verbindung (WAL-Modus + Foreign Keys). */
+    private Connection createConnection() throws SQLException {
+        Connection c = DriverManager.getConnection(jdbcUrl);
+        try (Statement st = c.createStatement()) {
+            st.execute("PRAGMA journal_mode = WAL;");
+            st.execute("PRAGMA foreign_keys = ON;");
+            st.execute("PRAGMA synchronous = NORMAL;");
+        }
+        return c;
     }
 
     private void createTables() throws SQLException {
@@ -131,15 +158,58 @@ public final class DatabaseManager {
         }
     }
 
+    /**
+     * Gibt eine gepoolte {@link Connection} zurück, die in try-with-resources genutzt werden kann.
+     * <p>
+     * Das {@code close()} der zurückgegebenen Verbindung gibt sie <em>nicht</em> wirklich frei,
+     * sondern legt sie zurueck in den Pool. Dadurch bleiben alle bestehenden
+     * {@code try (Connection c = db.getConnection()) { ... }} Bloecke unveraendert.
+     */
     public Connection getConnection() throws SQLException {
-        Connection c = DriverManager.getConnection(jdbcUrl);
-        try (Statement st = c.createStatement()) {
-            st.execute("PRAGMA foreign_keys = ON;");
-        } catch (SQLException ignored) {}
-        return c;
+        try {
+            Connection real = pool.take();
+            if (real.isClosed() || !real.isValid(1)) {
+                plugin.getLogger().warning("Ungueltige DB-Verbindung erkannt – erstelle neue.");
+                real.close();
+                real = createConnection();
+                allConnections.add(real);
+            }
+            final Connection finalReal = real;
+            // Proxy: close() legt Verbindung zurueck in den Pool
+            return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                    Connection.class.getClassLoader(),
+                    new Class[]{Connection.class},
+                    (proxy, method, args) -> {
+                        if ("close".equals(method.getName())) {
+                            pool.offer(finalReal);
+                            return null;
+                        }
+                        try {
+                            return method.invoke(finalReal, args);
+                        } catch (java.lang.reflect.InvocationTargetException ex) {
+                            throw ex.getCause();
+                        }
+                    }
+            );
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SQLException("Unterbrochen beim Warten auf DB-Verbindung", e);
+        }
     }
 
+    /** Schließt alle gepoolten Verbindungen sauber beim Shutdown. */
     public void close() {
-
+        for (Connection c : allConnections) {
+            try {
+                if (!c.isClosed()) {
+                    c.close();
+                }
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.WARNING, "Fehler beim Schließen einer DB-Verbindung", ex);
+            }
+        }
+        allConnections.clear();
+        pool.clear();
+        plugin.getLogger().info("Datenbankverbindungen geschlossen.");
     }
 }

@@ -19,11 +19,11 @@ public final class ChestSecureCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Players only.", NamedTextColor.RED));
+            sender.sendMessage(Component.text(plugin.msg().get("nur-spieler"), NamedTextColor.RED));
             return true;
         }
         if (!player.hasPermission("chestsecure.use")) {
-            player.sendMessage(Component.text("No permission.", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             return true;
         }
         plugin.gui().openMain(player);

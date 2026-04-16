@@ -76,7 +76,7 @@ public final class GuiListener implements Listener {
             }
 
             case "confirm_unlock_all_self" -> {
-                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
                         ConfirmType.UNLOCK_ALL_SELF, player.getUniqueId().toString(), "MAIN", expiresAt));
@@ -89,7 +89,7 @@ public final class GuiListener implements Listener {
             }
 
             case "confirm_undo_restore" -> {
-                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
                 int undoCount  = plugin.undos().count(player.getUniqueId());
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
@@ -123,7 +123,7 @@ public final class GuiListener implements Listener {
             case "ping_lock" -> {
                 var lockEntry = plugin.locks().getLockFromId(actionContext).orElse(null);
                 if (lockEntry == null) {
-                    player.sendMessage(Component.text("Schloss nicht gefunden.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
                     plugin.gui().openLocksList(player, 0);
                     return;
                 }
@@ -161,7 +161,7 @@ public final class GuiListener implements Listener {
             }
 
             case "confirm_unlock_one" -> {
-                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
                         ConfirmType.UNLOCK_ONE, actionContext,
@@ -174,7 +174,7 @@ public final class GuiListener implements Listener {
             }
 
             case "confirm_remove_trust" -> {
-                int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
                 String lockId = actionContext.contains("|") ? actionContext.split("\\|", 2)[0] : "";
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
@@ -214,7 +214,7 @@ public final class GuiListener implements Listener {
                 try {
                     plugin.gui().openTrustRole(player, contextParts[0], UUID.fromString(contextParts[1]));
                 } catch (IllegalArgumentException ignored) {
-                    player.sendMessage(Component.text("Ungültige Daten.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
                 }
             }
 
@@ -231,11 +231,11 @@ public final class GuiListener implements Listener {
                     boolean actionSuccessful = accessLevel != null
                             && plugin.locks().setTrustById(player, lockId, targetPlayerUuid, accessLevel);
                     player.sendMessage(actionSuccessful
-                            ? Component.text("Vertrauen aktualisiert.", NamedTextColor.GREEN)
-                            : Component.text("Fehlgeschlagen (kein Besitzer / Schloss nicht gefunden).",
+                            ? Component.text(plugin.msg().get("gui-vertrauen-aktualisiert"), NamedTextColor.GREEN)
+                            : Component.text(plugin.msg().get("gui-transfer-fehlgeschlagen"),
                             NamedTextColor.RED));
                 } catch (IllegalArgumentException ignored) {
-                    player.sendMessage(Component.text("Ungültige Daten.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
                 }
                 plugin.gui().openLockManage(player, lockId);
             }
@@ -255,36 +255,35 @@ public final class GuiListener implements Listener {
 
             case "give_admin_key" -> {
                 if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
                     plugin.gui().openMain(player);
                     return;
                 }
                 player.getInventory().addItem(plugin.items().adminKey());
-                player.sendMessage(Component.text("Admin-Key erhalten.", NamedTextColor.GREEN));
+                player.sendMessage(Component.text(plugin.msg().get("admin-key-erhalten"), NamedTextColor.GREEN));
                 plugin.gui().openAdmin(player);
             }
 
             case "give_logs_book" -> {
                 if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
                     plugin.gui().openMain(player);
                     return;
                 }
-                int maxBookEntries = plugin.getConfig().getInt("admin.logs.book_entries",
-                        plugin.getConfig().getInt("admin.logs_book_entries", 200));
+                int maxBookEntries = plugin.cfg().adminLogsBookEntries();
                 player.getInventory().addItem(plugin.locks().createLogsBook(maxBookEntries));
-                player.sendMessage(Component.text("Log-Buch erhalten.", NamedTextColor.GREEN));
+                player.sendMessage(Component.text(plugin.msg().get("log-buch-erhalten"), NamedTextColor.GREEN));
                 plugin.gui().openAdmin(player);
             }
 
             case "give_admin_report" -> {
                 if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
                     plugin.gui().openMain(player);
                     return;
                 }
                 player.getInventory().addItem(plugin.locks().createAdminReportBook());
-                player.sendMessage(Component.text("Admin-Bericht erhalten.", NamedTextColor.GREEN));
+                player.sendMessage(Component.text(plugin.msg().get("admin-bericht-erhalten"), NamedTextColor.GREEN));
                 plugin.gui().openAdmin(player);
             }
 
@@ -296,7 +295,7 @@ public final class GuiListener implements Listener {
 
             case "global_unlock" -> {
                 if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
                     plugin.gui().openMain(player);
                     return;
                 }
@@ -335,7 +334,7 @@ public final class GuiListener implements Listener {
 
                 Optional<LogRecord> logRecordOptional = plugin.locks().getLogById(logEntryId);
                 if (logRecordOptional.isEmpty()) {
-                    player.sendMessage(Component.text("Log-Eintrag nicht gefunden.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(plugin.msg().get("log-nicht-gefunden"), NamedTextColor.RED));
                     plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                     return;
                 }
@@ -345,26 +344,24 @@ public final class GuiListener implements Listener {
                     Location targetLocation = new Location(targetWorld,
                             logRecord.x(), logRecord.y(), logRecord.z());
                     player.setCompassTarget(targetLocation);
-                    player.sendMessage(Component.text("Kompass auf Log-Position gesetzt.", NamedTextColor.AQUA));
+                    player.sendMessage(Component.text(plugin.msg().get("kompass-gesetzt"), NamedTextColor.AQUA));
                 }
 
                 if (event.getClick() == ClickType.SHIFT_LEFT
                         || event.getClick() == ClickType.SHIFT_RIGHT) {
                     if (!player.isOp()) {
-                        player.sendMessage(Component.text("Teleport erfordert OP.", NamedTextColor.RED));
+                        player.sendMessage(Component.text(plugin.msg().get("teleport-nur-op"), NamedTextColor.RED));
                         plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                         return;
                     }
-                    boolean teleportEnabled = plugin.getConfig().getBoolean(
-                            "admin.logs.teleport_enabled",
-                            plugin.getConfig().getBoolean("admin.allow_teleport", false));
+                    boolean teleportEnabled = plugin.cfg().adminLogsTeleportEnabled();
                     if (!teleportEnabled) {
                         player.sendMessage(Component.text(
-                                "Teleport ist in der Config deaktiviert.", NamedTextColor.RED));
+                                plugin.msg().get("teleport-deaktiviert"), NamedTextColor.RED));
                         plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                         return;
                     }
-                    int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+                    int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                     long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
                     plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
                             ConfirmType.LOG_TELEPORT, String.valueOf(logEntryId), "LOGS", expiresAt));
@@ -396,7 +393,7 @@ public final class GuiListener implements Listener {
 
         if (plugin.pendingChat().containsKey(player.getUniqueId())) {
             plugin.pendingChat().remove(player.getUniqueId());
-            player.sendMessage(Component.text("Chat-Eingabe abgebrochen.",
+            player.sendMessage(Component.text(plugin.msg().get("chat-abgebrochen"),
                     net.kyori.adventure.text.format.NamedTextColor.GRAY));
         }
     }
@@ -451,8 +448,8 @@ public final class GuiListener implements Listener {
         };
 
         player.sendMessage(actionSuccessful
-                ? Component.text("Erledigt.", NamedTextColor.GREEN)
-                : Component.text("Fehlgeschlagen.", NamedTextColor.RED));
+                ? Component.text(plugin.msg().get("gui-erledigt"), NamedTextColor.GREEN)
+                : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
         routeToDestination(player, confirmRequest.returnTo());
     }
 
@@ -501,9 +498,7 @@ public final class GuiListener implements Listener {
 
     private boolean handleLogTeleport(Player player, String logIdString) {
         if (!player.isOp()) return false;
-        boolean teleportEnabled = plugin.getConfig().getBoolean(
-                "admin.logs.teleport_enabled",
-                plugin.getConfig().getBoolean("admin.allow_teleport", false));
+        boolean teleportEnabled = plugin.cfg().adminLogsTeleportEnabled();
         if (!teleportEnabled) return false;
 
         long logId = parseLongSafe(logIdString);

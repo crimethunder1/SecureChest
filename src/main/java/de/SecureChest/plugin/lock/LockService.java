@@ -100,4 +100,16 @@ public interface LockService {
     Optional<LogRecord> getLogById(long id);
 
     ItemStack createAdminReportBook();
+
+    /**
+     * Raeumen den spieler-lokalen Settings-Cache (QuickLock/QuickRemove) auf.
+     * Wird beim Logout aufgerufen um Speicher freizugeben.
+     */
+    void evictPlayerCache(UUID player);
+
+    /**
+     * Laedt die Spielereinstellungen asynchron in den Cache.
+     * Wird beim Login aufgerufen damit erste Event-Handler direkt Caches treffen.
+     */
+    void preloadPlayerSettings(UUID player);
 }

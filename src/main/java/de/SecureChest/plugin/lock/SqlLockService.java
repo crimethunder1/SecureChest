@@ -2,7 +2,6 @@ package de.SecureChest.plugin.lock;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.db.DatabaseManager;
-import de.SecureChest.plugin.util.BookUtil;
 import de.SecureChest.plugin.ui.UndoSnapshot;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -26,16 +25,20 @@ public final class SqlLockService implements LockService {
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
 
-    private final Map<String, LockEntry>       lockCache       = new ConcurrentHashMap<>();
-    private final Map<String, SecureHopperEntry> hopperCache   = new ConcurrentHashMap<>();
-    private final Map<UUID, Boolean>            quickLockCache  = new ConcurrentHashMap<>();
-    private final Map<UUID, Boolean>            quickRemoveCache = new ConcurrentHashMap<>();
+    private final Map<String, LockEntry>         lockCache        = new ConcurrentHashMap<>();
+    private final Map<String, SecureHopperEntry> hopperCache      = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean>             quickLockCache   = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean>             quickRemoveCache = new ConcurrentHashMap<>();
 
-    private final Runnable postWarmCallback;
+    private final Runnable                 postWarmCallback;
+    private final LogRepository            logRepo;
+    private final PlayerSettingsRepository settingsRepo;
 
     public SqlLockService(ChestSecurePlugin plugin, DatabaseManager db, Runnable postWarmCallback) {
-        this.plugin = plugin;
-        this.db = db;
+        this.plugin       = plugin;
+        this.db           = db;
+        this.logRepo      = new LogRepository(plugin, db);
+        this.settingsRepo = new PlayerSettingsRepository(plugin, db);
 
         this.postWarmCallback = postWarmCallback;
         warmCachesAsync();
@@ -121,6 +124,14 @@ public final class SqlLockService implements LockService {
 
         LockKey key;
         try { key = LockKey.fromId(lockId); } catch (Exception ex) { return Optional.empty(); }
+
+        // Warnung wenn dieser synchrone DB-Fallback auf dem Main-Thread landet.
+        // Normalfall: Cache-Warmup ist abgeschlossen und dieser Pfad wird nie betreten.
+        if (Bukkit.isPrimaryThread()) {
+            plugin.getLogger().warning("[SecureChest] getLockFromId("" + lockId
+                    + "") trifft synchronen DB-Fallback auf dem Main-Thread! "
+                    + "Sicherstellen, dass der Cache-Warmup vor Spieler-Events abgeschlossen ist.");
+        }
 
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -225,6 +236,20 @@ public final class SqlLockService implements LockService {
         String id   = key.asId();
         if (lockCache.containsKey(id)) return false;
 
+        // Max-Locks-Limit pruefen
+        int maxLocks = plugin.cfg().maxLocksPerPlayer();
+        if (maxLocks > 0) {
+            long owned = lockCache.values().stream()
+                    .filter(e -> e.owner().equals(owner.getUniqueId()))
+                    .count();
+            if (owned >= maxLocks) {
+                owner.sendMessage(net.kyori.adventure.text.Component.text(
+                        plugin.msg().get("limit-locks-erreicht", maxLocks),
+                        net.kyori.adventure.text.format.NamedTextColor.RED));
+                return false;
+            }
+        }
+
         long now = Instant.now().toEpochMilli();
         LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
         lockCache.put(id, entry);
@@ -279,7 +304,7 @@ public final class SqlLockService implements LockService {
         if (!allowed) return false;
 
         long now = System.currentTimeMillis();
-        int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
+        int ttlSeconds = plugin.cfg().undoSeconds();
 
         UndoSnapshot snapshot = snapshotForSingleLock(key, entry);
 
@@ -378,7 +403,7 @@ public final class SqlLockService implements LockService {
     @Override
     public boolean unlockAllWithUndo(Player actor, UUID owner) {
         long now = System.currentTimeMillis();
-        int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
+        int ttlSeconds = plugin.cfg().undoSeconds();
 
         UndoSnapshot snapshot = snapshotForOwner(owner, now, now + (ttlSeconds * 1000L));
 
@@ -508,7 +533,7 @@ public final class SqlLockService implements LockService {
         if (entry.owner().equals(newOwner)) return false;
 
         long now = System.currentTimeMillis();
-        int ttlSeconds = plugin.getConfig().getInt("ui.undo_seconds", 20);
+        int ttlSeconds = plugin.cfg().undoSeconds();
         UndoSnapshot snapshot = snapshotForSingleLock(key, entry);
 
         LockEntry transferred = new LockEntry(finalKey, originalEntry.blockType(), newOwner, originalEntry.createdAt());
@@ -752,6 +777,20 @@ public final class SqlLockService implements LockService {
         LockEntry lock = getLock(boundContainer).orElse(null);
         if (lock == null || !lock.owner().equals(placer.getUniqueId())) return false;
 
+        // Max-Hopper-Limit pruefen
+        int maxHoppers = plugin.cfg().maxHoppersPerPlayer();
+        if (maxHoppers > 0) {
+            long owned = hopperCache.values().stream()
+                    .filter(e -> e.owner().equals(placer.getUniqueId()))
+                    .count();
+            if (owned >= maxHoppers) {
+                placer.sendMessage(net.kyori.adventure.text.Component.text(
+                        plugin.msg().get("limit-hopper-erreicht", maxHoppers),
+                        net.kyori.adventure.text.format.NamedTextColor.RED));
+                return false;
+            }
+        }
+
         LockKey hk  = LockKey.fromLocation(hopperBlock.getLocation());
         LockKey bnd = LockUtil.canonicalKey(boundContainer);
         long now    = Instant.now().toEpochMilli();
@@ -825,78 +864,40 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean getQuickLock(UUID player) {
-        return quickLockCache.computeIfAbsent(player, u -> loadSetting(u, "quick_lock"));
+        return quickLockCache.computeIfAbsent(player, u -> {
+            if (Bukkit.isPrimaryThread()) {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                        () -> quickLockCache.put(u, settingsRepo.loadSetting(u, "quick_lock")));
+                return false;
+            }
+            return settingsRepo.loadSetting(u, "quick_lock");
+        });
     }
 
     @Override
     public boolean getQuickRemove(UUID player) {
-        return quickRemoveCache.computeIfAbsent(player, u -> loadSetting(u, "quick_remove"));
-    }
-
-    private boolean loadSetting(UUID player, String field) {
-
-        if (Bukkit.isPrimaryThread()) {
-            plugin.getLogger().warning("loadSetting('" + field + "') called on main thread for "
-                    + player + " — returning default. Settings will preload shortly.");
-
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                boolean v = loadSettingFromDb(player, field);
-                if (field.equals("quick_lock"))   quickLockCache.put(player, v);
-                else if (field.equals("quick_remove")) quickRemoveCache.put(player, v);
-            });
-            return false;
-        }
-        return loadSettingFromDb(player, field);
-    }
-
-    private boolean loadSettingFromDb(UUID player, String field) {
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT " + field + " FROM player_settings WHERE player_uuid=?")) {
-            ps.setString(1, player.toString());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getInt(1) == 1;
+        return quickRemoveCache.computeIfAbsent(player, u -> {
+            if (Bukkit.isPrimaryThread()) {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                        () -> quickRemoveCache.put(u, settingsRepo.loadSetting(u, "quick_remove")));
+                return false;
             }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB loadSetting failed", ex);
-        }
-        ensureSettingsRow(player);
-        return false;
-    }
-
-    private void ensureSettingsRow(UUID player) {
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "INSERT OR IGNORE INTO player_settings(player_uuid,quick_lock,quick_remove) VALUES(?,?,?)")) {
-            ps.setString(1, player.toString()); ps.setInt(2, 0); ps.setInt(3, 0);
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB ensureSettingsRow failed", ex);
-        }
+            return settingsRepo.loadSetting(u, "quick_remove");
+        });
     }
 
     @Override
     public void setQuickLock(UUID player, boolean value) {
         quickLockCache.put(player, value);
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> setSetting(player, "quick_lock", value));
+        Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                () -> settingsRepo.saveSetting(player, "quick_lock", value));
     }
 
     @Override
     public void setQuickRemove(UUID player, boolean value) {
         quickRemoveCache.put(player, value);
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> setSetting(player, "quick_remove", value));
-    }
-
-    private void setSetting(UUID player, String field, boolean value) {
-        ensureSettingsRow(player);
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "UPDATE player_settings SET " + field + "=? WHERE player_uuid=?")) {
-            ps.setInt(1, value ? 1 : 0); ps.setString(2, player.toString());
-            ps.executeUpdate();
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB setSetting failed", ex);
-        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                () -> settingsRepo.saveSetting(player, "quick_remove", value));
     }
 
     public void evictPlayerCache(UUID player) {
@@ -905,248 +906,55 @@ public final class SqlLockService implements LockService {
     }
 
     public void preloadPlayerSettings(UUID player) {
-        if (!quickLockCache.containsKey(player))   quickLockCache.put(player, loadSetting(player, "quick_lock"));
-        if (!quickRemoveCache.containsKey(player)) quickRemoveCache.put(player, loadSetting(player, "quick_remove"));
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            quickLockCache.put(player,   settingsRepo.loadSetting(player, "quick_lock"));
+            quickRemoveCache.put(player, settingsRepo.loadSetting(player, "quick_remove"));
+        });
     }
 
     @Override
     public void addNotification(UUID ownerUuid, String message) {
-        if (!plugin.getConfig().getBoolean("notifications.enabled", true)) return;
-        long now = Instant.now().toEpochMilli();
-        int maxPerPlayer = plugin.getConfig().getInt("notifications.max_per_player", 20);
-        final String ownerStr = ownerUuid.toString();
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try (Connection c = db.getConnection()) {
-                c.setAutoCommit(false);
-
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO notifications(owner_uuid,message,created_at) VALUES(?,?,?)")) {
-                    ps.setString(1, ownerStr); ps.setString(2, message); ps.setLong(3, now);
-                    ps.executeUpdate();
-                }
-
-                try (PreparedStatement ps = c.prepareStatement(
-                        "DELETE FROM notifications WHERE owner_uuid=? AND id NOT IN " +
-                        "(SELECT id FROM notifications WHERE owner_uuid=? ORDER BY id DESC LIMIT ?)")) {
-                    ps.setString(1, ownerStr); ps.setString(2, ownerStr); ps.setInt(3, maxPerPlayer);
-                    ps.executeUpdate();
-                }
-                c.commit();
-            } catch (SQLException ex) {
-                plugin.getLogger().log(Level.SEVERE, "DB addNotification failed", ex);
-            }
-        });
+        settingsRepo.addNotification(ownerUuid, message);
     }
 
     @Override
     public List<Notification> fetchAndClearNotifications(UUID playerUuid) {
-        List<Notification> out = new ArrayList<>();
-        final String uuidStr = playerUuid.toString();
-        try (Connection c = db.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement(
-                    "SELECT id,message,created_at FROM notifications WHERE owner_uuid=? ORDER BY id ASC")) {
-                ps.setString(1, uuidStr);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        out.add(new Notification(rs.getLong(1), playerUuid, rs.getString(2), rs.getLong(3)));
-                    }
-                }
-            }
-            if (!out.isEmpty()) {
-                try (PreparedStatement ps = c.prepareStatement(
-                        "DELETE FROM notifications WHERE owner_uuid=?")) {
-                    ps.setString(1, uuidStr);
-                    ps.executeUpdate();
-                }
-            }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB fetchAndClearNotifications failed", ex);
-        }
-        return out;
+        return settingsRepo.fetchAndClearNotifications(playerUuid);
     }
 
     @Override
     public void logUnauthorizedBreak(Player actor, Block target) {
-        insertLog("UNAUTHORIZED_BREAK", actor, target, null);
+        logRepo.insertLog("UNAUTHORIZED_BREAK", actor, target, null);
     }
 
     @Override
     public void logAdminBreak(Player actor, Block target) {
-        insertLog("ADMIN_BREAK", actor, target, null);
-    }
-
-    private void insertLog(String action, Player actor, Block target, String extra) {
-        long now = Instant.now().toEpochMilli();
-        final String actorUuid  = actor.getUniqueId().toString();
-        final String actorName  = actor.getName();
-        World w = target.getWorld();
-        final String worldName  = w != null ? w.getName() : "unknown";
-        final String worldUuid  = w != null ? w.getUID().toString() : "00000000-0000-0000-0000-000000000000";
-        final int bx = target.getX(), by = target.getY(), bz = target.getZ();
-
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try (Connection c = db.getConnection();
-                 PreparedStatement ps = c.prepareStatement(
-                         "INSERT INTO logs(created_at,action,actor_uuid,actor_name,world_name,world_uuid,x,y,z,extra) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
-                ps.setLong(1, now); ps.setString(2, action);
-                ps.setString(3, actorUuid); ps.setString(4, actorName);
-                ps.setString(5, worldName); ps.setString(6, worldUuid);
-                ps.setInt(7, bx); ps.setInt(8, by); ps.setInt(9, bz);
-                ps.setString(10, extra);
-                ps.executeUpdate();
-            } catch (SQLException ex) {
-                plugin.getLogger().log(Level.SEVERE, "DB log insert failed", ex);
-            }
-        });
+        logRepo.insertLog("ADMIN_BREAK", actor, target, null);
     }
 
     @Override
     public ItemStack createLogsBook(int maxEntries) {
-        List<String> lines = new ArrayList<>();
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT created_at,action,actor_name,world_name,x,y,z FROM logs ORDER BY id DESC LIMIT ?")) {
-            ps.setInt(1, Math.max(1, maxEntries));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    lines.add(BookUtil.formatLogLine(rs.getLong(1), rs.getString(2),
-                            rs.getString(3), rs.getString(4), rs.getInt(5), rs.getInt(6), rs.getInt(7)));
-                }
-            }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB read logs failed", ex);
-        }
-        if (lines.isEmpty()) lines.add("No logs yet.");
-        return BookUtil.buildLogsBook(lines);
+        return logRepo.createLogsBook(maxEntries);
     }
 
     @Override
     public List<LogRecord> listLogs(String actionFilter, long minCreatedAt, String actorNameLike, int offset, int limit) {
-        List<LogRecord> out = new ArrayList<>();
-        StringBuilder sql = new StringBuilder(
-                "SELECT id,created_at,action,actor_uuid,actor_name,world_name,world_uuid,x,y,z,extra FROM logs WHERE 1=1");
-        List<Object> params = new ArrayList<>();
-
-        if (actionFilter != null && !actionFilter.isBlank() && !actionFilter.equalsIgnoreCase("ALL")) {
-            sql.append(" AND action=?"); params.add(actionFilter);
-        }
-        if (minCreatedAt > 0) { sql.append(" AND created_at>=?"); params.add(minCreatedAt); }
-        if (actorNameLike != null && !actorNameLike.isBlank()) {
-            sql.append(" AND actor_name LIKE ?"); params.add("%" + actorNameLike + "%");
-        }
-        sql.append(" ORDER BY id DESC LIMIT ? OFFSET ?");
-        params.add(Math.max(1, limit)); params.add(Math.max(0, offset));
-
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql.toString())) {
-            bindParams(ps, params);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    out.add(new LogRecord(rs.getLong(1), rs.getLong(2), rs.getString(3),
-                            UUID.fromString(rs.getString(4)), rs.getString(5), rs.getString(6),
-                            UUID.fromString(rs.getString(7)), rs.getInt(8), rs.getInt(9), rs.getInt(10), rs.getString(11)));
-                }
-            }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB listLogs failed", ex);
-        }
-        return out;
+        return logRepo.listLogs(actionFilter, minCreatedAt, actorNameLike, offset, limit);
     }
 
     @Override
     public int countLogs(String actionFilter, long minCreatedAt, String actorNameLike) {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM logs WHERE 1=1");
-        List<Object> params = new ArrayList<>();
-        if (actionFilter != null && !actionFilter.isBlank() && !actionFilter.equalsIgnoreCase("ALL")) {
-            sql.append(" AND action=?"); params.add(actionFilter);
-        }
-        if (minCreatedAt > 0) { sql.append(" AND created_at>=?"); params.add(minCreatedAt); }
-        if (actorNameLike != null && !actorNameLike.isBlank()) {
-            sql.append(" AND actor_name LIKE ?"); params.add("%" + actorNameLike + "%");
-        }
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql.toString())) {
-            bindParams(ps, params);
-            try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB countLogs failed", ex);
-        }
-        return 0;
+        return logRepo.countLogs(actionFilter, minCreatedAt, actorNameLike);
     }
 
     @Override
     public Optional<LogRecord> getLogById(long id) {
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT id,created_at,action,actor_uuid,actor_name,world_name,world_uuid,x,y,z,extra FROM logs WHERE id=?")) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return Optional.empty();
-                return Optional.of(new LogRecord(rs.getLong(1), rs.getLong(2), rs.getString(3),
-                        UUID.fromString(rs.getString(4)), rs.getString(5), rs.getString(6),
-                        UUID.fromString(rs.getString(7)), rs.getInt(8), rs.getInt(9), rs.getInt(10), rs.getString(11)));
-            }
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB getLogById failed", ex);
-            return Optional.empty();
-        }
+        return logRepo.getLogById(id);
     }
 
     @Override
     public ItemStack createAdminReportBook() {
-        List<String> lines = new ArrayList<>();
-        int totalLocks = 0, totalHoppers = 0, logs24h = 0, logs7d = 0, unauth24h = 0, admin24h = 0;
-        long now = System.currentTimeMillis();
-        long h24 = now - 86_400_000L, d7 = now - 604_800_000L;
-
-        try (Connection c = db.getConnection()) {
-            try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM locks")) {
-                if (rs.next()) totalLocks = rs.getInt(1);
-            }
-            try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM secure_hoppers")) {
-                if (rs.next()) totalHoppers = rs.getInt(1);
-            }
-            logs24h  = countLogsRaw(c, "ALL", h24);
-            logs7d   = countLogsRaw(c, "ALL", d7);
-            unauth24h = countLogsRaw(c, "UNAUTHORIZED_BREAK", h24);
-            admin24h  = countLogsRaw(c, "ADMIN_BREAK", h24);
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB admin report failed", ex);
-        }
-
-        lines.add("ChestSecure Admin Report");
-        lines.add(""); lines.add("Totals:");
-        lines.add("- Locks: " + totalLocks);
-        lines.add("- Secure Hoppers: " + totalHoppers);
-        lines.add(""); lines.add("Logs:");
-        lines.add("- Last 24h: " + logs24h);
-        lines.add("- Last 7d: " + logs7d);
-        lines.add("- Unauth breaks (24h): " + unauth24h);
-        lines.add("- Admin breaks (24h): " + admin24h);
-        lines.add(""); lines.add("Top Unauth (7d):");
-
-        try (Connection c = db.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT actor_name,COUNT(*) AS c FROM logs WHERE created_at>=? AND action='UNAUTHORIZED_BREAK' GROUP BY actor_name ORDER BY c DESC LIMIT 10")) {
-            ps.setLong(1, d7);
-            try (ResultSet rs = ps.executeQuery()) {
-                boolean any = false;
-                while (rs.next()) { any = true; lines.add("- " + rs.getString(1) + ": " + rs.getInt(2)); }
-                if (!any) lines.add("- none");
-            }
-        } catch (SQLException ex) { lines.add("- (error)"); }
-
-        return BookUtil.buildBook("ChestSecure Report", "ChestSecure Report", "ChestSecure", lines);
-    }
-
-    private int countLogsRaw(Connection c, String action, long minTs) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM logs WHERE created_at>=?" +
-                (action.equalsIgnoreCase("ALL") ? "" : " AND action=?");
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, minTs);
-            if (!action.equalsIgnoreCase("ALL")) ps.setString(2, action);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
-        }
+        return logRepo.createAdminReportBook();
     }
 
     private UndoSnapshot snapshotForSingleLock(LockKey key, LockEntry entry) {
@@ -1155,7 +963,7 @@ public final class SqlLockService implements LockService {
                 .map(e -> new UndoSnapshot.TrustRow(key, e.getKey(), e.getValue().name()))
                 .collect(java.util.stream.Collectors.toList());
         long now = System.currentTimeMillis();
-        int ttl = plugin.getConfig().getInt("ui.undo_seconds", 20);
+        int ttl = plugin.cfg().undoSeconds();
         return new UndoSnapshot(
                 List.of(new UndoSnapshot.LockRow(key, entry.blockType().name(), entry.owner(), entry.createdAt())),
                 trusts, List.of(), now, now + (ttl * 1000L));

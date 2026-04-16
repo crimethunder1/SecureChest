@@ -12,7 +12,7 @@ public final class Worlds {
     private final Set<String> enabled = new HashSet<>();
 
     public Worlds(ChestSecurePlugin plugin) {
-        List<String> list = plugin.getConfig().getStringList("worlds.enabled");
+        List<String> list = plugin.cfg().enabledWorlds();
         if (list != null) {
             for (String w : list) {
                 if (w != null && !w.isBlank()) enabled.add(w.trim());

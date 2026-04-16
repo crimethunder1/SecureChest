@@ -42,11 +42,16 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private UiStateStore uiStateStore;
     private PingManager pingManager;
 
+    private PluginConfig pluginConfig;
+    private MessageService messageService;
+
     private final Map<UUID, PendingChatAction> pendingChatActions = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        this.pluginConfig   = new PluginConfig(this);
+        this.messageService = new MessageService(this);
 
         this.keyItemType          = new NamespacedKey(this, "item_type");
         this.keyGuiAction         = new NamespacedKey(this, "gui_action");
@@ -55,7 +60,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
 
         this.items = new Items(this);
 
-        int maxUndoHistory = getConfig().getInt("ui.max_undo_history", 5);
+        int maxUndoHistory = cfg().maxUndoHistory();
         this.confirmManager = new ConfirmManager();
         this.undoManager    = new UndoManager(maxUndoHistory);
         this.uiStateStore   = new UiStateStore();
@@ -125,5 +130,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public Items items()                   { return items; }
     public SignManager signs()             { return signManager; }
     public PingManager ping()              { return pingManager; }
+    public PluginConfig cfg()                  { return pluginConfig; }
+    public MessageService msg()                { return messageService; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChatActions; }
 }

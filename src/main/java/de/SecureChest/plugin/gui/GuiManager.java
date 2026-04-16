@@ -233,7 +233,7 @@ public final class GuiManager {
     public void openLockManage(Player player, String lockId) {
         Optional<LockEntry> lockEntryOptional = plugin.locks().getLockFromId(lockId);
         if (lockEntryOptional.isEmpty()) {
-            player.sendMessage(Component.text("Schloss nicht gefunden.", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
             openLocksList(player, 0);
             return;
         }
@@ -338,7 +338,7 @@ public final class GuiManager {
                 .map(lockEntry -> new java.util.HashMap<>(lockEntry.trusted()))
                 .orElse(new java.util.HashMap<>());
 
-        double nearbyRadius = plugin.getConfig().getDouble("ui.trust_nearby_radius", 32.0);
+        double nearbyRadius = plugin.cfg().trustNearbyRadius();
         List<Player> nearbyPlayers = player.getWorld().getPlayers().stream()
                 .filter(otherPlayer -> !otherPlayer.getUniqueId().equals(player.getUniqueId()))
                 .filter(otherPlayer -> otherPlayer.getLocation().distanceSquared(player.getLocation())
@@ -474,7 +474,7 @@ public final class GuiManager {
                 ? plugin.recipes().chestKeyRecipe()
                 : plugin.recipes().secureHopperRecipe();
         if (recipe == null) {
-            player.sendMessage(Component.text("Rezept nicht verfügbar.", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.msg().get("rezept-nicht-verfuegbar"), NamedTextColor.RED));
             openMain(player);
             return;
         }
@@ -558,7 +558,7 @@ public final class GuiManager {
 
     public void openAdmin(Player player) {
         if (!player.hasPermission("chestsecure.admin")) {
-            player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             openMain(player);
             return;
         }
@@ -599,7 +599,7 @@ public final class GuiManager {
 
     public void openLogs(Player player, int page) {
         if (!player.hasPermission("chestsecure.admin")) {
-            player.sendMessage(Component.text("Keine Berechtigung.", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             openMain(player);
             return;
         }
@@ -674,7 +674,7 @@ public final class GuiManager {
         inventory.setItem(15, buildButton(Material.LIME_STAINED_GLASS_PANE,
                 "§aBestätigen", List.of("§aJa, fortfahren"), "confirm_yes", ""));
 
-        int timeoutSeconds = plugin.getConfig().getInt("ui.confirm_timeout_seconds", 15);
+        int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
         List<String> linesWithTimeout = new ArrayList<>(lines);
         linesWithTimeout.add("");
         linesWithTimeout.add("§e▶ Läuft ab in " + timeoutSeconds + "s — schnell handeln!");
@@ -894,10 +894,16 @@ public final class GuiManager {
         ItemStack itemStack = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta baseMeta   = itemStack.getItemMeta();
         if (baseMeta instanceof SkullMeta skullMeta) {
+            // Nur gecachte Spieler-Daten verwenden – getOfflinePlayer(uuid) kann
+            // den Main-Thread blockieren (I/O / Mojang-API). Der Skull-Skin
+            // bleibt leer wenn der Spieler nicht bekannt ist; das ist akzeptabel.
             org.bukkit.OfflinePlayer offlinePlayer =
                     Bukkit.getOfflinePlayerIfCached(playerUuid.toString());
-            if (offlinePlayer == null) offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
-            skullMeta.setOwningPlayer(offlinePlayer);
+            if (offlinePlayer == null) {
+                org.bukkit.entity.Player online = Bukkit.getPlayer(playerUuid);
+                if (online != null) offlinePlayer = online;
+            }
+            if (offlinePlayer != null) skullMeta.setOwningPlayer(offlinePlayer);
             skullMeta.displayName(Component.text(displayName));
             skullMeta.lore(lore.stream().map(Component::text).toList());
             skullMeta.getPersistentDataContainer().set(
@@ -937,7 +943,7 @@ public final class GuiManager {
     private static String formatWarningLine(String text) { return "§c" + text; }
 
     private void playMenuClickSound(Player player) {
-        if (plugin.getConfig().getBoolean("sounds.enabled", true)) {
+        if (plugin.cfg().soundsEnabled()) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.7f, 1.2f);
         }
     }

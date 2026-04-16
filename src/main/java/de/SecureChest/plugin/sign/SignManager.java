@@ -40,7 +40,7 @@ public final class SignManager implements Listener {
     }
 
     public boolean isEnabled() {
-        return plugin.getConfig().getBoolean("signs.enabled", true);
+        return plugin.cfg().signsEnabled();
     }
 
     public void spawnSign(LockKey key, String ownerName) {
