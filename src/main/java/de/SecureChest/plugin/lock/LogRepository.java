@@ -21,6 +21,25 @@ import java.util.logging.Level;
  */
 public final class LogRepository {
 
+    // ── Action-Konstanten (Audit-Trail) ──────────────────────────────────────
+    // Bereits in v1.4.0+ in Benutzung:
+    public static final String ACTION_UNAUTHORIZED_BREAK = "UNAUTHORIZED_BREAK";
+    public static final String ACTION_ADMIN_BREAK        = "ADMIN_BREAK";
+
+    // Neu in v1.5.2 (SEC-14):
+    public static final String ACTION_LOCK_CREATE           = "LOCK_CREATE";
+    public static final String ACTION_LOCK_REMOVE           = "LOCK_REMOVE";
+    public static final String ACTION_LOCK_REMOVE_ADMIN     = "LOCK_REMOVE_ADMIN";
+    public static final String ACTION_LOCK_TRANSFER         = "LOCK_TRANSFER";
+    public static final String ACTION_LOCK_UNLOCK_ALL_SELF  = "LOCK_UNLOCK_ALL_SELF";
+    public static final String ACTION_LOCK_UNLOCK_ALL_ADMIN = "LOCK_UNLOCK_ALL_ADMIN";
+    public static final String ACTION_TRUST_SET             = "TRUST_SET";
+    public static final String ACTION_TRUST_REMOVE          = "TRUST_REMOVE";
+    public static final String ACTION_HOPPER_BIND           = "HOPPER_BIND";
+    public static final String ACTION_HOPPER_REMOVE         = "HOPPER_REMOVE";
+    public static final String ACTION_UNDO_RESTORE          = "UNDO_RESTORE";
+    public static final String ACTION_INSPECT_TOGGLE        = "INSPECT_TOGGLE";
+
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
 
@@ -48,6 +67,37 @@ public final class LogRepository {
         final String worldUuid = w != null ? w.getUID().toString() : "00000000-0000-0000-0000-000000000000";
         final int bx = target.getX(), by = target.getY(), bz = target.getZ();
 
+        persistLog(now, action, actorUuid, actorName, worldName, worldUuid, bx, by, bz, extra);
+    }
+
+    /**
+     * Variante mit {@link LockKey} statt {@link Block} – fuer Service-Aufrufe ohne direkte
+     * Block-Referenz. Wenn die Welt nicht (mehr) geladen ist, wird "unknown" als Weltname
+     * eingetragen.
+     */
+    public void insertLog(String action, Player actor, LockKey key, String extra) {
+        long now = Instant.now().toEpochMilli();
+        final String actorUuid = actor.getUniqueId().toString();
+        final String actorName = actor.getName();
+        World w = Bukkit.getWorld(key.worldUuid());
+        final String worldName = w != null ? w.getName() : "unknown";
+        final String worldUuid = key.worldUuid().toString();
+
+        persistLog(now, action, actorUuid, actorName, worldName, worldUuid, key.x(), key.y(), key.z(), extra);
+    }
+
+    /**
+     * Variante fuer Aktionen ohne konkreten Block-Target (z.B. UNLOCK_ALL, UNDO_RESTORE) –
+     * nutzt die aktuelle Spielerposition als Anchor.
+     */
+    public void insertLogAtActor(String action, Player actor, String extra) {
+        insertLog(action, actor, actor.getLocation().getBlock(), extra);
+    }
+
+    private void persistLog(long now, String action,
+                            String actorUuid, String actorName,
+                            String worldName, String worldUuid,
+                            int x, int y, int z, String extra) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection();
                  PreparedStatement ps = c.prepareStatement(
@@ -56,7 +106,7 @@ public final class LogRepository {
                 ps.setLong(1, now);      ps.setString(2, action);
                 ps.setString(3, actorUuid); ps.setString(4, actorName);
                 ps.setString(5, worldName); ps.setString(6, worldUuid);
-                ps.setInt(7, bx);        ps.setInt(8, by);    ps.setInt(9, bz);
+                ps.setInt(7, x);         ps.setInt(8, y);     ps.setInt(9, z);
                 ps.setString(10, extra);
                 ps.executeUpdate();
             } catch (SQLException ex) {

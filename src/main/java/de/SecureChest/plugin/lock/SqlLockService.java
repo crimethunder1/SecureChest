@@ -257,6 +257,7 @@ public final class SqlLockService implements LockService {
         if (lockCache.putIfAbsent(id, entry) != null) return false;
 
         plugin.signs().spawnSign(key, owner.getName());
+        logRepo.insertLog(LogRepository.ACTION_LOCK_CREATE, owner, block, block.getType().name());
 
         final String blockTypeName = block.getType().name();
         final String ownerStr = owner.getUniqueId().toString();
@@ -305,6 +306,12 @@ public final class SqlLockService implements LockService {
         boolean allowed = actor.hasPermission("chestsecure.admin") || entry.owner().equals(actor.getUniqueId());
         if (!allowed) return false;
 
+        boolean isAdminAction = !entry.owner().equals(actor.getUniqueId());
+        logRepo.insertLog(
+                isAdminAction ? LogRepository.ACTION_LOCK_REMOVE_ADMIN : LogRepository.ACTION_LOCK_REMOVE,
+                actor, key,
+                isAdminAction ? "target_owner=" + entry.owner() : null);
+
         long now = System.currentTimeMillis();
         int ttlSeconds = plugin.cfg().undoSeconds();
 
@@ -348,6 +355,12 @@ public final class SqlLockService implements LockService {
 
         boolean allowed = caller.hasPermission("chestsecure.admin") || entry.owner().equals(caller.getUniqueId());
         if (!allowed) return false;
+
+        boolean isAdminAction = !entry.owner().equals(caller.getUniqueId());
+        logRepo.insertLog(
+                isAdminAction ? LogRepository.ACTION_LOCK_REMOVE_ADMIN : LogRepository.ACTION_LOCK_REMOVE,
+                caller, key,
+                isAdminAction ? "target_owner=" + entry.owner() : null);
 
         final LockEntry finalEntry = entry;
         lockCache.remove(id);
@@ -438,6 +451,15 @@ public final class SqlLockService implements LockService {
             plugin.undos().set(actor.getUniqueId(), snapshot);
         }
 
+        boolean isSelfAction = actor.getUniqueId().equals(owner);
+        String extra = "locks=" + snapshot.locks().size()
+                + ",hoppers=" + snapshot.secureHoppers().size()
+                + (isSelfAction ? "" : ",target_owner=" + owner);
+        logRepo.insertLogAtActor(
+                isSelfAction ? LogRepository.ACTION_LOCK_UNLOCK_ALL_SELF
+                             : LogRepository.ACTION_LOCK_UNLOCK_ALL_ADMIN,
+                actor, extra);
+
         final String ownerStr = owner.toString();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
@@ -474,6 +496,10 @@ public final class SqlLockService implements LockService {
         var snapOpt = plugin.undos().consume(actor.getUniqueId());
         if (snapOpt.isEmpty()) return false;
         UndoSnapshot snapshot = snapOpt.get();
+
+        logRepo.insertLogAtActor(LogRepository.ACTION_UNDO_RESTORE, actor,
+                "locks=" + snapshot.locks().size()
+                + ",hoppers=" + snapshot.secureHoppers().size());
 
         for (UndoSnapshot.LockRow lr : snapshot.locks()) {
             Material type = Material.matchMaterial(lr.blockType());
@@ -573,6 +599,9 @@ public final class SqlLockService implements LockService {
         boolean allowed = actor.hasPermission("chestsecure.admin") || entry.owner().equals(actor.getUniqueId());
         if (!allowed) return false;
         if (entry.owner().equals(newOwner)) return false;
+
+        logRepo.insertLog(LogRepository.ACTION_LOCK_TRANSFER, actor, key,
+                "from=" + entry.owner() + ",to=" + newOwner);
 
         long now = System.currentTimeMillis();
         int ttlSeconds = plugin.cfg().undoSeconds();
@@ -703,6 +732,9 @@ public final class SqlLockService implements LockService {
         entry.trustedMutable().put(target, level);
         lockCache.put(id, entry);
 
+        logRepo.insertLog(LogRepository.ACTION_TRUST_SET, owner, key,
+                "target=" + target + ",level=" + level.name());
+
         final String targetStr = target.toString(), levelName = level.name();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection();
@@ -740,6 +772,8 @@ public final class SqlLockService implements LockService {
 
         entry.trustedMutable().remove(target);
         lockCache.put(id, entry);
+
+        logRepo.insertLog(LogRepository.ACTION_TRUST_REMOVE, owner, key, "target=" + target);
 
         final String targetStr = target.toString();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -863,6 +897,8 @@ public final class SqlLockService implements LockService {
             tile.update(true, false);
         }
 
+        logRepo.insertLog(LogRepository.ACTION_HOPPER_BIND, placer, hopperBlock, "bound=" + bnd.asId());
+
         final String placerStr = placer.getUniqueId().toString();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection();
@@ -985,12 +1021,23 @@ public final class SqlLockService implements LockService {
 
     @Override
     public void logUnauthorizedBreak(Player actor, Block target) {
-        logRepo.insertLog("UNAUTHORIZED_BREAK", actor, target, null);
+        logRepo.insertLog(LogRepository.ACTION_UNAUTHORIZED_BREAK, actor, target, null);
     }
 
     @Override
     public void logAdminBreak(Player actor, Block target) {
-        logRepo.insertLog("ADMIN_BREAK", actor, target, null);
+        logRepo.insertLog(LogRepository.ACTION_ADMIN_BREAK, actor, target, null);
+    }
+
+    @Override
+    public void logSecureHopperRemove(Player actor, Block hopperBlock) {
+        logRepo.insertLog(LogRepository.ACTION_HOPPER_REMOVE, actor, hopperBlock, null);
+    }
+
+    @Override
+    public void logInspectToggle(Player actor, boolean newState) {
+        logRepo.insertLogAtActor(LogRepository.ACTION_INSPECT_TOGGLE, actor,
+                "enabled=" + newState);
     }
 
     @Override

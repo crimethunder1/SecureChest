@@ -104,6 +104,8 @@ public interface LockService {
 
     void logUnauthorizedBreak(Player actor, Block target);
     void logAdminBreak(Player actor, Block target);
+    void logSecureHopperRemove(Player actor, Block hopperBlock);
+    void logInspectToggle(Player actor, boolean newState);
 
     void addNotification(UUID ownerUuid, String message);
     List<Notification> fetchAndClearNotifications(UUID playerUuid);

@@ -299,6 +299,7 @@ public final class GuiListener implements Listener {
             case "toggle_inspect" -> {
                 boolean newInspectModeState = !plugin.ui().inspect(player.getUniqueId());
                 plugin.ui().setInspect(player.getUniqueId(), newInspectModeState);
+                plugin.locks().logInspectToggle(player, newInspectModeState);
                 plugin.gui().openAdmin(player);
             }
 

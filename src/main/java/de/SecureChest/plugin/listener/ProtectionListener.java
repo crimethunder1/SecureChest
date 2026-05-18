@@ -421,6 +421,7 @@ public final class ProtectionListener implements Listener {
             }
         }
         if (isSecureHopper) {
+            plugin.locks().logSecureHopperRemove(event.getPlayer(), block);
             plugin.locks().removeSecureHopper(block);
             event.setDropItems(false);
             block.getWorld().dropItemNaturally(block.getLocation(), plugin.items().secureHopper());
