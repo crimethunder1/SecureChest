@@ -1,6 +1,7 @@
 package de.SecureChest.plugin.listener;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.AccessLevel;
 import de.SecureChest.plugin.lock.LockEntry;
 import de.SecureChest.plugin.lock.LockKey;
@@ -11,6 +12,8 @@ import de.SecureChest.plugin.ui.ConfirmType;
 import de.SecureChest.plugin.util.Items;
 import de.SecureChest.plugin.util.Worlds;
 import com.destroystokyo.paper.event.block.BlockDestroyEvent;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
@@ -27,18 +30,15 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
-import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class ProtectionListener implements Listener {
 
@@ -75,7 +75,7 @@ public final class ProtectionListener implements Listener {
 
         boolean worldEnabled       = worlds().isEnabled(block.getWorld());
         boolean blockAlreadyLocked = plugin.locks().isLocked(block);
-        boolean isProtectedHopper  = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
+        boolean isProtectedHopper  = isHopperWithSecureProtection(block);
 
         if (!worldEnabled && !blockAlreadyLocked && !isProtectedHopper) return;
 
@@ -84,70 +84,96 @@ public final class ProtectionListener implements Listener {
         boolean isHandEmpty        = (heldItem == null || heldItem.getType().isAir());
         boolean isHoldingChestKey  = plugin.items().isHoldingChestKey(player);
         boolean isHoldingAdminKey  = plugin.items().isHoldingAdminKey(player);
+
+        if (tryInspectMode(event, player, block, isHandEmpty)) return;
+        if (tryRejectChestKeyOnSecureHopper(event, player, block, isHoldingChestKey)) return;
+        if (tryChestKeyAction(event, player, block, isHoldingChestKey, worldEnabled)) return;
+        if (tryQuickLock(event, player, block, isHandEmpty, blockAlreadyLocked, worldEnabled)) return;
+
+        if (rejectIfLockedAndNoAccess(event, player, block, isHoldingAdminKey)) return;
+        rejectIfProtectedHopperAndNoAccess(event, player, block, isHoldingAdminKey);
+    }
+
+    private boolean isHopperWithSecureProtection(Block block) {
+        return block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
+    }
+
+    private boolean tryInspectMode(PlayerInteractEvent event, Player player, Block block, boolean isHandEmpty) {
         boolean isInspectModeActive = plugin.ui().inspect(player.getUniqueId());
-
-        if (isInspectModeActive && player.hasPermission("chestsecure.admin") && player.isSneaking() && isHandEmpty) {
-            event.setCancelled(true);
-            displayInspectInfo(player, block);
-            return;
+        if (!isInspectModeActive || !player.hasPermission(Permissions.ADMIN)
+                || !player.isSneaking() || !isHandEmpty) {
+            return false;
         }
+        event.setCancelled(true);
+        displayInspectInfo(player, block);
+        return true;
+    }
 
-        if (isHoldingChestKey && block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block)) {
-            event.setCancelled(true);
-            sendFailFeedback(player, plugin.msg().get("hopper-bereits-geschuetzt"));
-            return;
+    private boolean tryRejectChestKeyOnSecureHopper(PlayerInteractEvent event, Player player, Block block,
+                                                   boolean isHoldingChestKey) {
+        if (!isHoldingChestKey || !isHopperWithSecureProtection(block)) return false;
+        event.setCancelled(true);
+        sendFailFeedback(player, plugin.msg().get("hopper-bereits-geschuetzt"));
+        return true;
+    }
+
+    private boolean tryChestKeyAction(PlayerInteractEvent event, Player player, Block block,
+                                      boolean isHoldingChestKey, boolean worldEnabled) {
+        if (!isHoldingChestKey) return false;
+        event.setCancelled(true);
+        if (!worldEnabled) {
+            sendFailFeedback(player, plugin.msg().get("welt-nicht-aktiv"));
+            return true;
         }
+        if (!consumeActionCooldown(player.getUniqueId())) return true;
 
-        if (isHoldingChestKey) {
-            event.setCancelled(true);
-            if (!worldEnabled) {
-                sendFailFeedback(player, plugin.msg().get("welt-nicht-aktiv"));
-                return;
-            }
-            if (!consumeActionCooldown(player.getUniqueId())) return;
-
-            boolean isBlockLocked = plugin.locks().isLocked(block);
-            if (!isBlockLocked) {
-                processLockRequest(player, block);
-            } else {
-                processUnlockRequest(player, block);
-            }
-            return;
+        if (!plugin.locks().isLocked(block)) {
+            processLockRequest(player, block);
+        } else {
+            processUnlockRequest(player, block);
         }
+        return true;
+    }
 
+    private boolean tryQuickLock(PlayerInteractEvent event, Player player, Block block,
+                                 boolean isHandEmpty, boolean blockAlreadyLocked, boolean worldEnabled) {
         boolean isQuickLockEnabled = plugin.locks().getQuickLock(player.getUniqueId());
-        boolean isBlockASecureHopper = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
-        if (isQuickLockEnabled && isHandEmpty && !blockAlreadyLocked && !isBlockASecureHopper
-                && worldEnabled && playerHasChestKeyInInventory(player)) {
-            event.setCancelled(true);
-            if (!consumeActionCooldown(player.getUniqueId())) return;
-            lockBlockDirectly(player, block);
-            return;
-        }
+        boolean isBlockASecureHopper = isHopperWithSecureProtection(block);
+        boolean canQuickLock = isQuickLockEnabled && isHandEmpty && !blockAlreadyLocked && !isBlockASecureHopper
+                && worldEnabled && playerHasChestKeyInInventory(player);
+        if (!canQuickLock) return false;
 
-        if (plugin.locks().isLocked(block)) {
-            boolean playerMayOpen = plugin.locks().canOpen(player, block, isHoldingAdminKey);
-            if (!playerMayOpen) {
-                event.setCancelled(true);
-                String ownerName = plugin.locks().getLock(block)
-                        .map(entry -> resolvePlayerName(entry.owner()))
-                        .orElse("jemandem");
-                sendFailFeedback(player, plugin.msg().get("block-gehoert", ownerName));
-                return;
-            }
-        }
+        event.setCancelled(true);
+        if (!consumeActionCooldown(player.getUniqueId())) return true;
+        lockBlockDirectly(player, block);
+        return true;
+    }
 
-        if (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block)) {
-            SecureHopperEntry secureHopperEntry = plugin.locks().getSecureHopper(block).orElse(null);
-            if (secureHopperEntry != null) {
-                boolean playerMayOpenHopper = (player.hasPermission("chestsecure.admin") && isHoldingAdminKey)
-                        || secureHopperEntry.owner().equals(player.getUniqueId());
-                if (!playerMayOpenHopper) {
-                    event.setCancelled(true);
-                    sendFailFeedback(player, plugin.msg().get("hopper-gehoert", resolvePlayerName(secureHopperEntry.owner())));
-                }
-            }
-        }
+    private boolean rejectIfLockedAndNoAccess(PlayerInteractEvent event, Player player, Block block,
+                                              boolean isHoldingAdminKey) {
+        if (!plugin.locks().isLocked(block)) return false;
+        if (plugin.locks().canOpen(player, block, isHoldingAdminKey)) return false;
+
+        event.setCancelled(true);
+        String ownerName = plugin.locks().getLock(block)
+                .map(entry -> resolvePlayerName(entry.owner()))
+                .orElse("jemandem");
+        sendFailFeedback(player, plugin.msg().get("block-gehoert", ownerName));
+        return true;
+    }
+
+    private void rejectIfProtectedHopperAndNoAccess(PlayerInteractEvent event, Player player, Block block,
+                                                    boolean isHoldingAdminKey) {
+        if (!isHopperWithSecureProtection(block)) return;
+        SecureHopperEntry secureHopperEntry = plugin.locks().getSecureHopper(block).orElse(null);
+        if (secureHopperEntry == null) return;
+
+        boolean playerMayOpenHopper = (player.hasPermission(Permissions.ADMIN) && isHoldingAdminKey)
+                || secureHopperEntry.owner().equals(player.getUniqueId());
+        if (playerMayOpenHopper) return;
+
+        event.setCancelled(true);
+        sendFailFeedback(player, plugin.msg().get("hopper-gehoert", resolvePlayerName(secureHopperEntry.owner())));
     }
 
     private boolean consumeActionCooldown(UUID playerUuid) {
@@ -209,7 +235,7 @@ public final class ProtectionListener implements Listener {
         }
         LockEntry lockEntry = lockEntryOptional.get();
         boolean playerOwnsLock  = lockEntry.owner().equals(player.getUniqueId());
-        boolean playerIsAdmin   = player.hasPermission("chestsecure.admin");
+        boolean playerIsAdmin   = player.hasPermission(Permissions.ADMIN);
         boolean playerCanUnlock = playerOwnsLock || playerIsAdmin;
 
         if (!playerCanUnlock) {
@@ -315,7 +341,7 @@ public final class ProtectionListener implements Listener {
         if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) return;
 
         Player placer = event.getPlayer();
-        if (placer.hasPermission("chestsecure.admin")) return;
+        if (placer.hasPermission(Permissions.ADMIN)) return;
 
         UUID placerUuid = placer.getUniqueId();
 
@@ -393,7 +419,7 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        if (event.getPlayer().hasPermission("chestsecure.admin")) {
+        if (event.getPlayer().hasPermission(Permissions.ADMIN)) {
             if (isLockedBlock) {
                 LockEntry lockEntry = plugin.locks().getLock(block).orElse(null);
                 if (lockEntry != null && !lockEntry.owner().equals(event.getPlayer().getUniqueId())) {

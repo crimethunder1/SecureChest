@@ -16,6 +16,8 @@ import java.util.logging.Level;
 
 public final class LogRepository {
 
+    public static final String UNKNOWN_WORLD_UUID = "00000000-0000-0000-0000-000000000000";
+
     public static final String ACTION_UNAUTHORIZED_BREAK = "UNAUTHORIZED_BREAK";
     public static final String ACTION_ADMIN_BREAK        = "ADMIN_BREAK";
 
@@ -46,7 +48,7 @@ public final class LogRepository {
         final String actorName = actor.getName();
         World w = target.getWorld();
         final String worldName = w != null ? w.getName() : "unknown";
-        final String worldUuid = w != null ? w.getUID().toString() : "00000000-0000-0000-0000-000000000000";
+        final String worldUuid = w != null ? w.getUID().toString() : UNKNOWN_WORLD_UUID;
         final int bx = target.getX(), by = target.getY(), bz = target.getZ();
 
         persistLog(now, action, actorUuid, actorName, worldName, worldUuid, bx, by, bz, extra);

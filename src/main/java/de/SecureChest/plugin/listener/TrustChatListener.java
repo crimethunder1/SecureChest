@@ -1,24 +1,22 @@
 package de.SecureChest.plugin.listener;
 
+import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.PendingChatAction;
+import de.SecureChest.plugin.Permissions;
+import de.SecureChest.plugin.lock.AccessLevel;
+import de.SecureChest.plugin.ui.ConfirmRequest;
+import de.SecureChest.plugin.ui.ConfirmType;
+import de.SecureChest.plugin.util.PlayerNameValidator;
+import io.papermc.paper.event.player.AsyncChatEvent;
 import java.util.UUID;
-
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-
-import de.SecureChest.plugin.ChestSecurePlugin;
-import de.SecureChest.plugin.PendingChatAction;
-import de.SecureChest.plugin.lock.AccessLevel;
-import de.SecureChest.plugin.ui.ConfirmRequest;
-import de.SecureChest.plugin.ui.ConfirmType;
-import de.SecureChest.plugin.util.PlayerNameValidator;
-
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 
 public final class TrustChatListener implements Listener {
 
@@ -92,7 +90,7 @@ public final class TrustChatListener implements Listener {
         }
 
         if (action instanceof PendingChatAction.GlobalUnlock) {
-            if (!p.hasPermission("chestsecure.admin")) {
+            if (!p.hasPermission(Permissions.ADMIN)) {
                 plugin.pendingChat().remove(uuid);
                 p.sendMessage(Component.text(plugin.msg().get("trust-keine-berechtigung"), NamedTextColor.RED));
                 return;

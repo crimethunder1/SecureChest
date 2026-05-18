@@ -2,9 +2,14 @@ package de.SecureChest.plugin.listener;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.PendingChatAction;
+import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -23,14 +28,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-
 public final class GuiListener implements Listener {
-
-    static final String PERMISSION_TELEPORT = "chestsecure.admin.teleport";
 
     static final Set<String> ADMIN_ONLY_ACTIONS = Set.of(
             "open_admin", "back_admin",
@@ -51,7 +49,7 @@ public final class GuiListener implements Listener {
     }
 
     private boolean requireAdmin(Player player) {
-        if (player.hasPermission("chestsecure.admin")) return true;
+        if (player.hasPermission(Permissions.ADMIN)) return true;
         player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
         plugin.gui().openMain(player);
         return false;
@@ -354,7 +352,7 @@ public final class GuiListener implements Listener {
 
                 if (event.getClick() == ClickType.SHIFT_LEFT
                         || event.getClick() == ClickType.SHIFT_RIGHT) {
-                    if (!player.hasPermission(PERMISSION_TELEPORT)) {
+                    if (!player.hasPermission(Permissions.ADMIN_TELEPORT)) {
                         player.sendMessage(Component.text(
                                 plugin.msg().get("teleport-keine-berechtigung"), NamedTextColor.RED));
                         plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
@@ -378,7 +376,7 @@ public final class GuiListener implements Listener {
                                     + " " + logRecord.y()
                                     + " " + logRecord.z(),
                             "",
-                            "§eErfordert " + PERMISSION_TELEPORT + "."
+                            "§eErfordert " + Permissions.ADMIN_TELEPORT + "."
                     ));
                     return;
                 }
@@ -503,7 +501,7 @@ public final class GuiListener implements Listener {
     }
 
     private boolean handleLogTeleport(Player player, String logIdString) {
-        if (!player.hasPermission(PERMISSION_TELEPORT)) return false;
+        if (!player.hasPermission(Permissions.ADMIN_TELEPORT)) return false;
         boolean teleportEnabled = plugin.cfg().adminLogsTeleportEnabled();
         if (!teleportEnabled) return false;
 

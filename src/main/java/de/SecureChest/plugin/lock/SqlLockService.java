@@ -1,22 +1,14 @@
 package de.SecureChest.plugin.lock;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.Permissions;
+import de.SecureChest.plugin.db.DatabaseManager;
+import de.SecureChest.plugin.ui.UndoSnapshot;
+import java.sql.*;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
-
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -25,10 +17,6 @@ import org.bukkit.block.TileState;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
-
-import de.SecureChest.plugin.ChestSecurePlugin;
-import de.SecureChest.plugin.db.DatabaseManager;
-import de.SecureChest.plugin.ui.UndoSnapshot;
 
 public final class SqlLockService implements LockService {
 
@@ -237,16 +225,9 @@ public final class SqlLockService implements LockService {
         String id   = key.asId();
 
         int maxLocks = plugin.cfg().maxLocksPerPlayer();
-        if (maxLocks > 0) {
-            long owned = lockCache.values().stream()
-                    .filter(e -> e.owner().equals(owner.getUniqueId()))
-                    .count();
-            if (owned >= maxLocks) {
-                owner.sendMessage(net.kyori.adventure.text.Component.text(
-                        plugin.msg().get("limit-locks-erreicht", maxLocks),
-                        net.kyori.adventure.text.format.NamedTextColor.RED));
-                return false;
-            }
+        if (isPerOwnerLimitReached(lockCache.values(), LockEntry::owner, owner.getUniqueId(), maxLocks)) {
+            sendLimitReachedMessage(owner, "limit-locks-erreicht", maxLocks);
+            return false;
         }
 
         long now = Instant.now().toEpochMilli();
@@ -296,13 +277,20 @@ public final class SqlLockService implements LockService {
         LockKey key;
         try { key = LockKey.fromId(lockId); } catch (Exception ex) { return false; }
 
+        return performUnlock(actor, key, true);
+    }
+
+    private boolean unlockByKey(Player caller, LockKey key) {
+        return performUnlock(caller, key, false);
+    }
+
+    private boolean performUnlock(Player actor, LockKey key, boolean storeUndoSnapshot) {
         String id       = key.asId();
         LockEntry entry = lockCache.get(id);
         if (entry == null) entry = getLockFromId(id).orElse(null);
         if (entry == null) return true;
 
-        boolean allowed = actor.hasPermission("chestsecure.admin") || entry.owner().equals(actor.getUniqueId());
-        if (!allowed) return false;
+        if (!canManageLock(actor, entry)) return false;
 
         boolean isAdminAction = !entry.owner().equals(actor.getUniqueId());
         logRepo.insertLog(
@@ -310,55 +298,7 @@ public final class SqlLockService implements LockService {
                 actor, key,
                 isAdminAction ? "target_owner=" + entry.owner() : null);
 
-        long now = System.currentTimeMillis();
-        int ttlSeconds = plugin.cfg().undoSeconds();
-
-        UndoSnapshot snapshot = snapshotForSingleLock(key, entry);
-
-        lockCache.remove(id);
-        plugin.signs().removeSign(id);
-
-        final LockEntry finalEntry = entry;
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try (Connection c = db.getConnection()) {
-                c.setAutoCommit(false);
-                try (PreparedStatement ps = c.prepareStatement(
-                        "DELETE FROM locks WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
-                    ps.setString(1, key.worldUuid().toString());
-                    ps.setInt(2, key.x()); ps.setInt(3, key.y()); ps.setInt(4, key.z());
-                    ps.executeUpdate();
-                }
-                c.commit();
-            } catch (SQLException ex) {
-                plugin.getLogger().log(Level.SEVERE, "DB unlockWithUndo failed", ex);
-
-                lockCache.put(id, finalEntry);
-                Bukkit.getScheduler().runTask(plugin, () ->
-                        plugin.signs().spawnSign(key, nonBlockingName(finalEntry.owner())));
-            }
-        });
-
-        plugin.undos().set(actor.getUniqueId(), new UndoSnapshot(
-                snapshot.locks(), snapshot.trusts(), List.of(),
-                now, now + (ttlSeconds * 1000L)
-        ));
-        return true;
-    }
-
-    private boolean unlockByKey(Player caller, LockKey key) {
-        String id       = key.asId();
-        LockEntry entry = lockCache.get(id);
-        if (entry == null) entry = getLockFromId(id).orElse(null);
-        if (entry == null) return true;
-
-        boolean allowed = caller.hasPermission("chestsecure.admin") || entry.owner().equals(caller.getUniqueId());
-        if (!allowed) return false;
-
-        boolean isAdminAction = !entry.owner().equals(caller.getUniqueId());
-        logRepo.insertLog(
-                isAdminAction ? LogRepository.ACTION_LOCK_REMOVE_ADMIN : LogRepository.ACTION_LOCK_REMOVE,
-                caller, key,
-                isAdminAction ? "target_owner=" + entry.owner() : null);
+        UndoSnapshot snapshot = storeUndoSnapshot ? snapshotForSingleLock(key, entry) : null;
 
         final LockEntry finalEntry = entry;
         lockCache.remove(id);
@@ -373,12 +313,20 @@ public final class SqlLockService implements LockService {
                 ps.executeUpdate();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB unlock persist failed", ex);
-
                 lockCache.put(id, finalEntry);
                 Bukkit.getScheduler().runTask(plugin, () ->
                         plugin.signs().spawnSign(key, ownerName(finalEntry.owner())));
             }
         });
+
+        if (storeUndoSnapshot && snapshot != null) {
+            long now = System.currentTimeMillis();
+            int ttlSeconds = plugin.cfg().undoSeconds();
+            plugin.undos().set(actor.getUniqueId(), new UndoSnapshot(
+                    snapshot.locks(), snapshot.trusts(), List.of(),
+                    now, now + (ttlSeconds * 1000L)
+            ));
+        }
         return true;
     }
 
@@ -587,8 +535,7 @@ public final class SqlLockService implements LockService {
         final String finalId = id;
         final LockEntry originalEntry = entry;
 
-        boolean allowed = actor.hasPermission("chestsecure.admin") || entry.owner().equals(actor.getUniqueId());
-        if (!allowed) return false;
+        if (!canManageLock(actor, entry)) return false;
         if (entry.owner().equals(newOwner)) return false;
 
         logRepo.insertLog(LogRepository.ACTION_LOCK_TRANSFER, actor, key,
@@ -675,7 +622,7 @@ public final class SqlLockService implements LockService {
     public boolean canOpen(Player player, Block block, boolean usingAdminKey) {
         LockEntry entry = getLock(block).orElse(null);
         if (entry == null) return true;
-        if (player.hasPermission("chestsecure.admin") && usingAdminKey) return true;
+        if (player.hasPermission(Permissions.ADMIN) && usingAdminKey) return true;
         if (entry.owner().equals(player.getUniqueId())) return true;
         return entry.trusted().containsKey(player.getUniqueId());
     }
@@ -683,10 +630,10 @@ public final class SqlLockService implements LockService {
     @Override
     public boolean canBreak(Player player, Block block) {
         LockEntry lock = getLock(block).orElse(null);
-        if (lock != null) return player.hasPermission("chestsecure.admin") || lock.owner().equals(player.getUniqueId());
+        if (lock != null) return player.hasPermission(Permissions.ADMIN) || lock.owner().equals(player.getUniqueId());
         if (block.getType() == Material.HOPPER) {
             SecureHopperEntry sh = getSecureHopper(block).orElse(null);
-            if (sh != null) return player.hasPermission("chestsecure.admin") || sh.owner().equals(player.getUniqueId());
+            if (sh != null) return player.hasPermission(Permissions.ADMIN) || sh.owner().equals(player.getUniqueId());
         }
         return true;
     }
@@ -695,7 +642,7 @@ public final class SqlLockService implements LockService {
     public AccessLevel getAccessLevel(Player player, Block block) {
         LockEntry entry = getLock(block).orElse(null);
         if (entry == null) return null;
-        if (player.hasPermission("chestsecure.admin")) return AccessLevel.CO_OWNER;
+        if (player.hasPermission(Permissions.ADMIN)) return AccessLevel.CO_OWNER;
         if (entry.owner().equals(player.getUniqueId())) return AccessLevel.CO_OWNER;
         return entry.trusted().get(player.getUniqueId());
     }
@@ -713,12 +660,33 @@ public final class SqlLockService implements LockService {
         return setTrustByKey(owner, key, target, level);
     }
 
+    private boolean canManageLock(Player actor, LockEntry entry) {
+        return entry.owner().equals(actor.getUniqueId()) || actor.hasPermission(Permissions.ADMIN);
+    }
+
+    private <T> boolean isPerOwnerLimitReached(java.util.Collection<T> entries,
+                                               java.util.function.Function<T, UUID> ownerExtractor,
+                                               UUID owner,
+                                               int limit) {
+        if (limit <= 0) return false;
+        long owned = entries.stream()
+                .filter(e -> ownerExtractor.apply(e).equals(owner))
+                .count();
+        return owned >= limit;
+    }
+
+    private void sendLimitReachedMessage(Player player, String messageKey, int limit) {
+        player.sendMessage(net.kyori.adventure.text.Component.text(
+                plugin.msg().get(messageKey, limit),
+                net.kyori.adventure.text.format.NamedTextColor.RED));
+    }
+
     private boolean setTrustByKey(Player owner, LockKey key, UUID target, AccessLevel level) {
         String id       = key.asId();
         LockEntry entry = getLockFromId(id).orElse(null);
 
         if (entry == null) return false;
-        if (!entry.owner().equals(owner.getUniqueId()) && !owner.hasPermission("chestsecure.admin")) return false;
+        if (!canManageLock(owner, entry)) return false;
 
         entry.trustedMutable().put(target, level);
         lockCache.put(id, entry);
@@ -759,7 +727,7 @@ public final class SqlLockService implements LockService {
         String id       = key.asId();
         LockEntry entry = getLockFromId(id).orElse(null);
         if (entry == null) return false;
-        if (!owner.hasPermission("chestsecure.admin") && !entry.owner().equals(owner.getUniqueId())) return false;
+        if (!canManageLock(owner, entry)) return false;
 
         entry.trustedMutable().remove(target);
         lockCache.put(id, entry);
@@ -861,16 +829,9 @@ public final class SqlLockService implements LockService {
         if (lock == null || !lock.owner().equals(placer.getUniqueId())) return false;
 
         int maxHoppers = plugin.cfg().maxHoppersPerPlayer();
-        if (maxHoppers > 0) {
-            long owned = hopperCache.values().stream()
-                    .filter(e -> e.owner().equals(placer.getUniqueId()))
-                    .count();
-            if (owned >= maxHoppers) {
-                placer.sendMessage(net.kyori.adventure.text.Component.text(
-                        plugin.msg().get("limit-hopper-erreicht", maxHoppers),
-                        net.kyori.adventure.text.format.NamedTextColor.RED));
-                return false;
-            }
+        if (isPerOwnerLimitReached(hopperCache.values(), SecureHopperEntry::owner, placer.getUniqueId(), maxHoppers)) {
+            sendLimitReachedMessage(placer, "limit-hopper-erreicht", maxHoppers);
+            return false;
         }
 
         LockKey hk  = LockKey.fromLocation(hopperBlock.getLocation());
@@ -1069,7 +1030,7 @@ public final class SqlLockService implements LockService {
 
     private boolean isSnapshotRestorableBy(UndoSnapshot snapshot, Player actor) {
         return isSnapshotRestorableBy(snapshot, actor.getUniqueId(),
-                actor.hasPermission("chestsecure.admin"));
+                actor.hasPermission(Permissions.ADMIN));
     }
 
     static boolean isSnapshotRestorableBy(UndoSnapshot snapshot, UUID actorUuid, boolean isAdmin) {
@@ -1084,7 +1045,7 @@ public final class SqlLockService implements LockService {
 
     private boolean isUnlockAllAllowed(Player actor, UUID owner) {
         return isUnlockAllAllowed(actor.getUniqueId(), owner,
-                actor.hasPermission("chestsecure.admin"));
+                actor.hasPermission(Permissions.ADMIN));
     }
 
     static boolean isUnlockAllAllowed(UUID actorUuid, UUID targetOwner, boolean isAdmin) {

@@ -1,34 +1,24 @@
 package de.SecureChest.plugin.gui;
 
+import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.Permissions;
+import de.SecureChest.plugin.lock.AccessLevel;
+import de.SecureChest.plugin.lock.LockEntry;
+import de.SecureChest.plugin.lock.LockKey;
+import de.SecureChest.plugin.ui.UiStateStore;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
+import java.util.*;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-
-import de.SecureChest.plugin.ChestSecurePlugin;
-import static de.SecureChest.plugin.gui.GuiHelper.formatActionLine;
-import static de.SecureChest.plugin.gui.GuiHelper.formatHintLine;
-import static de.SecureChest.plugin.gui.GuiHelper.formatInfoLine;
-import static de.SecureChest.plugin.gui.GuiHelper.formatWarningLine;
-import de.SecureChest.plugin.lock.AccessLevel;
-import de.SecureChest.plugin.lock.LockEntry;
-import de.SecureChest.plugin.lock.LockKey;
-import de.SecureChest.plugin.ui.UiStateStore;
-
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import static de.SecureChest.plugin.gui.GuiHelper.*;
 
 final class LockScreen {
 
@@ -135,7 +125,7 @@ final class LockScreen {
         }
 
         boolean isOwner   = lockEntry.owner().equals(player.getUniqueId());
-        boolean isAdmin   = player.hasPermission("chestsecure.admin");
+        boolean isAdmin   = player.hasPermission(Permissions.ADMIN);
         boolean isTrusted = lockEntry.trusted().containsKey(player.getUniqueId());
         if (!canSeeLockManage(isOwner, isAdmin, isTrusted)) {
             player.sendMessage(Component.text(

@@ -1,8 +1,14 @@
 package de.SecureChest.plugin.gui;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.ui.UiStateStore;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -10,13 +16,6 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-
 import static de.SecureChest.plugin.gui.GuiHelper.*;
 
 final class AdminScreen {
@@ -37,7 +36,7 @@ final class AdminScreen {
     }
 
     void openAdmin(Player player) {
-        if (!player.hasPermission("chestsecure.admin")) {
+        if (!player.hasPermission(Permissions.ADMIN)) {
             player.sendMessage(Component.text(
                     plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             mgr.openMain(player);
@@ -78,7 +77,7 @@ final class AdminScreen {
     }
 
     void openLogs(Player player, int page) {
-        if (!player.hasPermission("chestsecure.admin")) {
+        if (!player.hasPermission(Permissions.ADMIN)) {
             player.sendMessage(Component.text(
                     plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             mgr.openMain(player);

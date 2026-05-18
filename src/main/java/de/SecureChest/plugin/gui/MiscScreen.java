@@ -1,8 +1,16 @@
 package de.SecureChest.plugin.gui;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.LockKey;
 import de.SecureChest.plugin.lock.LockStats;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -13,15 +21,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
-
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import static de.SecureChest.plugin.gui.GuiHelper.*;
 
 final class MiscScreen {
@@ -90,7 +89,7 @@ final class MiscScreen {
                     "confirm_undo_restore", ""));
         }
 
-        if (player.hasPermission("chestsecure.admin"))
+        if (player.hasPermission(Permissions.ADMIN))
             inv.setItem(49, h.buildButton(Material.NETHER_STAR, "§6Admin-Panel",
                     List.of(formatInfoLine("Admin-Werkzeuge — alle Schlösser verwalten")),
                     "open_admin", ""));

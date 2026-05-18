@@ -1,10 +1,11 @@
 package de.SecureChest.plugin.command;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import de.SecureChest.plugin.Permissions;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -20,7 +21,7 @@ public final class ChestSecureCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-            if (!sender.hasPermission("chestsecure.admin")) {
+            if (!sender.hasPermission(Permissions.ADMIN)) {
                 sender.sendMessage(Component.text(
                         plugin.msg().get("reload-keine-berechtigung"), NamedTextColor.RED));
                 return true;
@@ -38,7 +39,7 @@ public final class ChestSecureCommand implements CommandExecutor {
             sender.sendMessage(Component.text(plugin.msg().get("nur-spieler"), NamedTextColor.RED));
             return true;
         }
-        if (!player.hasPermission("chestsecure.use")) {
+        if (!player.hasPermission(Permissions.USE)) {
             player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             return true;
         }
