@@ -43,9 +43,6 @@ import org.bukkit.inventory.ItemStack;
 
 public final class ProtectionListener implements Listener {
 
-    private static final long LOCK_ACTION_COOLDOWN_MS        = 1_000L;
-    private static final long BREAK_NOTIFICATION_COOLDOWN_MS = 30_000L;
-
     private final ChestSecurePlugin plugin;
 
     private final Map<UUID, Long>   lockActionCooldowns       = new ConcurrentHashMap<>();
@@ -180,7 +177,7 @@ public final class ProtectionListener implements Listener {
     private boolean consumeActionCooldown(UUID playerUuid) {
         long currentTime    = System.currentTimeMillis();
         Long lastActionTime = lockActionCooldowns.get(playerUuid);
-        if (lastActionTime != null && (currentTime - lastActionTime) < LOCK_ACTION_COOLDOWN_MS) {
+        if (lastActionTime != null && (currentTime - lastActionTime) < plugin.cfg().lockActionCooldownMs()) {
             return false;
         }
         lockActionCooldowns.put(playerUuid, currentTime);
@@ -721,11 +718,11 @@ public final class ProtectionListener implements Listener {
         String cooldownKey = attacker.getUniqueId() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
         long currentTime = System.currentTimeMillis();
         Long lastNotificationTime = breakNotificationCooldowns.get(cooldownKey);
-        if (lastNotificationTime != null && (currentTime - lastNotificationTime) < BREAK_NOTIFICATION_COOLDOWN_MS) return;
+        if (lastNotificationTime != null && (currentTime - lastNotificationTime) < plugin.cfg().breakNotificationCooldownMs()) return;
         breakNotificationCooldowns.put(cooldownKey, currentTime);
 
         if (breakNotificationCooldowns.size() > 500) {
-            breakNotificationCooldowns.entrySet().removeIf(entry -> (currentTime - entry.getValue()) > BREAK_NOTIFICATION_COOLDOWN_MS);
+            breakNotificationCooldowns.entrySet().removeIf(entry -> (currentTime - entry.getValue()) > plugin.cfg().breakNotificationCooldownMs());
         }
 
         String locationString = block.getWorld().getName() + " " + block.getX() + " " + block.getY() + " " + block.getZ();

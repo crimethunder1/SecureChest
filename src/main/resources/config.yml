@@ -34,6 +34,12 @@ limits:
   # Maximale Anzahl Secure Hopper pro Spieler (0 = kein Limit, aber DoS-Risiko)
   max_hoppers_per_player: 50
 
+cooldowns:
+  # Mindestabstand zwischen zwei Lock-Aktionen (Lock/Unlock per Chest-Key) in Millisekunden
+  lock_action_ms: 1000
+  # Mindestabstand zwischen zwei Break-Versuch-Benachrichtigungen pro Spieler in Millisekunden
+  break_notification_ms: 30000
+
 admin:
   logs:
     book_entries: 200

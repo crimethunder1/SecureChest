@@ -24,6 +24,8 @@ public final class PluginConfig {
     private boolean adminLogsTeleportEnabled;
     private int     maxLocksPerPlayer;
     private int     maxHoppersPerPlayer;
+    private long    lockActionCooldownMs;
+    private long    breakNotificationCooldownMs;
     private List<String> enabledWorlds;
 
     public PluginConfig(ChestSecurePlugin plugin) {
@@ -59,6 +61,8 @@ public final class PluginConfig {
         adminLogsTeleportEnabled   = cfg.getBoolean("admin.logs.teleport_enabled",     false);
         maxLocksPerPlayer          = cfg.getInt    ("limits.max_locks_per_player",        1000);
         maxHoppersPerPlayer        = cfg.getInt    ("limits.max_hoppers_per_player",       50);
+        lockActionCooldownMs        = cfg.getLong   ("cooldowns.lock_action_ms",             1000L);
+        breakNotificationCooldownMs = cfg.getLong   ("cooldowns.break_notification_ms",     30000L);
         enabledWorlds              = cfg.getStringList("worlds.enabled");
     }
 
@@ -82,6 +86,9 @@ public final class PluginConfig {
 
     public int     maxLocksPerPlayer()        { return maxLocksPerPlayer; }
     public int     maxHoppersPerPlayer()      { return maxHoppersPerPlayer; }
+
+    public long    lockActionCooldownMs()        { return lockActionCooldownMs; }
+    public long    breakNotificationCooldownMs() { return breakNotificationCooldownMs; }
 
     public List<String> enabledWorlds()       { return enabledWorlds; }
 

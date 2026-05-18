@@ -209,4 +209,27 @@ class PluginConfigTest {
         assertEquals(25,   cfg.maxLocksPerPlayer());
         assertEquals(10,   cfg.maxHoppersPerPlayer());
     }
+
+    @Test
+    @DisplayName("cooldowns.lock_action_ms ist standardmaessig 1000ms")
+    void default_lockActionCooldown() {
+        assertEquals(1000L, defaults().lockActionCooldownMs());
+    }
+
+    @Test
+    @DisplayName("cooldowns.break_notification_ms ist standardmaessig 30000ms")
+    void default_breakNotificationCooldown() {
+        assertEquals(30000L, defaults().breakNotificationCooldownMs());
+    }
+
+    @Test
+    @DisplayName("Cooldowns werden aus Config gelesen")
+    void cooldowns_werden_gelesen() {
+        PluginConfig cfg = from(
+                "cooldowns:\n"
+                        + "  lock_action_ms: 2500\n"
+                        + "  break_notification_ms: 60000\n");
+        assertEquals(2500L,  cfg.lockActionCooldownMs());
+        assertEquals(60000L, cfg.breakNotificationCooldownMs());
+    }
 }

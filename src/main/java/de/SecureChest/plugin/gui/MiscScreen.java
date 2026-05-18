@@ -130,7 +130,7 @@ final class MiscScreen {
         inv.setItem(31, h.buildInfoItem(Material.PLAYER_HEAD, "§fVertrauensstufen", List.of(
                 "§7VIEW: Nur Inhalt anzeigen",
                 "§7STOCKER: Items nehmen/legen, nicht abbauen",
-                "§7CO-OWNER: Gleicher Zugriff wie Besitzer")));
+                "§7CO-OWNER: Wie STOCKER (Verwaltung bleibt beim Besitzer)")));
 
         inv.setItem(40, h.buildButton(Material.ARROW, "§fZurück",
                 List.of("§7Zurück zum Hauptmenü"), "back_main", ""));
