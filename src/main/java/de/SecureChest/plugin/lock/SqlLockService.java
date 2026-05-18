@@ -292,16 +292,19 @@ public final class SqlLockService implements LockService {
 
         if (!canManageLock(actor, entry)) return false;
 
-        boolean isAdminAction = !entry.owner().equals(actor.getUniqueId());
+        final LockEntry finalEntry = entry;
+        if (!lockCache.remove(id, finalEntry)) {
+            return true;
+        }
+
+        boolean isAdminAction = !finalEntry.owner().equals(actor.getUniqueId());
         logRepo.insertLog(
                 isAdminAction ? LogRepository.ACTION_LOCK_REMOVE_ADMIN : LogRepository.ACTION_LOCK_REMOVE,
                 actor, key,
-                isAdminAction ? "target_owner=" + entry.owner() : null);
+                isAdminAction ? "target_owner=" + finalEntry.owner() : null);
 
-        UndoSnapshot snapshot = storeUndoSnapshot ? snapshotForSingleLock(key, entry) : null;
+        UndoSnapshot snapshot = storeUndoSnapshot ? snapshotForSingleLock(key, finalEntry) : null;
 
-        final LockEntry finalEntry = entry;
-        lockCache.remove(id);
         plugin.signs().removeSign(id);
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -538,8 +541,17 @@ public final class SqlLockService implements LockService {
         if (!canManageLock(actor, entry)) return false;
         if (entry.owner().equals(newOwner)) return false;
 
+        java.util.List<LockKey> foreignHoppersToRemove = new java.util.ArrayList<>();
+        for (SecureHopperEntry hopperEntry : hopperCache.values()) {
+            if (hopperEntry.boundLock().asId().equals(finalId)
+                    && !hopperEntry.owner().equals(newOwner)) {
+                foreignHoppersToRemove.add(hopperEntry.hopperKey());
+            }
+        }
+
         logRepo.insertLog(LogRepository.ACTION_LOCK_TRANSFER, actor, key,
-                "from=" + entry.owner() + ",to=" + newOwner);
+                "from=" + entry.owner() + ",to=" + newOwner
+                + (foreignHoppersToRemove.isEmpty() ? "" : ",unbound_foreign_hoppers=" + foreignHoppersToRemove.size()));
 
         long now = System.currentTimeMillis();
         int ttlSeconds = plugin.cfg().undoSeconds();
@@ -551,7 +563,20 @@ public final class SqlLockService implements LockService {
         plugin.signs().removeSign(finalId);
         plugin.signs().spawnSign(finalKey, ownerName(newOwner));
 
+        for (LockKey hopperKey : foreignHoppersToRemove) {
+            hopperCache.remove(hopperKey.asId());
+            org.bukkit.World hopperWorld = Bukkit.getWorld(hopperKey.worldUuid());
+            if (hopperWorld != null) {
+                Block hopperBlock = hopperWorld.getBlockAt(hopperKey.x(), hopperKey.y(), hopperKey.z());
+                if (hopperBlock.getState() instanceof TileState tile) {
+                    tile.getPersistentDataContainer().remove(plugin.keySecureHopperBlock());
+                    tile.update(true, false);
+                }
+            }
+        }
+
         final String newOwnerStr = newOwner.toString();
+        final java.util.List<LockKey> finalForeignHoppers = foreignHoppersToRemove;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
                 c.setAutoCommit(false);
@@ -570,6 +595,19 @@ public final class SqlLockService implements LockService {
                     ps.setInt(2, finalKey.x()); ps.setInt(3, finalKey.y()); ps.setInt(4, finalKey.z());
                     ps.executeUpdate();
                 }
+
+                if (!finalForeignHoppers.isEmpty()) {
+                    try (PreparedStatement ps = c.prepareStatement(
+                            "DELETE FROM secure_hoppers WHERE world_uuid=? AND x=? AND y=? AND z=?")) {
+                        for (LockKey hk : finalForeignHoppers) {
+                            ps.setString(1, hk.worldUuid().toString());
+                            ps.setInt(2, hk.x()); ps.setInt(3, hk.y()); ps.setInt(4, hk.z());
+                            ps.addBatch();
+                        }
+                        ps.executeBatch();
+                    }
+                }
+
                 c.commit();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB transferLock persist failed", ex);

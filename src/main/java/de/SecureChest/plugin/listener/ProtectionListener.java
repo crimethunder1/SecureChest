@@ -34,6 +34,7 @@ import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.inventory.Inventory;
@@ -612,6 +613,26 @@ public final class ProtectionListener implements Listener {
         World world = location.getWorld();
         if (world == null) return null;
         return world.getBlockAt(location);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+
+        Inventory topInventory = event.getView().getTopInventory();
+        Block containerBlock = inventoryToBlock(topInventory);
+        if (containerBlock == null) return;
+        if (!worlds().isEnabled(containerBlock.getWorld())) return;
+        if (!LockUtil.isLockable(containerBlock)) return;
+        if (!plugin.locks().isLocked(containerBlock)) return;
+
+        if (plugin.locks().getAccessLevel(player, containerBlock) == null) {
+            event.setCancelled(true);
+            String ownerName = plugin.locks().getLock(containerBlock)
+                    .map(entry -> resolvePlayerName(entry.owner()))
+                    .orElse("jemandem");
+            sendFailFeedback(player, plugin.msg().get("block-gehoert", ownerName));
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
