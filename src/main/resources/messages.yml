@@ -60,7 +60,9 @@ log-buch-erhalten: "Log-Buch erhalten."
 admin-bericht-erhalten: "Admin-Bericht erhalten."
 log-nicht-gefunden: "Log-Eintrag nicht gefunden."
 kompass-gesetzt: "Kompass auf Log-Position gesetzt."
-teleport-nur-op: "Teleport erfordert OP."
+teleport-keine-berechtigung: "Teleport erfordert die Berechtigung chestsecure.admin.teleport."
+# Veraltet seit 1.5.2 (nutzte isOp()) – Schluessel bleibt fuer Rueckwaertskompatibilitaet
+teleport-nur-op: "Teleport erfordert die Berechtigung chestsecure.admin.teleport."
 
 # ──────────────────────────────────────────────
 # TrustChatListener

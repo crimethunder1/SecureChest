@@ -1,4 +1,4 @@
-name: ChestSecure
+sname: ChestSecure
 version: 1.5.2
 main: de.SecureChest.plugin.ChestSecurePlugin
 api-version: "1.21"
@@ -17,4 +17,7 @@ permissions:
     default: true
   chestsecure.admin:
     description: "Admin access: open/break locked blocks, admin panel."
+    default: op
+  chestsecure.admin.teleport:
+    description: "Allows teleporting to log positions via the admin logs view."
     default: op

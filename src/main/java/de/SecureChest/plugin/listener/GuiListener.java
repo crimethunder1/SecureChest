@@ -30,6 +30,8 @@ import java.util.UUID;
 
 public final class GuiListener implements Listener {
 
+    static final String PERMISSION_TELEPORT = "chestsecure.admin.teleport";
+
     private static final Set<String> ADMIN_ONLY_ACTIONS = Set.of(
             "open_admin", "back_admin",
             "give_admin_key", "give_logs_book", "give_admin_report",
@@ -351,8 +353,9 @@ public final class GuiListener implements Listener {
 
                 if (event.getClick() == ClickType.SHIFT_LEFT
                         || event.getClick() == ClickType.SHIFT_RIGHT) {
-                    if (!player.isOp()) {
-                        player.sendMessage(Component.text(plugin.msg().get("teleport-nur-op"), NamedTextColor.RED));
+                    if (!player.hasPermission(PERMISSION_TELEPORT)) {
+                        player.sendMessage(Component.text(
+                                plugin.msg().get("teleport-keine-berechtigung"), NamedTextColor.RED));
                         plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
                         return;
                     }
@@ -374,7 +377,7 @@ public final class GuiListener implements Listener {
                                     + " " + logRecord.y()
                                     + " " + logRecord.z(),
                             "",
-                            "§eNur für OPs."
+                            "§eErfordert " + PERMISSION_TELEPORT + "."
                     ));
                     return;
                 }
@@ -499,7 +502,7 @@ public final class GuiListener implements Listener {
     }
 
     private boolean handleLogTeleport(Player player, String logIdString) {
-        if (!player.isOp()) return false;
+        if (!player.hasPermission(PERMISSION_TELEPORT)) return false;
         boolean teleportEnabled = plugin.cfg().adminLogsTeleportEnabled();
         if (!teleportEnabled) return false;
 
