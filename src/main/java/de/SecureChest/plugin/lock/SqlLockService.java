@@ -371,8 +371,16 @@ public final class SqlLockService implements LockService {
         return true;
     }
 
+    /**
+     * @deprecated Diese Methode kennt keinen Actor und kann keine Berechtigung pruefen.
+     *             Benutze stattdessen {@link #unlockAllWithUndo(Player, UUID)}.
+     *             Im Plugin selbst wird sie nicht mehr aufgerufen.
+     */
+    @Deprecated
     @Override
     public boolean unlockAll(UUID owner) {
+        plugin.getLogger().warning("[SecureChest] unlockAll(UUID) wurde aufgerufen ohne Actor-Kontext. "
+                + "Bitte unlockAllWithUndo(Player, UUID) verwenden.");
         boolean hasLocks   = lockCache.values().stream().anyMatch(e -> e.owner().equals(owner));
         boolean hasHoppers = hopperCache.values().stream().anyMatch(e -> e.owner().equals(owner));
         if (!hasLocks && !hasHoppers) return false;
@@ -404,6 +412,10 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean unlockAllWithUndo(Player actor, UUID owner) {
+        if (!actor.getUniqueId().equals(owner) && !actor.hasPermission("chestsecure.admin")) {
+            return false;
+        }
+
         long now = System.currentTimeMillis();
         int ttlSeconds = plugin.cfg().undoSeconds();
 
@@ -446,10 +458,22 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean restoreUndo(Player actor) {
+        var peekOpt = plugin.undos().get(actor.getUniqueId());
+        if (peekOpt.isEmpty()) return false;
+        UndoSnapshot peek = peekOpt.get();
+        if (peek.locks().isEmpty() && peek.secureHoppers().isEmpty()) {
+            plugin.undos().consume(actor.getUniqueId());
+            return false;
+        }
+        if (!isSnapshotRestorableBy(peek, actor)) {
+            plugin.getLogger().warning("[SecureChest] restoreUndo abgelehnt: "
+                    + actor.getName() + " besitzt keine Berechtigung fuer Snapshot.");
+            return false;
+        }
+
         var snapOpt = plugin.undos().consume(actor.getUniqueId());
         if (snapOpt.isEmpty()) return false;
         UndoSnapshot snapshot = snapOpt.get();
-        if (snapshot.locks().isEmpty() && snapshot.secureHoppers().isEmpty()) return false;
 
         for (UndoSnapshot.LockRow lr : snapshot.locks()) {
             Material type = Material.matchMaterial(lr.blockType());
@@ -829,7 +853,10 @@ public final class SqlLockService implements LockService {
         LockKey bnd = LockUtil.canonicalKey(boundContainer);
         long now    = Instant.now().toEpochMilli();
 
-        hopperCache.put(hk.asId(), new SecureHopperEntry(hk, placer.getUniqueId(), bnd));
+        SecureHopperEntry candidate = new SecureHopperEntry(hk, placer.getUniqueId(), bnd);
+        if (hopperCache.putIfAbsent(hk.asId(), candidate) != null) {
+            return false;
+        }
 
         if (hopperBlock.getState() instanceof TileState tile) {
             tile.getPersistentDataContainer().set(plugin.keySecureHopperBlock(), PersistentDataType.BYTE, (byte) 1);
@@ -840,7 +867,7 @@ public final class SqlLockService implements LockService {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection();
                  PreparedStatement ps = c.prepareStatement(
-                         "INSERT OR REPLACE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
+                         "INSERT OR IGNORE INTO secure_hoppers(world_uuid,x,y,z,owner_uuid,bound_world_uuid,bound_x,bound_y,bound_z,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
                 ps.setString(1, hk.worldUuid().toString());
                 ps.setInt(2, hk.x()); ps.setInt(3, hk.y()); ps.setInt(4, hk.z());
                 ps.setString(5, placerStr);
@@ -1001,6 +1028,21 @@ public final class SqlLockService implements LockService {
         return new UndoSnapshot(
                 List.of(new UndoSnapshot.LockRow(key, entry.blockType().name(), entry.owner(), entry.createdAt())),
                 trusts, List.of(), now, now + (ttl * 1000L));
+    }
+
+    private boolean isSnapshotRestorableBy(UndoSnapshot snapshot, Player actor) {
+        return isSnapshotRestorableBy(snapshot, actor.getUniqueId(),
+                actor.hasPermission("chestsecure.admin"));
+    }
+
+    static boolean isSnapshotRestorableBy(UndoSnapshot snapshot, UUID actorUuid, boolean isAdmin) {
+        for (UndoSnapshot.LockRow lockRow : snapshot.locks()) {
+            if (!lockRow.owner().equals(actorUuid) && !isAdmin) return false;
+        }
+        for (UndoSnapshot.SecureHopperRow hopperRow : snapshot.secureHoppers()) {
+            if (!hopperRow.owner().equals(actorUuid) && !isAdmin) return false;
+        }
+        return true;
     }
 
     private UndoSnapshot snapshotForOwner(UUID owner, long now, long expiresAt) {

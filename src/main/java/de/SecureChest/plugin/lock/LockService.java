@@ -28,6 +28,11 @@ public interface LockService {
 
     boolean unlockByIdWithUndo(Player actor, String lockId);
 
+    /**
+     * @deprecated Kennt keinen Actor und kann keine Berechtigung pruefen.
+     *             Benutze {@link #unlockAllWithUndo(Player, UUID)}.
+     */
+    @Deprecated
     boolean unlockAll(UUID owner);
 
     boolean unlockAllWithUndo(Player actor, UUID owner);

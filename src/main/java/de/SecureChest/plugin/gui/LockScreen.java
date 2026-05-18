@@ -125,9 +125,17 @@ final class LockScreen {
             return;
         }
 
-        boolean isOwner  = lockEntry.owner().equals(player.getUniqueId());
-        boolean isAdmin  = player.hasPermission("chestsecure.admin");
-        boolean canManage= isOwner || isAdmin;
+        boolean isOwner   = lockEntry.owner().equals(player.getUniqueId());
+        boolean isAdmin   = player.hasPermission("chestsecure.admin");
+        boolean isTrusted = lockEntry.trusted().containsKey(player.getUniqueId());
+        if (!isOwner && !isAdmin && !isTrusted) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
+            mgr.openLocksList(player, 0);
+            return;
+        }
+
+        boolean canManage = isOwner || isAdmin;
 
         String blockName  = lockEntry.blockType().name().replace('_', ' ');
         Location lockLoc  = new Location(Bukkit.getWorld(lockEntry.key().worldUuid()),

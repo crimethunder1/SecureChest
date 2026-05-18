@@ -29,6 +29,7 @@ public final class ChestSecureCommand implements CommandExecutor {
             plugin.reloadConfig();
             plugin.cfg().reload();
             plugin.msg().reload();
+            plugin.worlds().reload();
             sender.sendMessage(Component.text(
                     plugin.msg().get("reload-erfolg"), NamedTextColor.GREEN));
             return true;

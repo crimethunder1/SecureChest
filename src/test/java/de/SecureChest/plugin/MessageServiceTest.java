@@ -112,4 +112,34 @@ class MessageServiceTest {
         String result = raw.replace("{0}", String.valueOf((Object) null));
         assertEquals("Besitzer: null", result);
     }
+
+    // ── Reihenfolge: Color-Codes vor Argument-Einsetzung ──────────────────────
+    // Simuliert die get()-Logik aus MessageService ohne Bukkit-FileConfiguration.
+
+    private String renderLikeService(String raw, Object... args) throws Exception {
+        String translated = (String) translateColorCodes.invoke(null, raw);
+        for (int i = 0; i < args.length; i++) {
+            translated = translated.replace("{" + i + "}",
+                    args[i] == null ? "" : args[i].toString());
+        }
+        return translated;
+    }
+
+    @Test
+    @DisplayName("User-Input mit &c im Argument wird NICHT als Color-Code interpretiert")
+    void userInput_keineColorCodeInjection() throws Exception {
+        String raw = "Spieler: {0}";
+        String result = renderLikeService(raw, "&cBoeserName");
+        assertEquals("Spieler: &cBoeserName", result);
+        assertFalse(result.contains("§c"),
+                "User-Input darf keine §-Codes injizieren");
+    }
+
+    @Test
+    @DisplayName("Color-Codes im Template werden uebersetzt, im Argument bleiben sie roh")
+    void templateCodes_uebersetzt_argumentRoh() throws Exception {
+        String raw = "&aOK: &f{0}";
+        String result = renderLikeService(raw, "&kverschleiert");
+        assertEquals("§aOK: §f&kverschleiert", result);
+    }
 }

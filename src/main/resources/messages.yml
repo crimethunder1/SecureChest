@@ -15,6 +15,7 @@ welt-nicht-aktiv: "Das Plugin ist in dieser Welt nicht aktiv."
 lock-eintrag-fehlt: "Lock-Eintrag nicht gefunden."
 automatisch-gesperrt: "Automatisch gesperrt."
 lock-entfernt: "Lock entfernt. Rueckgaengig: /cs"
+chest-neben-fremdem-lock: "Du kannst keine Kiste neben einer fremden gesperrten Kiste platzieren."
 
 # ──────────────────────────────────────────────
 # Secure Hopper

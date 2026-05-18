@@ -17,12 +17,20 @@ import java.util.logging.Level;
  */
 public final class PlayerSettingsRepository {
 
+    private static final Set<String> ALLOWED_FIELDS = Set.of("quick_lock", "quick_remove");
+
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
 
     public PlayerSettingsRepository(ChestSecurePlugin plugin, DatabaseManager db) {
         this.plugin = plugin;
         this.db     = db;
+    }
+
+    static void requireAllowedField(String field) {
+        if (field == null || !ALLOWED_FIELDS.contains(field)) {
+            throw new IllegalArgumentException("Unbekanntes Setting-Feld: " + field);
+        }
     }
 
     // ── Einstellungen ────────────────────────────────────────────────────────
@@ -36,6 +44,7 @@ public final class PlayerSettingsRepository {
      * @return gespeicherter Wert, {@code false} als Default
      */
     public boolean loadSetting(UUID player, String field) {
+        requireAllowedField(field);
         if (Bukkit.isPrimaryThread()) {
             plugin.getLogger().warning("[SecureChest] loadSetting('" + field
                     + "') auf dem Main-Thread fuer " + player
@@ -61,6 +70,7 @@ public final class PlayerSettingsRepository {
      * Legt die Zeile bei Bedarf an.
      */
     public void saveSetting(UUID player, String field, boolean value) {
+        requireAllowedField(field);
         ensureSettingsRow(player);
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(

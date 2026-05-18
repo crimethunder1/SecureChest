@@ -39,12 +39,11 @@ public final class MessageService {
             plugin.getLogger().warning("[MessageService] Fehlender Schluessel: " + key);
             raw = "[" + key + "]";
         }
-        // Platzhalter ersetzen
+        raw = translateColorCodes(raw);
         for (int i = 0; i < args.length; i++) {
             raw = raw.replace("{" + i + "}", args[i] == null ? "" : args[i].toString());
         }
-        // &-Farbcodes → §-Codes
-        return translateColorCodes(raw);
+        return raw;
     }
 
     /** Laedt messages.yml neu (z.B. nach /cs reload). */

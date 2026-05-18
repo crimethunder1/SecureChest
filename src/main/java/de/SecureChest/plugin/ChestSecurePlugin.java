@@ -16,6 +16,7 @@ import de.SecureChest.plugin.ui.ConfirmManager;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.ui.UndoManager;
 import de.SecureChest.plugin.util.Items;
+import de.SecureChest.plugin.util.Worlds;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -45,6 +46,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
 
     private PluginConfig pluginConfig;
     private MessageService messageService;
+    private Worlds worlds;
 
     private final Map<UUID, PendingChatAction> pendingChatActions = new ConcurrentHashMap<>();
 
@@ -53,6 +55,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         saveDefaultConfig();
         this.pluginConfig   = new PluginConfig(this);
         this.messageService = new MessageService(this);
+        this.worlds         = new Worlds(this);
 
         this.keyItemType          = new NamespacedKey(this, "item_type");
         this.keyGuiAction         = new NamespacedKey(this, "gui_action");
@@ -135,5 +138,6 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public ProtectionListener protectionListener() { return protectionListener; }
     public PluginConfig cfg()                  { return pluginConfig; }
     public MessageService msg()                { return messageService; }
+    public Worlds worlds()                     { return worlds; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChatActions; }
 }

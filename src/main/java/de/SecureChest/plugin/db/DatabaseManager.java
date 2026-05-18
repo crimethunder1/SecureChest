@@ -3,11 +3,14 @@ package de.SecureChest.plugin.db;
 import de.SecureChest.plugin.ChestSecurePlugin;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 public final class DatabaseManager {
@@ -21,7 +24,7 @@ public final class DatabaseManager {
     /** Pool gepoolter, sofort einsatzbereiter Verbindungen. */
     private final BlockingQueue<Connection> pool = new ArrayBlockingQueue<>(POOL_SIZE);
     /** Separate Liste für sauberes Shutdown. */
-    private final List<Connection> allConnections = new ArrayList<>(POOL_SIZE);
+    private final List<Connection> allConnections = new CopyOnWriteArrayList<>();
 
     public DatabaseManager(ChestSecurePlugin plugin) {
         this.plugin = plugin;
@@ -42,7 +45,6 @@ public final class DatabaseManager {
                 plugin.getLogger().warning("SQLite JDBC driver nicht gefunden – versuche fortzufahren...");
             }
 
-            // Pool befüllen
             for (int i = 0; i < POOL_SIZE; i++) {
                 Connection c = createConnection();
                 pool.add(c);
@@ -159,11 +161,12 @@ public final class DatabaseManager {
     }
 
     /**
-     * Gibt eine gepoolte {@link Connection} zurück, die in try-with-resources genutzt werden kann.
+     * Gibt eine gepoolte {@link Connection} zurueck, die in try-with-resources genutzt werden kann.
      * <p>
-     * Das {@code close()} der zurückgegebenen Verbindung gibt sie <em>nicht</em> wirklich frei,
-     * sondern legt sie zurueck in den Pool. Dadurch bleiben alle bestehenden
-     * {@code try (Connection c = db.getConnection()) { ... }} Bloecke unveraendert.
+     * Das {@code close()} der zurueckgegebenen Verbindung gibt sie <em>nicht</em> wirklich frei,
+     * sondern legt sie zurueck in den Pool. Vor der Rueckgabe wird die Verbindung auf einen
+     * sauberen Zustand zurueckgesetzt (autoCommit=true, offene Transaktion rollback,
+     * Warnings geleert). Mehrfaches {@code close()} ist idempotent.
      */
     public Connection getConnection() throws SQLException {
         try {
@@ -175,18 +178,31 @@ public final class DatabaseManager {
                 allConnections.add(real);
             }
             final Connection finalReal = real;
-            // Proxy: close() legt Verbindung zurueck in den Pool
-            return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+            final AtomicBoolean alreadyReturned = new AtomicBoolean(false);
+
+            return (Connection) Proxy.newProxyInstance(
                     Connection.class.getClassLoader(),
                     new Class[]{Connection.class},
                     (proxy, method, args) -> {
-                        if ("close".equals(method.getName())) {
+                        String methodName = method.getName();
+                        if ("close".equals(methodName)) {
+                            if (!alreadyReturned.compareAndSet(false, true)) {
+                                return null;
+                            }
+                            resetConnectionForPool(finalReal);
                             pool.offer(finalReal);
                             return null;
                         }
+                        if ("isClosed".equals(methodName) && alreadyReturned.get()) {
+                            return Boolean.TRUE;
+                        }
+                        if (alreadyReturned.get()) {
+                            throw new SQLException("Verbindung wurde bereits an den Pool zurueckgegeben: "
+                                    + methodName);
+                        }
                         try {
                             return method.invoke(finalReal, args);
-                        } catch (java.lang.reflect.InvocationTargetException ex) {
+                        } catch (InvocationTargetException ex) {
                             throw ex.getCause();
                         }
                     }
@@ -194,6 +210,21 @@ public final class DatabaseManager {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new SQLException("Unterbrochen beim Warten auf DB-Verbindung", e);
+        }
+    }
+
+    private void resetConnectionForPool(Connection connection) {
+        try {
+            if (!connection.getAutoCommit()) {
+                try { connection.rollback(); }
+                catch (SQLException ignored) {}
+                try { connection.setAutoCommit(true); }
+                catch (SQLException ignored) {}
+            }
+            try { connection.clearWarnings(); }
+            catch (SQLException ignored) {}
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.WARNING, "Fehler beim Reset einer DB-Verbindung", ex);
         }
     }
 

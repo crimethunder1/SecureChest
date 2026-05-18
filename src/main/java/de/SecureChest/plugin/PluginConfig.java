@@ -74,8 +74,8 @@ public final class PluginConfig {
         autoLockSneakOnly          = cfg.getBoolean("auto_lock.sneak_only",            false);
         adminLogsBookEntries       = cfg.getInt    ("admin.logs.book_entries",          200);
         adminLogsTeleportEnabled   = cfg.getBoolean("admin.logs.teleport_enabled",     false);
-        maxLocksPerPlayer          = cfg.getInt    ("limits.max_locks_per_player",        0);
-        maxHoppersPerPlayer        = cfg.getInt    ("limits.max_hoppers_per_player",       0);
+        maxLocksPerPlayer          = cfg.getInt    ("limits.max_locks_per_player",        1000);
+        maxHoppersPerPlayer        = cfg.getInt    ("limits.max_hoppers_per_player",       50);
         enabledWorlds              = cfg.getStringList("worlds.enabled");
     }
 

@@ -25,14 +25,34 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public final class GuiListener implements Listener {
+
+    private static final Set<String> ADMIN_ONLY_ACTIONS = Set.of(
+            "open_admin", "back_admin",
+            "give_admin_key", "give_logs_book", "give_admin_report",
+            "toggle_inspect", "global_unlock",
+            "open_logs", "logs_page", "logs_cycle_action", "logs_cycle_time",
+            "logs_set_actor", "log_entry"
+    );
 
     private final ChestSecurePlugin plugin;
 
     public GuiListener(ChestSecurePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    private static boolean isAdminOnlyAction(String action) {
+        return ADMIN_ONLY_ACTIONS.contains(action);
+    }
+
+    private boolean requireAdmin(Player player) {
+        if (player.hasPermission("chestsecure.admin")) return true;
+        player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
+        plugin.gui().openMain(player);
+        return false;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -53,6 +73,8 @@ public final class GuiListener implements Listener {
         if (action == null || action.isBlank() || action.equals("noop")) return;
         String actionContext = persistentDataContainer.get(plugin.keyGuiContext(), PersistentDataType.STRING);
         if (actionContext == null) actionContext = "";
+
+        if (isAdminOnlyAction(action) && !requireAdmin(player)) return;
 
         switch (action) {
             case "back_main"         -> plugin.gui().openMain(player);
@@ -254,22 +276,12 @@ public final class GuiListener implements Listener {
             case "open_admin", "back_admin" -> plugin.gui().openAdmin(player);
 
             case "give_admin_key" -> {
-                if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
-                    plugin.gui().openMain(player);
-                    return;
-                }
                 player.getInventory().addItem(plugin.items().adminKey());
                 player.sendMessage(Component.text(plugin.msg().get("admin-key-erhalten"), NamedTextColor.GREEN));
                 plugin.gui().openAdmin(player);
             }
 
             case "give_logs_book" -> {
-                if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
-                    plugin.gui().openMain(player);
-                    return;
-                }
                 int maxBookEntries = plugin.cfg().adminLogsBookEntries();
                 player.getInventory().addItem(plugin.locks().createLogsBook(maxBookEntries));
                 player.sendMessage(Component.text(plugin.msg().get("log-buch-erhalten"), NamedTextColor.GREEN));
@@ -277,11 +289,6 @@ public final class GuiListener implements Listener {
             }
 
             case "give_admin_report" -> {
-                if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
-                    plugin.gui().openMain(player);
-                    return;
-                }
                 player.getInventory().addItem(plugin.locks().createAdminReportBook());
                 player.sendMessage(Component.text(plugin.msg().get("admin-bericht-erhalten"), NamedTextColor.GREEN));
                 plugin.gui().openAdmin(player);
@@ -294,11 +301,6 @@ public final class GuiListener implements Listener {
             }
 
             case "global_unlock" -> {
-                if (!player.hasPermission("chestsecure.admin")) {
-                    player.sendMessage(Component.text(plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
-                    plugin.gui().openMain(player);
-                    return;
-                }
                 player.closeInventory();
                 plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.GlobalUnlock());
                 player.sendMessage(Component.text(

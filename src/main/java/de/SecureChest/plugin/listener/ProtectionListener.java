@@ -46,14 +46,16 @@ public final class ProtectionListener implements Listener {
     private static final long BREAK_NOTIFICATION_COOLDOWN_MS = 30_000L;
 
     private final ChestSecurePlugin plugin;
-    private final Worlds worlds;
 
     private final Map<UUID, Long>   lockActionCooldowns       = new ConcurrentHashMap<>();
     private final Map<String, Long> breakNotificationCooldowns = new ConcurrentHashMap<>();
 
     public ProtectionListener(ChestSecurePlugin plugin) {
         this.plugin = plugin;
-        this.worlds = new Worlds(plugin);
+    }
+
+    private Worlds worlds() {
+        return plugin.worlds();
     }
 
     /**
@@ -78,7 +80,7 @@ public final class ProtectionListener implements Listener {
 
         // Getrennte Prüfung: Weltfreigabe gilt nur für neue Aktionen.
         // Bestehende Locks werden IMMER geschützt – unabhängig von worlds.enabled.
-        boolean worldEnabled       = worlds.isEnabled(block.getWorld());
+        boolean worldEnabled       = worlds().isEnabled(block.getWorld());
         boolean blockAlreadyLocked = plugin.locks().isLocked(block);
         boolean isProtectedHopper  = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
 
@@ -276,7 +278,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Block placedBlock = event.getBlockPlaced();
-        if (!worlds.isEnabled(placedBlock.getWorld())) return;
+        if (!worlds().isEnabled(placedBlock.getWorld())) return;
         if (placedBlock.getType() != Material.HOPPER) return;
 
         ItemStack heldItem = event.getItemInHand();
@@ -314,9 +316,34 @@ public final class ProtectionListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onChestPlaceAdjacentToForeignLock(BlockPlaceEvent event) {
+        Block placedBlock = event.getBlockPlaced();
+        Material placedType = placedBlock.getType();
+        if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) return;
+
+        Player placer = event.getPlayer();
+        if (placer.hasPermission("chestsecure.admin")) return;
+
+        UUID placerUuid = placer.getUniqueId();
+
+        for (BlockFace face : LockUtil.lateralFaces()) {
+            Block neighbor = placedBlock.getRelative(face);
+            if (!LockUtil.wouldFormDoubleChestWith(placedBlock, neighbor, face)) continue;
+
+            Optional<LockEntry> neighborLock = plugin.locks().getLock(neighbor);
+            if (neighborLock.isEmpty()) continue;
+            if (neighborLock.get().owner().equals(placerUuid)) continue;
+
+            event.setCancelled(true);
+            sendFailFeedback(placer, plugin.msg().get("chest-neben-fremdem-lock"));
+            return;
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPlaceAutoLock(BlockPlaceEvent event) {
         Block placedBlock = event.getBlockPlaced();
-        if (!worlds.isEnabled(placedBlock.getWorld())) return;
+        if (!worlds().isEnabled(placedBlock.getWorld())) return;
         if (!plugin.cfg().autoLockEnabled()) return;
         if (!LockUtil.isLockable(placedBlock)) return;
 
@@ -472,7 +499,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBurn(BlockBurnEvent event) {
         Block block = event.getBlock();
-        if (!worlds.isEnabled(block.getWorld())) return;
+        if (!worlds().isEnabled(block.getWorld())) return;
         if ((LockUtil.isLockable(block) && plugin.locks().isLocked(block))
                 || (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block))) {
             event.setCancelled(true);
@@ -482,7 +509,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockIgnite(BlockIgniteEvent event) {
         Block block = event.getBlock();
-        if (!worlds.isEnabled(block.getWorld())) return;
+        if (!worlds().isEnabled(block.getWorld())) return;
         if ((LockUtil.isLockable(block) && plugin.locks().isLocked(block))
                 || (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block))) {
             event.setCancelled(true);
@@ -492,7 +519,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
         Block block = event.getBlock();
-        if (!worlds.isEnabled(block.getWorld())) return;
+        if (!worlds().isEnabled(block.getWorld())) return;
         if ((LockUtil.isLockable(block) && plugin.locks().isLocked(block))
                 || (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block))) {
             event.setCancelled(true);
@@ -501,7 +528,7 @@ public final class ProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent event) {
-        if (!worlds.isEnabled(event.getBlock().getWorld())) return;
+        if (!worlds().isEnabled(event.getBlock().getWorld())) return;
         for (Block block : event.getBlocks()) {
             if ((LockUtil.isLockable(block) && plugin.locks().isLocked(block))
                     || (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block))) {
@@ -513,7 +540,7 @@ public final class ProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonRetract(BlockPistonRetractEvent event) {
-        if (!worlds.isEnabled(event.getBlock().getWorld())) return;
+        if (!worlds().isEnabled(event.getBlock().getWorld())) return;
         for (Block block : event.getBlocks()) {
             if ((LockUtil.isLockable(block) && plugin.locks().isLocked(block))
                     || (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block))) {
@@ -590,7 +617,7 @@ public final class ProtectionListener implements Listener {
         Inventory topInventory = event.getView().getTopInventory();
         Block containerBlock = inventoryToBlock(topInventory);
         if (containerBlock == null) return;
-        if (!worlds.isEnabled(containerBlock.getWorld())) return;
+        if (!worlds().isEnabled(containerBlock.getWorld())) return;
         if (!LockUtil.isLockable(containerBlock)) return;
         if (!plugin.locks().isLocked(containerBlock)) return;
 
@@ -624,7 +651,7 @@ public final class ProtectionListener implements Listener {
         Inventory topInventory = event.getView().getTopInventory();
         Block containerBlock = inventoryToBlock(topInventory);
         if (containerBlock == null) return;
-        if (!worlds.isEnabled(containerBlock.getWorld())) return;
+        if (!worlds().isEnabled(containerBlock.getWorld())) return;
         if (!LockUtil.isLockable(containerBlock)) return;
         if (!plugin.locks().isLocked(containerBlock)) return;
 

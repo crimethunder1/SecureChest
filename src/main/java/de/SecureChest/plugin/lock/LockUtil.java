@@ -5,10 +5,16 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Chest;
 
 import java.util.Objects;
 
 public final class LockUtil {
+
+    private static final BlockFace[] LATERAL_FACES = {
+            BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST
+    };
 
     private LockUtil() {}
 
@@ -24,13 +30,13 @@ public final class LockUtil {
 
     public static Block canonicalBlock(Block b) {
         Objects.requireNonNull(b, "block");
-        Material t = b.getType();
-        if (t == Material.CHEST || t == Material.TRAPPED_CHEST) {
-            Block other = findConnectedChest(b);
-            if (other != null) {
-                Location a = b.getLocation();
-                Location c = other.getLocation();
-                return isLessOrEqual(a, c) ? b : other;
+        Material type = b.getType();
+        if (type == Material.CHEST || type == Material.TRAPPED_CHEST) {
+            Block partner = findConnectedChest(b);
+            if (partner != null) {
+                Location ownLocation = b.getLocation();
+                Location partnerLocation = partner.getLocation();
+                return isLessOrEqual(ownLocation, partnerLocation) ? b : partner;
             }
         }
         return b;
@@ -41,15 +47,86 @@ public final class LockUtil {
         return LockKey.fromLocation(canon.getLocation());
     }
 
-    private static Block findConnectedChest(Block b) {
-        Material type = b.getType();
+    private static Block findConnectedChest(Block block) {
+        Material type = block.getType();
         if (type != Material.CHEST && type != Material.TRAPPED_CHEST) return null;
 
-        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
-            Block rel = b.getRelative(face);
-            if (rel.getType() == type) return rel;
+        BlockData blockData = block.getBlockData();
+        if (!(blockData instanceof Chest ownChestData)) return null;
+        if (ownChestData.getType() == Chest.Type.SINGLE) return null;
+
+        BlockFace ownFacing = ownChestData.getFacing();
+        Chest.Type ownConnection = ownChestData.getType();
+
+        for (BlockFace face : LATERAL_FACES) {
+            Block neighbor = block.getRelative(face);
+            if (neighbor.getType() != type) continue;
+
+            BlockData neighborData = neighbor.getBlockData();
+            if (!(neighborData instanceof Chest neighborChestData)) continue;
+            if (neighborChestData.getFacing() != ownFacing) continue;
+            if (neighborChestData.getType() == Chest.Type.SINGLE) continue;
+            if (neighborChestData.getType() == ownConnection) continue;
+
+            return neighbor;
         }
         return null;
+    }
+
+    /**
+     * Prueft, ob eine gerade platzierte Chest mit einer Nachbar-Chest eine Double Chest bilden wuerde.
+     * Wird im {@code BlockPlaceEvent} verwendet (vor dem Chest-Connection-Tick von Vanilla).
+     *
+     * <p>Vanilla-Regel: Zwei Chests gleichen Materials verbinden sich, wenn sie
+     * <ul>
+     *   <li>das gleiche Facing haben,</li>
+     *   <li>auf der Achse <em>senkrecht zum Facing</em> direkt nebeneinander stehen,</li>
+     *   <li>und entweder beide noch SINGLE sind oder bereits gegenseitig LEFT/RIGHT zeigen.</li>
+     * </ul>
+     */
+    public static boolean wouldFormDoubleChestWith(Block placedBlock, Block neighborBlock, BlockFace face) {
+        Material placedType = placedBlock.getType();
+        if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) return false;
+        if (neighborBlock.getType() != placedType) return false;
+
+        BlockData placedData = placedBlock.getBlockData();
+        BlockData neighborData = neighborBlock.getBlockData();
+        if (!(placedData instanceof Chest placedChestData)) return false;
+        if (!(neighborData instanceof Chest neighborChestData)) return false;
+
+        BlockFace placedFacing = placedChestData.getFacing();
+        if (placedFacing != neighborChestData.getFacing()) return false;
+
+        if (!isConnectionAxis(placedFacing, face)) return false;
+
+        Chest.Type placedConnection = placedChestData.getType();
+        Chest.Type neighborConnection = neighborChestData.getType();
+
+        boolean alreadyMerged = placedConnection != Chest.Type.SINGLE
+                && neighborConnection != Chest.Type.SINGLE
+                && placedConnection != neighborConnection;
+
+        boolean vanillaWillMerge = placedConnection == Chest.Type.SINGLE
+                && neighborConnection == Chest.Type.SINGLE;
+
+        return alreadyMerged || vanillaWillMerge;
+    }
+
+    /**
+     * Pruefen, ob {@code face} eine gueltige Verbindungs-Achse fuer eine Chest mit dem gegebenen
+     * Facing ist. Eine Chest mit Facing NORTH/SOUTH verbindet sich entlang der EAST/WEST-Achse,
+     * eine Chest mit Facing EAST/WEST entlang der NORTH/SOUTH-Achse.
+     */
+    private static boolean isConnectionAxis(BlockFace chestFacing, BlockFace candidateFace) {
+        return switch (chestFacing) {
+            case NORTH, SOUTH -> candidateFace == BlockFace.EAST || candidateFace == BlockFace.WEST;
+            case EAST,  WEST  -> candidateFace == BlockFace.NORTH || candidateFace == BlockFace.SOUTH;
+            default -> false;
+        };
+    }
+
+    public static BlockFace[] lateralFaces() {
+        return LATERAL_FACES.clone();
     }
 
     private static boolean isLessOrEqual(Location a, Location b) {

@@ -104,6 +104,12 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
+            if (!isValidPlayerName(msg)) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
+                return;
+            }
+
             OfflinePlayer online = Bukkit.getPlayerExact(msg);
 
             OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);

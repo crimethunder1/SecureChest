@@ -46,7 +46,7 @@ class LockEntryTest {
     @Test
     @DisplayName("put() fügt einen Trusted-Eintrag hinzu")
     void trusted_put_einEintrag() {
-        entry.trusted().put(USER_A, AccessLevel.VIEW);
+        entry.trustedMutable().put(USER_A, AccessLevel.VIEW);
         assertEquals(1, entry.trusted().size());
         assertEquals(AccessLevel.VIEW, entry.trusted().get(USER_A));
     }
@@ -54,8 +54,8 @@ class LockEntryTest {
     @Test
     @DisplayName("Mehrere Spieler können mit unterschiedlichen Levels vertraut sein")
     void trusted_mehrereEintraege() {
-        entry.trusted().put(USER_A, AccessLevel.VIEW);
-        entry.trusted().put(USER_B, AccessLevel.CO_OWNER);
+        entry.trustedMutable().put(USER_A, AccessLevel.VIEW);
+        entry.trustedMutable().put(USER_B, AccessLevel.CO_OWNER);
         assertEquals(AccessLevel.VIEW,     entry.trusted().get(USER_A));
         assertEquals(AccessLevel.CO_OWNER, entry.trusted().get(USER_B));
     }
@@ -63,8 +63,8 @@ class LockEntryTest {
     @Test
     @DisplayName("Trust-Level kann überschrieben werden (VIEW → STOCKER)")
     void trusted_levelUeberschreiben() {
-        entry.trusted().put(USER_A, AccessLevel.VIEW);
-        entry.trusted().put(USER_A, AccessLevel.STOCKER);
+        entry.trustedMutable().put(USER_A, AccessLevel.VIEW);
+        entry.trustedMutable().put(USER_A, AccessLevel.STOCKER);
         assertEquals(AccessLevel.STOCKER, entry.trusted().get(USER_A));
         assertEquals(1, entry.trusted().size(), "Kein doppelter Eintrag erwartet");
     }
@@ -74,8 +74,8 @@ class LockEntryTest {
     @Test
     @DisplayName("remove() löscht den Trust-Eintrag")
     void trusted_remove() {
-        entry.trusted().put(USER_A, AccessLevel.VIEW);
-        entry.trusted().remove(USER_A);
+        entry.trustedMutable().put(USER_A, AccessLevel.VIEW);
+        entry.trustedMutable().remove(USER_A);
         assertFalse(entry.trusted().containsKey(USER_A));
         assertTrue(entry.trusted().isEmpty());
     }
@@ -83,7 +83,7 @@ class LockEntryTest {
     @Test
     @DisplayName("remove() eines nicht existierenden Eintrags ist fehlerfrei")
     void trusted_removeNichtVorhanden() {
-        assertDoesNotThrow(() -> entry.trusted().remove(USER_A));
+        assertDoesNotThrow(() -> entry.trustedMutable().remove(USER_A));
     }
 
     // ── Besitzer nie im Trust-Check benötigt ──────────────────────────────────
@@ -94,5 +94,22 @@ class LockEntryTest {
         // Der Besitzer wird nie über trusted() geprüft, sondern direkt per owner().equals()
         assertFalse(entry.trusted().containsKey(OWNER),
                 "Besitzer sollte nicht in der trusted-Map stehen");
+    }
+
+    // ── Immutability der External-View (TASK-25) ──────────────────────────────
+
+    @Test
+    @DisplayName("trusted() liefert eine unveränderliche Sicht – put() wirft UnsupportedOperationException")
+    void trusted_externalView_istImmutable() {
+        assertThrows(UnsupportedOperationException.class,
+                () -> entry.trusted().put(USER_A, AccessLevel.VIEW),
+                "External callers dürfen die Trust-Map nicht mutieren");
+    }
+
+    @Test
+    @DisplayName("trustedMutable()-Mutation ist über trusted() sichtbar (gleiche Daten, andere View)")
+    void trustedMutable_aenderung_sichtbarInView() {
+        entry.trustedMutable().put(USER_A, AccessLevel.STOCKER);
+        assertEquals(AccessLevel.STOCKER, entry.trusted().get(USER_A));
     }
 }
