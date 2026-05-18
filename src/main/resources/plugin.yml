@@ -1,4 +1,4 @@
-sname: ChestSecure
+name: ChestSecure
 version: 1.5.2
 main: de.SecureChest.plugin.ChestSecurePlugin
 api-version: "1.21"

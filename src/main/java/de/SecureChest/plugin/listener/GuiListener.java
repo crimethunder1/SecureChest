@@ -32,7 +32,7 @@ public final class GuiListener implements Listener {
 
     static final String PERMISSION_TELEPORT = "chestsecure.admin.teleport";
 
-    private static final Set<String> ADMIN_ONLY_ACTIONS = Set.of(
+    static final Set<String> ADMIN_ONLY_ACTIONS = Set.of(
             "open_admin", "back_admin",
             "give_admin_key", "give_logs_book", "give_admin_report",
             "toggle_inspect", "global_unlock",

@@ -213,7 +213,7 @@ public final class DatabaseManager {
         }
     }
 
-    private void resetConnectionForPool(Connection connection) {
+    static void resetConnectionForPool(Connection connection) {
         try {
             if (!connection.getAutoCommit()) {
                 try { connection.rollback(); }
@@ -223,8 +223,8 @@ public final class DatabaseManager {
             }
             try { connection.clearWarnings(); }
             catch (SQLException ignored) {}
-        } catch (SQLException ex) {
-            plugin.getLogger().log(Level.WARNING, "Fehler beim Reset einer DB-Verbindung", ex);
+        } catch (SQLException ignored) {
+            // getAutoCommit() schlug fehl - Connection ist unbrauchbar, Aufrufer entscheidet
         }
     }
 

@@ -137,7 +137,7 @@ final class MiscScreen {
                 "§7Kolben & Feuer/Lava",
                 "§7Normale Hopper können nicht durchgreifen")));
         inv.setItem(31, h.buildInfoItem(Material.PLAYER_HEAD, "§fVertrauensstufen", List.of(
-                "§7VIEWER: Nur Inhalt anzeigen",
+                "§7VIEW: Nur Inhalt anzeigen",
                 "§7STOCKER: Items nehmen/legen, nicht abbauen",
                 "§7CO-OWNER: Gleicher Zugriff wie Besitzer")));
 
