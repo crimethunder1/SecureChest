@@ -6,7 +6,6 @@ import de.SecureChest.plugin.ui.UndoSnapshot;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.TileState;
 import org.bukkit.entity.Player;
@@ -15,7 +14,6 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.*;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -128,8 +126,8 @@ public final class SqlLockService implements LockService {
         // Warnung wenn dieser synchrone DB-Fallback auf dem Main-Thread landet.
         // Normalfall: Cache-Warmup ist abgeschlossen und dieser Pfad wird nie betreten.
         if (Bukkit.isPrimaryThread()) {
-            plugin.getLogger().warning("[SecureChest] getLockFromId("" + lockId
-                    + "") trifft synchronen DB-Fallback auf dem Main-Thread! "
+            plugin.getLogger().warning("[SecureChest] getLockFromId(\"" + lockId
+                    + "\") trifft synchronen DB-Fallback auf dem Main-Thread! "
                     + "Sicherstellen, dass der Cache-Warmup vor Spieler-Events abgeschlossen ist.");
         }
 
