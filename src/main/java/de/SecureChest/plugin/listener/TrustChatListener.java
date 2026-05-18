@@ -1,13 +1,7 @@
 package de.SecureChest.plugin.listener;
 
-import de.SecureChest.plugin.ChestSecurePlugin;
-import de.SecureChest.plugin.PendingChatAction;
-import de.SecureChest.plugin.lock.AccessLevel;
-import de.SecureChest.plugin.ui.ConfirmRequest;
-import de.SecureChest.plugin.ui.ConfirmType;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.UUID;
+
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -15,7 +9,16 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-import java.util.UUID;
+import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.PendingChatAction;
+import de.SecureChest.plugin.lock.AccessLevel;
+import de.SecureChest.plugin.ui.ConfirmRequest;
+import de.SecureChest.plugin.ui.ConfirmType;
+import de.SecureChest.plugin.util.PlayerNameValidator;
+
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public final class TrustChatListener implements Listener {
 
@@ -42,11 +45,6 @@ public final class TrustChatListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> handleOnMain(uuid, msg));
     }
 
-    private static boolean isValidPlayerName(String name) {
-        return name.length() >= 3 && name.length() <= 16
-                && name.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '_');
-    }
-
     private void handleOnMain(UUID uuid, String msg) {
         Player p = Bukkit.getPlayer(uuid);
         if (p == null) return;
@@ -68,7 +66,7 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
-            if (!isValidPlayerName(msg)) {
+            if (!PlayerNameValidator.isValid(msg)) {
                 plugin.pendingChat().remove(uuid);
                 p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
                 return;
@@ -100,7 +98,7 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
-            if (!isValidPlayerName(msg)) {
+            if (!PlayerNameValidator.isValid(msg)) {
                 plugin.pendingChat().remove(uuid);
                 p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
                 return;
@@ -157,7 +155,7 @@ public final class TrustChatListener implements Listener {
         }
 
         if (action instanceof PendingChatAction.TransferLock tl) {
-            if (!isValidPlayerName(msg)) {
+            if (!PlayerNameValidator.isValid(msg)) {
                 plugin.pendingChat().remove(uuid);
                 p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
                 return;

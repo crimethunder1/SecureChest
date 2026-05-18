@@ -1,12 +1,15 @@
 package de.SecureChest.plugin.gui;
 
-import de.SecureChest.plugin.ChestSecurePlugin;
-import de.SecureChest.plugin.lock.AccessLevel;
-import de.SecureChest.plugin.lock.LockEntry;
-import de.SecureChest.plugin.lock.LockKey;
-import de.SecureChest.plugin.ui.UiStateStore;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -14,12 +17,18 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import de.SecureChest.plugin.ChestSecurePlugin;
+import static de.SecureChest.plugin.gui.GuiHelper.formatActionLine;
+import static de.SecureChest.plugin.gui.GuiHelper.formatHintLine;
+import static de.SecureChest.plugin.gui.GuiHelper.formatInfoLine;
+import static de.SecureChest.plugin.gui.GuiHelper.formatWarningLine;
+import de.SecureChest.plugin.lock.AccessLevel;
+import de.SecureChest.plugin.lock.LockEntry;
+import de.SecureChest.plugin.lock.LockKey;
+import de.SecureChest.plugin.ui.UiStateStore;
 
-import static de.SecureChest.plugin.gui.GuiHelper.*;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 final class LockScreen {
 
@@ -108,6 +117,14 @@ final class LockScreen {
         h.playClickSound(player);
     }
 
+    static boolean canSeeLockManage(boolean isOwner, boolean isAdmin, boolean isTrusted) {
+        return isOwner || isAdmin || isTrusted;
+    }
+
+    static boolean canManageLock(boolean isOwner, boolean isAdmin) {
+        return isOwner || isAdmin;
+    }
+
     void openLockManage(Player player, String lockId) {
         LockEntry lockEntry = plugin.locks().getLockFromId(lockId).orElse(null);
         if (lockEntry == null) {
@@ -120,14 +137,14 @@ final class LockScreen {
         boolean isOwner   = lockEntry.owner().equals(player.getUniqueId());
         boolean isAdmin   = player.hasPermission("chestsecure.admin");
         boolean isTrusted = lockEntry.trusted().containsKey(player.getUniqueId());
-        if (!isOwner && !isAdmin && !isTrusted) {
+        if (!canSeeLockManage(isOwner, isAdmin, isTrusted)) {
             player.sendMessage(Component.text(
                     plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             mgr.openLocksList(player, 0);
             return;
         }
 
-        boolean canManage = isOwner || isAdmin;
+        boolean canManage = canManageLock(isOwner, isAdmin);
 
         String blockName  = lockEntry.blockType().name().replace('_', ' ');
         Location lockLoc  = new Location(Bukkit.getWorld(lockEntry.key().worldUuid()),

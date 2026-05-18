@@ -1,8 +1,22 @@
 package de.SecureChest.plugin.lock;
 
-import de.SecureChest.plugin.ChestSecurePlugin;
-import de.SecureChest.plugin.db.DatabaseManager;
-import de.SecureChest.plugin.ui.UndoSnapshot;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -12,11 +26,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.sql.*;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
+import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.db.DatabaseManager;
+import de.SecureChest.plugin.ui.UndoSnapshot;
 
 public final class SqlLockService implements LockService {
 
@@ -406,9 +418,7 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean unlockAllWithUndo(Player actor, UUID owner) {
-        if (!actor.getUniqueId().equals(owner) && !actor.hasPermission("chestsecure.admin")) {
-            return false;
-        }
+        if (!isUnlockAllAllowed(actor, owner)) return false;
 
         long now = System.currentTimeMillis();
         int ttlSeconds = plugin.cfg().undoSeconds();
@@ -1070,6 +1080,16 @@ public final class SqlLockService implements LockService {
             if (!hopperRow.owner().equals(actorUuid) && !isAdmin) return false;
         }
         return true;
+    }
+
+    private boolean isUnlockAllAllowed(Player actor, UUID owner) {
+        return isUnlockAllAllowed(actor.getUniqueId(), owner,
+                actor.hasPermission("chestsecure.admin"));
+    }
+
+    static boolean isUnlockAllAllowed(UUID actorUuid, UUID targetOwner, boolean isAdmin) {
+        if (actorUuid.equals(targetOwner)) return true;
+        return isAdmin;
     }
 
     private UndoSnapshot snapshotForOwner(UUID owner, long now, long expiresAt) {
