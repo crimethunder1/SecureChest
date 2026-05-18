@@ -9,13 +9,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
 
-/**
- * Laedt alle Spieler-Nachrichten aus {@code messages.yml} und stellt sie
- * ueber {@link #get(String, Object...)} bereit.
- *
- * <p>Platzhalter {0}, {1}, … werden durch die uebergebenen Argumente ersetzt.
- * Ampersand-Farbcodes (&amp;a, &amp;c, …) werden in §-Codes umgewandelt.</p>
- */
 public final class MessageService {
 
     private final ChestSecurePlugin plugin;
@@ -26,13 +19,6 @@ public final class MessageService {
         reload();
     }
 
-    /**
-     * Gibt die Nachricht zum {@code key} zurueck.
-     * Unbekannte Keys werden als {@code "[key]"} zurueckgegeben und geloggt.
-     *
-     * @param key  Schluessel aus messages.yml
-     * @param args Optionale Platzhalter-Werte fuer {0}, {1}, …
-     */
     public String get(String key, Object... args) {
         String raw = messages.getString(key);
         if (raw == null) {
@@ -46,13 +32,11 @@ public final class MessageService {
         return raw;
     }
 
-    /** Laedt messages.yml neu (z.B. nach /cs reload). */
     public void reload() {
         plugin.saveResource("messages.yml", false);
         File file = new File(plugin.getDataFolder(), "messages.yml");
         FileConfiguration loaded = YamlConfiguration.loadConfiguration(file);
 
-        // Fehlende Schluessel aus der eingebetteten Datei ergaenzen
         InputStream defaultStream = plugin.getResource("messages.yml");
         if (defaultStream != null) {
             FileConfiguration defaults = YamlConfiguration.loadConfiguration(
@@ -64,14 +48,12 @@ public final class MessageService {
         plugin.getLogger().info("messages.yml geladen (" + loaded.getKeys(false).size() + " Schluessel).");
     }
 
-    // ── Hilfsmethod ──────────────────────────────────────────────────────────
-
     private static String translateColorCodes(String text) {
         if (text == null) return "";
         char[] chars = text.toCharArray();
         for (int i = 0; i < chars.length - 1; i++) {
             if (chars[i] == '&' && "0123456789AaBbCcDdEeFfKkLlMmNnOoRr".indexOf(chars[i + 1]) >= 0) {
-                chars[i]     = '\u00A7'; // §
+                chars[i]     = '\u00A7';
                 chars[i + 1] = Character.toLowerCase(chars[i + 1]);
             }
         }

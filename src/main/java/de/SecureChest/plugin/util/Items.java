@@ -96,29 +96,17 @@ public final class Items {
         meta.getPersistentDataContainer().set(plugin.keyItemType(), PersistentDataType.STRING, type.name());
     }
 
-    // ── Bequeme Kombinationsprüfungen ─────────────────────────────────────────
-
-    /**
-     * Prüft ob der Spieler einen Chest Key in der Haupt- oder Nebenhand hält.
-     */
     public boolean isHoldingChestKey(org.bukkit.entity.Player player) {
         return is(player.getInventory().getItemInMainHand(), Type.CHEST_KEY)
                 || is(player.getInventory().getItemInOffHand(), Type.CHEST_KEY);
     }
 
-    /**
-     * Prüft ob der Spieler einen Admin Key hält und die Berechtigung besitzt.
-     */
     public boolean isHoldingAdminKey(org.bukkit.entity.Player player) {
         if (!player.hasPermission("chestsecure.admin")) return false;
         return is(player.getInventory().getItemInMainHand(), Type.ADMIN_KEY)
                 || is(player.getInventory().getItemInOffHand(), Type.ADMIN_KEY);
     }
 
-    /**
-     * Prüft ob der Spieler einen Chest Key irgendwo im Inventar hat
-     * (für Quick-Lock-Prüfung ohne aktives Halten).
-     */
     public boolean hasChestKeyInInventory(org.bukkit.entity.Player player) {
         for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
             if (is(item, Type.CHEST_KEY)) return true;

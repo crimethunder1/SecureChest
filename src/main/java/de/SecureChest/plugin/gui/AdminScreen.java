@@ -19,10 +19,6 @@ import java.util.List;
 
 import static de.SecureChest.plugin.gui.GuiHelper.*;
 
-/**
- * GUI-Screens fuer den Admin-Bereich.
- * Abgedeckt: Admin-Panel, Logs-Liste.
- */
 final class AdminScreen {
 
     private static final DateTimeFormatter DATE_FMT =
@@ -39,8 +35,6 @@ final class AdminScreen {
         this.h      = helper;
         this.mgr    = manager;
     }
-
-    // ── Admin-Panel ──────────────────────────────────────────────────────────
 
     void openAdmin(Player player) {
         if (!player.hasPermission("chestsecure.admin")) {
@@ -82,8 +76,6 @@ final class AdminScreen {
         player.openInventory(inv);
         h.playClickSound(player);
     }
-
-    // ── Logs ─────────────────────────────────────────────────────────────────
 
     void openLogs(Player player, int page) {
         if (!player.hasPermission("chestsecure.admin")) {
@@ -146,8 +138,6 @@ final class AdminScreen {
         player.openInventory(inv);
         h.playClickSound(player);
     }
-
-    // ── Private Helpers ──────────────────────────────────────────────────────
 
     private ItemStack buildLogListEntry(LogRecord r) {
         Material icon = switch (r.action()) {

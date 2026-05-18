@@ -101,10 +101,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerQuitListener(this), this);
         getServer().getPluginManager().registerEvents(signManager, this);
 
-        // Periodische Orphan-Bereinigung: alle 5 Minuten Locks validieren,
-        // deren Block durch Weltmechaniken (Endportal, Dragon, Strukturen) verschwunden ist.
-        // Start: 5 min nach Enable (damit Caches aufgewärmt sind).
-        final long VALIDATION_INTERVAL_TICKS = 20L * 60 * 5; // 5 Minuten
+        final long VALIDATION_INTERVAL_TICKS = 20L * 60 * 5;
         getServer().getScheduler().runTaskTimer(this,
                 () -> signManager.validateAndCleanOrphans(),
                 VALIDATION_INTERVAL_TICKS,

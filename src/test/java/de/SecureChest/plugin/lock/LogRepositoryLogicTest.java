@@ -7,17 +7,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Testet reine String/Logik-Aspekte des LogRepository ohne DB-Verbindung.
- * Fuer DB-Tests siehe Integrationstests (werden separat gegen Testdatenbank
- * ausgefuehrt und benoetigen eine SQLite-In-Memory-Verbindung).
- */
 @DisplayName("LogRepository – reine Logik (kein DB)")
 class LogRepositoryLogicTest {
-
-    // ── SQL-Filter-Logik ─────────────────────────────────────────────────────
-    // Repliziert die interne Filterlogik um sicherzustellen, dass Bedingungen
-    // korrekt an- oder abgehängt werden.
 
     private String buildCountSql(String action, long minTs, String actorLike) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM logs WHERE 1=1");
@@ -83,8 +74,6 @@ class LogRepositoryLogicTest {
         assertTrue(sql.contains("actor_name LIKE ?"));
     }
 
-    // ── Relatives Zeit-Label ─────────────────────────────────────────────────
-
     private String buildRelativeTimeLabel(long ts) {
         long min = (System.currentTimeMillis() - ts) / 60_000L;
         if (min < 1)  return "Gerade eben";
@@ -98,7 +87,7 @@ class LogRepositoryLogicTest {
     @Test
     @DisplayName("Sehr aktueller Timestamp → 'Gerade eben'")
     void relativeTime_geradEben() {
-        long jetzt = System.currentTimeMillis() - 30_000L; // 30 Sekunden
+        long jetzt = System.currentTimeMillis() - 30_000L;
         assertEquals("Gerade eben", buildRelativeTimeLabel(jetzt));
     }
 

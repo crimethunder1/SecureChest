@@ -19,7 +19,6 @@ public final class ChestSecureCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 
-        // /cs reload – nur für OPs / chestsecure.admin
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             if (!sender.hasPermission("chestsecure.admin")) {
                 sender.sendMessage(Component.text(

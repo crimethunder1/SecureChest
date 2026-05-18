@@ -28,10 +28,6 @@ public interface LockService {
 
     boolean unlockByIdWithUndo(Player actor, String lockId);
 
-    /**
-     * @deprecated Kennt keinen Actor und kann keine Berechtigung pruefen.
-     *             Benutze {@link #unlockAllWithUndo(Player, UUID)}.
-     */
     @Deprecated
     boolean unlockAll(UUID owner);
 
@@ -57,16 +53,10 @@ public interface LockService {
 
     boolean removeTrustById(Player owner, String lockId, UUID target);
 
-    /** Gibt alle Locks des Spielers sortiert zurueck (ungepaginiert – nur fuer isEmpty-Checks). */
     List<Location> listLocks(UUID owner);
 
-    /**
-     * Paginierte Variante: gibt maximal {@code limit} Locks ab {@code offset} zurueck.
-     * Effizienter als listLocks() fuer GUI-Paginierung mit vielen Locks.
-     */
     List<Location> listLocks(UUID owner, int offset, int limit);
 
-    /** Zaehlt alle Locks des Spielers (fuer Paginierungs-Berechnung). */
     int countLocks(UUID owner);
 
     LockStats getLockStats(UUID owner);
@@ -86,20 +76,10 @@ public interface LockService {
     void setQuickLock(UUID player, boolean value);
     void setQuickRemove(UUID player, boolean value);
 
-    /**
-     * Entfernt einen Lock vollständig ohne Player-Referenz (systemseitig, z.B. Endportal, Strukturen).
-     * Löscht den Cache-Eintrag, das Nametag-Sign und persistiert die Löschung asynchron in der DB.
-     */
     void forceRemoveLockAt(LockKey key);
 
-    /**
-     * Entfernt einen Secure Hopper vollständig ohne Player-Referenz (systemseitig).
-     */
     void forceRemoveHopperAt(LockKey key);
 
-    /**
-     * Gibt alle gecachten Secure Hopper zurück (für Validierungsaufgaben).
-     */
     Collection<SecureHopperEntry> getAllCachedHoppers();
 
     void logUnauthorizedBreak(Player actor, Block target);
@@ -118,15 +98,7 @@ public interface LockService {
 
     ItemStack createAdminReportBook();
 
-    /**
-     * Raeumen den spieler-lokalen Settings-Cache (QuickLock/QuickRemove) auf.
-     * Wird beim Logout aufgerufen um Speicher freizugeben.
-     */
     void evictPlayerCache(UUID player);
 
-    /**
-     * Laedt die Spielereinstellungen asynchron in den Cache.
-     * Wird beim Login aufgerufen damit erste Event-Handler direkt Caches treffen.
-     */
     void preloadPlayerSettings(UUID player);
 }

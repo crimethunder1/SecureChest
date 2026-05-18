@@ -18,16 +18,15 @@ class UndoManagerTest {
     private static final UUID WORLD   = UUID.randomUUID();
     private static final UUID OWNER   = UUID.randomUUID();
 
-    /** TTL so weit in der Zukunft dass Snapshots nicht ablaufen. */
     private static final long FAR_FUTURE = System.currentTimeMillis() + 60_000L;
-    /** TTL bereits abgelaufen. */
+
     private static final long EXPIRED    = System.currentTimeMillis() - 1L;
 
     private UndoManager mgr;
 
     @BeforeEach
     void setUp() {
-        mgr = new UndoManager(3); // maxHistory = 3
+        mgr = new UndoManager(3);
     }
 
     private UndoSnapshot snap(long expiresAt) {
@@ -40,8 +39,6 @@ class UndoManagerTest {
                 expiresAt
         );
     }
-
-    // ── Grundlegendes Verhalten ───────────────────────────────────────────────
 
     @Test
     @DisplayName("Frischer Manager hat keinen Undo-Eintrag")
@@ -72,8 +69,8 @@ class UndoManagerTest {
     @DisplayName("get() liest Snapshot ohne ihn zu entfernen (peek)")
     void get_istPeek() {
         mgr.set(PLAYER, snap(FAR_FUTURE));
-        mgr.get(PLAYER);                    // peek
-        assertTrue(mgr.hasUndo(PLAYER));    // immer noch da
+        mgr.get(PLAYER);
+        assertTrue(mgr.hasUndo(PLAYER));
     }
 
     @Test
@@ -81,8 +78,6 @@ class UndoManagerTest {
     void consume_leer() {
         assertTrue(mgr.consume(PLAYER).isEmpty());
     }
-
-    // ── TTL / Ablauf ─────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("Abgelaufener Snapshot wird von hasUndo() ignoriert")
@@ -102,16 +97,14 @@ class UndoManagerTest {
     @DisplayName("Gültiger Snapshot nach abgelaufenem wird gefunden")
     void gueltigerNachAbgelaufenem() {
         UndoSnapshot fresh = snap(FAR_FUTURE);
-        mgr.set(PLAYER, snap(EXPIRED));   // alt (wird unten auf Stack gelegt)
-        mgr.set(PLAYER, fresh);           // neu (oben auf Stack)
+        mgr.set(PLAYER, snap(EXPIRED));
+        mgr.set(PLAYER, fresh);
 
         Optional<UndoSnapshot> result = mgr.consume(PLAYER);
         assertTrue(result.isPresent());
-        // Der frische Snapshot ist oben – er wird zuerst geliefert
+
         assertEquals(fresh.createdAt(), result.get().createdAt());
     }
-
-    // ── Stack-Limit ──────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("Stack wächst nicht über maxHistory hinaus")
@@ -119,7 +112,7 @@ class UndoManagerTest {
         mgr.set(PLAYER, snap(FAR_FUTURE));
         mgr.set(PLAYER, snap(FAR_FUTURE));
         mgr.set(PLAYER, snap(FAR_FUTURE));
-        mgr.set(PLAYER, snap(FAR_FUTURE)); // 4. → ältester fliegt raus
+        mgr.set(PLAYER, snap(FAR_FUTURE));
         assertEquals(3, mgr.count(PLAYER));
     }
 
@@ -127,7 +120,7 @@ class UndoManagerTest {
     @DisplayName("Neuester Snapshot ist nach set() oben auf dem Stack")
     void neusterObenAufStack() {
         UndoSnapshot first  = snap(FAR_FUTURE);
-        UndoSnapshot second = snap(FAR_FUTURE + 1); // leicht unterschiedliche expiresAt
+        UndoSnapshot second = snap(FAR_FUTURE + 1);
         mgr.set(PLAYER, first);
         mgr.set(PLAYER, second);
 
@@ -155,8 +148,6 @@ class UndoManagerTest {
                 "Negativer maxHistory-Wert sollte auf 1 begrenzt werden");
     }
 
-    // ── clear() ──────────────────────────────────────────────────────────────
-
     @Test
     @DisplayName("clear() entfernt alle Snapshots des Spielers")
     void clear_leerIstDanach() {
@@ -172,8 +163,6 @@ class UndoManagerTest {
     void clear_nichtVorhanden() {
         assertDoesNotThrow(() -> mgr.clear(UUID.randomUUID()));
     }
-
-    // ── Isolation zwischen Spielern ───────────────────────────────────────────
 
     @Test
     @DisplayName("Snapshots eines Spielers beeinflussen keinen anderen")

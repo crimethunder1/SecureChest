@@ -123,8 +123,6 @@ public final class SqlLockService implements LockService {
         LockKey key;
         try { key = LockKey.fromId(lockId); } catch (Exception ex) { return Optional.empty(); }
 
-        // Warnung wenn dieser synchrone DB-Fallback auf dem Main-Thread landet.
-        // Normalfall: Cache-Warmup ist abgeschlossen und dieser Pfad wird nie betreten.
         if (Bukkit.isPrimaryThread()) {
             plugin.getLogger().warning("[SecureChest] getLockFromId(\"" + lockId
                     + "\") trifft synchronen DB-Fallback auf dem Main-Thread! "
@@ -167,14 +165,10 @@ public final class SqlLockService implements LockService {
         return Collections.unmodifiableCollection(hopperCache.values());
     }
 
-    /**
-     * Systemseitiges Entfernen eines Locks ohne Player (Endportal, Strukturen, Weltmechaniken).
-     * Räumt Cache, Sign/Nametag und DB-Einträge atomar auf.
-     */
     @Override
     public void forceRemoveLockAt(LockKey key) {
         String id = key.asId();
-        if (lockCache.remove(id) == null) return; // Bereits entfernt oder unbekannt
+        if (lockCache.remove(id) == null) return;
         plugin.signs().removeSign(id);
         plugin.getLogger().info("[SecureChest] ForceRemove lock " + id + " (block zerstört durch Weltmechanik)");
 
@@ -200,13 +194,10 @@ public final class SqlLockService implements LockService {
         });
     }
 
-    /**
-     * Systemseitiges Entfernen eines Secure Hoppers ohne Player.
-     */
     @Override
     public void forceRemoveHopperAt(LockKey key) {
         String id = key.asId();
-        if (hopperCache.remove(id) == null) return; // Bereits entfernt oder unbekannt
+        if (hopperCache.remove(id) == null) return;
         plugin.getLogger().info("[SecureChest] ForceRemove hopper " + id + " (block zerstört durch Weltmechanik)");
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -232,7 +223,7 @@ public final class SqlLockService implements LockService {
         if (!LockUtil.isLockable(block)) return false;
         LockKey key = LockUtil.canonicalKey(block);
         String id   = key.asId();
-        // Max-Locks-Limit pruefen (vor dem atomaren Insert)
+
         int maxLocks = plugin.cfg().maxLocksPerPlayer();
         if (maxLocks > 0) {
             long owned = lockCache.values().stream()
@@ -249,9 +240,6 @@ public final class SqlLockService implements LockService {
         long now = Instant.now().toEpochMilli();
         LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
 
-        // Atomar: putIfAbsent gibt null zurueck wenn der Slot frei war.
-        // So kann kein zweites gleichzeitiges lock() denselben Block doppelt eintragen,
-        // selbst wenn zwei Events fast zeitgleich den containsKey-Check passieren.
         if (lockCache.putIfAbsent(id, entry) != null) return false;
 
         plugin.signs().spawnSign(key, owner.getName());
@@ -382,11 +370,6 @@ public final class SqlLockService implements LockService {
         return true;
     }
 
-    /**
-     * @deprecated Diese Methode kennt keinen Actor und kann keine Berechtigung pruefen.
-     *             Benutze stattdessen {@link #unlockAllWithUndo(Player, UUID)}.
-     *             Im Plugin selbst wird sie nicht mehr aufgerufen.
-     */
     @Deprecated
     @Override
     public boolean unlockAll(UUID owner) {
@@ -554,7 +537,7 @@ public final class SqlLockService implements LockService {
                 c.commit();
             } catch (SQLException ex) {
                 plugin.getLogger().log(Level.SEVERE, "DB undo restore persist failed", ex);
-                // Cache-Rollback: wiederhergestellte Eintraege rueckgaengig machen
+
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     for (UndoSnapshot.LockRow lr : snapshot.locks()) {
                         lockCache.remove(lr.key().asId());
@@ -867,7 +850,6 @@ public final class SqlLockService implements LockService {
         LockEntry lock = getLock(boundContainer).orElse(null);
         if (lock == null || !lock.owner().equals(placer.getUniqueId())) return false;
 
-        // Max-Hopper-Limit pruefen
         int maxHoppers = plugin.cfg().maxHoppersPerPlayer();
         if (maxHoppers > 0) {
             long owned = hopperCache.values().stream()

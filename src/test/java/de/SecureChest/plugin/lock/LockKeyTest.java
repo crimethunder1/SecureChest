@@ -14,8 +14,6 @@ class LockKeyTest {
 
     private static final UUID WORLD = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-    // ── asId / fromId Round-Trip ──────────────────────────────────────────────
-
     @Test
     @DisplayName("asId erzeugt lesbaren String mit vier Segmenten")
     void asId_hatVierSegmente() {
@@ -59,8 +57,6 @@ class LockKeyTest {
         assertThrows(Exception.class, () -> LockKey.fromId(""));
         assertThrows(Exception.class, () -> LockKey.fromId("a:b:c:kein-int"));
     }
-
-    // ── Gleichheit ────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("Zwei LockKeys mit gleichen Werten haben gleiches asId()")

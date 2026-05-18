@@ -6,14 +6,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Testet die Spielername-Validierungslogik aus {@code TrustChatListener}.
- * Die Methode ist package-private und wird hier direkt repliziert.
- */
 @DisplayName("TrustChatListener – Spielername-Validierung")
 class TrustChatValidationTest {
 
-    /** Repliziert die private isValidPlayerName-Methode aus TrustChatListener. */
     private static boolean isValidPlayerName(String name) {
         return name.length() >= 3 && name.length() <= 16
                 && name.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '_');
@@ -26,8 +21,8 @@ class TrustChatValidationTest {
         "Player123",
         "abc",
         "Unter_Strich",
-        "A1B2C3D4E5F6G7H",  // 17... nein, genau 16
-        "ABCDEFGHIJKLMNOP"  // 16 Zeichen
+        "A1B2C3D4E5F6G7H",
+        "ABCDEFGHIJKLMNOP"
     })
     @DisplayName("Gültige Spielernamen werden akzeptiert")
     void valid(String name) {
@@ -36,12 +31,12 @@ class TrustChatValidationTest {
 
     @ParameterizedTest(name = "Ungültig: \"{0}\"")
     @ValueSource(strings = {
-        "ab",                          // zu kurz (2)
-        "ABCDEFGHIJKLMNOPQ",           // zu lang (17)
-        "Spieler Name",                // Leerzeichen
-        "spieler@server",              // Sonderzeichen
-        "00000000-0000-0000-0000-000000000001", // UUID
-        "spieler;DROP TABLE locks;--", // SQL-Injection
+        "ab",
+        "ABCDEFGHIJKLMNOPQ",
+        "Spieler Name",
+        "spieler@server",
+        "00000000-0000-0000-0000-000000000001",
+        "spieler;DROP TABLE locks;--",
         "",
         "  ",
         "abc!def"
@@ -53,8 +48,8 @@ class TrustChatValidationTest {
 
     @ParameterizedTest(name = "Grenzwert: \"{0}\"")
     @ValueSource(strings = {
-        "abc",             // genau 3 (min)
-        "ABCDEFGHIJKLMNOP" // genau 16 (max)
+        "abc",
+        "ABCDEFGHIJKLMNOP"
     })
     @DisplayName("Grenzwerte 3 und 16 Zeichen sind gültig")
     void grenzwerte_gueltig(String name) {

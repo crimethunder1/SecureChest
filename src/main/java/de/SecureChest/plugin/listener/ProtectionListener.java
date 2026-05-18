@@ -58,14 +58,9 @@ public final class ProtectionListener implements Listener {
         return plugin.worlds();
     }
 
-    /**
-     * Raeumen spieler-bezogene Cooldown-Eintraege auf (beim Logout aufrufen).
-     * Verhindert unbegrenztes Wachstum der {@code lockActionCooldowns}-Map.
-     */
     public void evictPlayer(UUID playerUuid) {
         lockActionCooldowns.remove(playerUuid);
-        // breakNotificationCooldowns ist nach Blockposition + Spieler-UUID gekeyt;
-        // beim Logout alle Eintraege dieses Spielers entfernen.
+
         String prefix = playerUuid.toString() + ":";
         breakNotificationCooldowns.keySet().removeIf(k -> k.startsWith(prefix));
     }
@@ -78,8 +73,6 @@ public final class ProtectionListener implements Listener {
         Block block = event.getClickedBlock();
         if (!LockUtil.isLockable(block)) return;
 
-        // Getrennte Prüfung: Weltfreigabe gilt nur für neue Aktionen.
-        // Bestehende Locks werden IMMER geschützt – unabhängig von worlds.enabled.
         boolean worldEnabled       = worlds().isEnabled(block.getWorld());
         boolean blockAlreadyLocked = plugin.locks().isLocked(block);
         boolean isProtectedHopper  = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
@@ -366,7 +359,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
         Block block = event.getBlock();
-        // Schutz bestehender Locks gilt unabhängig von worlds.enabled
+
         if (!LockUtil.isLockable(block) && block.getType() != Material.HOPPER) return;
 
         boolean isProtected = plugin.locks().isLocked(block) || plugin.locks().isSecureHopper(block);
@@ -381,7 +374,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
-        // Schutz bestehender Locks gilt unabhängig von worlds.enabled
+
         boolean isLockedBlock   = LockUtil.isLockable(block) && plugin.locks().isLocked(block);
         boolean isSecureHopper  = block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block);
         if (!isLockedBlock && !isSecureHopper) return;
@@ -457,13 +450,6 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    /**
-     * BUG FIX 2 & 3: Endportal- und ähnliche Weltmechaniken können Blöcke ersetzen
-     * ohne BlockBreakEvent zu feuern. PortalCreateEvent wird MONITOR (nach Bestätigung)
-     * gefeuert → wir räumen Lock-Daten & Nametags für betroffene Positionen auf.
-     *
-     * Funktioniert für: Endportal-Aktivierung, Netherporal-Entstehung.
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPortalCreate(PortalCreateEvent event) {
         for (BlockState futurePortalBlock : event.getBlocks()) {
@@ -472,20 +458,11 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    /**
-     * BUG FIX 3 (Paper-spezifisch): BlockDestroyEvent feuert, wenn ein Block durch
-     * interne Weltmechaniken ersetzt/gelöscht wird (Strukturgenerierung, Dragon-Pillars,
-     * End-Plattform, sonstige Block-Updates). Safety-Net für alle nicht-Player-Ursachen.
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockDestroy(BlockDestroyEvent event) {
         cleanupProtectedBlockIfNeeded(event.getBlock());
     }
 
-    /**
-     * Gemeinsame Cleanup-Logik: Entfernt Lock-Daten und Nametag für einen Block,
-     * der durch Weltmechaniken zerstört/ersetzt wird.
-     */
     private void cleanupProtectedBlockIfNeeded(Block block) {
         if (block == null) return;
         if (LockUtil.isLockable(block) && plugin.locks().isLocked(block)) {

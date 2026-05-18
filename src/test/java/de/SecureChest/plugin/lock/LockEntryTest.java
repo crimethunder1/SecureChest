@@ -22,12 +22,10 @@ class LockEntryTest {
     @BeforeEach
     void setUp() {
         LockKey key = new LockKey(WORLD, 0, 64, 0);
-        // Material mocken, da kein Bukkit-Server läuft
+
         org.bukkit.Material mat = mock(org.bukkit.Material.class);
         entry = new LockEntry(key, mat, OWNER, System.currentTimeMillis());
     }
-
-    // ── Erstellt / leer ───────────────────────────────────────────────────────
 
     @Test
     @DisplayName("Neuer LockEntry hat keine vertrauten Spieler")
@@ -40,8 +38,6 @@ class LockEntryTest {
     void owner_korrekt() {
         assertEquals(OWNER, entry.owner());
     }
-
-    // ── Trust hinzufügen ──────────────────────────────────────────────────────
 
     @Test
     @DisplayName("put() fügt einen Trusted-Eintrag hinzu")
@@ -69,8 +65,6 @@ class LockEntryTest {
         assertEquals(1, entry.trusted().size(), "Kein doppelter Eintrag erwartet");
     }
 
-    // ── Trust entfernen ───────────────────────────────────────────────────────
-
     @Test
     @DisplayName("remove() löscht den Trust-Eintrag")
     void trusted_remove() {
@@ -86,17 +80,13 @@ class LockEntryTest {
         assertDoesNotThrow(() -> entry.trustedMutable().remove(USER_A));
     }
 
-    // ── Besitzer nie im Trust-Check benötigt ──────────────────────────────────
-
     @Test
     @DisplayName("Besitzer ist nicht im trusted()-Map eingetragen (Sonderbehandlung in Service)")
     void owner_nichtInTrustedMap() {
-        // Der Besitzer wird nie über trusted() geprüft, sondern direkt per owner().equals()
+
         assertFalse(entry.trusted().containsKey(OWNER),
                 "Besitzer sollte nicht in der trusted-Map stehen");
     }
-
-    // ── Immutability der External-View (TASK-25) ──────────────────────────────
 
     @Test
     @DisplayName("trusted() liefert eine unveränderliche Sicht – put() wirft UnsupportedOperationException")

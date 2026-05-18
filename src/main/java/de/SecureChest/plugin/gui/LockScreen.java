@@ -21,10 +21,6 @@ import java.util.*;
 
 import static de.SecureChest.plugin.gui.GuiHelper.*;
 
-/**
- * GUI-Screens fuer Lock-Verwaltung und Trust-Zuweisung.
- * Abgedeckt: LockListe, LockManage, TrustNearby, TrustRole.
- */
 final class LockScreen {
 
     private static final DateTimeFormatter DATE_FMT =
@@ -39,8 +35,6 @@ final class LockScreen {
         this.h      = helper;
         this.mgr    = manager;
     }
-
-    // ── LockListe ────────────────────────────────────────────────────────────
 
     void openLocksList(Player player, int page) {
         UiStateStore.LockListState state = plugin.ui().locks(player.getUniqueId());
@@ -113,8 +107,6 @@ final class LockScreen {
         player.openInventory(inv);
         h.playClickSound(player);
     }
-
-    // ── LockManage ───────────────────────────────────────────────────────────
 
     void openLockManage(Player player, String lockId) {
         LockEntry lockEntry = plugin.locks().getLockFromId(lockId).orElse(null);
@@ -213,8 +205,6 @@ final class LockScreen {
         h.playClickSound(player);
     }
 
-    // ── TrustNearby ──────────────────────────────────────────────────────────
-
     void openTrustNearby(Player player, String lockId) {
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.TRUST_NEARBY, lockId);
         Inventory inv = Bukkit.createInventory(holder, 54,
@@ -256,8 +246,6 @@ final class LockScreen {
         h.playClickSound(player);
     }
 
-    // ── TrustRole ────────────────────────────────────────────────────────────
-
     void openTrustRole(Player player, String lockId, UUID targetUuid) {
         ChestSecureHolder holder = new ChestSecureHolder(
                 ChestSecureHolder.GuiId.TRUST_ROLE, lockId + "|" + targetUuid);
@@ -297,8 +285,6 @@ final class LockScreen {
         player.openInventory(inv);
         h.playClickSound(player);
     }
-
-    // ── Private Helpers ──────────────────────────────────────────────────────
 
     private record LockView(String lockId, Location location, Material blockType,
                             int trustedCount, long createdAt) {}

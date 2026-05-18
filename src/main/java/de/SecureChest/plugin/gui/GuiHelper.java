@@ -17,10 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Geteilte Hilfsmethoden fuer alle GUI-Screen-Klassen.
- * Kein Screen-spezifischer Code – nur generische Builder und Formatter.
- */
 public final class GuiHelper {
 
     protected final ChestSecurePlugin plugin;
@@ -28,8 +24,6 @@ public final class GuiHelper {
     public GuiHelper(ChestSecurePlugin plugin) {
         this.plugin = plugin;
     }
-
-    // ── Item-Builder ─────────────────────────────────────────────────────────
 
     public ItemStack buildButton(Material material, String name, List<String> lore,
                                  String action, String context) {
@@ -98,8 +92,6 @@ public final class GuiHelper {
         return buildButton(Material.PLAYER_HEAD, displayName, lore, action, context);
     }
 
-    // ── Inventar-Helfer ──────────────────────────────────────────────────────
-
     public void fillEmptySlots(Inventory inventory, Material glassMaterial) {
         ItemStack pane = new ItemStack(glassMaterial);
         ItemMeta  meta = pane.getItemMeta();
@@ -110,8 +102,6 @@ public final class GuiHelper {
         }
     }
 
-    // ── Spieler-Name ─────────────────────────────────────────────────────────
-
     public String resolvePlayerName(UUID uuid) {
         Player online = Bukkit.getPlayer(uuid);
         if (online != null) return online.getName();
@@ -120,14 +110,10 @@ public final class GuiHelper {
         return uuid.toString().substring(0, 8) + "…";
     }
 
-    // ── Sound ────────────────────────────────────────────────────────────────
-
     public void playClickSound(Player player) {
         if (plugin.cfg().soundsEnabled())
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.7f, 1.2f);
     }
-
-    // ── Formatter ────────────────────────────────────────────────────────────
 
     public static String formatInfoLine(String text)    { return "§8" + text; }
     public static String formatHintLine(String text)    { return "§e" + text; }

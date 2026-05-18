@@ -24,10 +24,6 @@ import java.util.Map;
 
 import static de.SecureChest.plugin.gui.GuiHelper.*;
 
-/**
- * GUI-Screens fuer allgemeine Bereiche:
- * Hauptmenü, Hilfe, Statistiken, Secure-Hopper-Liste, Rezeptvorschau, Bestätigung.
- */
 final class MiscScreen {
 
     private static final DateTimeFormatter DATE_FMT =
@@ -42,8 +38,6 @@ final class MiscScreen {
         this.h      = helper;
         this.mgr    = manager;
     }
-
-    // ── Hauptmenü ─────────────────────────────────────────────────────────────
 
     void openMain(Player player) {
         LockStats stats = plugin.locks().getLockStats(player.getUniqueId());
@@ -106,8 +100,6 @@ final class MiscScreen {
         h.playClickSound(player);
     }
 
-    // ── Hilfe ─────────────────────────────────────────────────────────────────
-
     void openHelp(Player player) {
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.HELP, "");
         Inventory inv = Bukkit.createInventory(holder, 54,
@@ -148,8 +140,6 @@ final class MiscScreen {
         h.playClickSound(player);
     }
 
-    // ── Secure-Hopper-Liste ───────────────────────────────────────────────────
-
     void openHoppersList(Player player, int page) {
         List<Location> all = plugin.locks().listSecureHoppers(player.getUniqueId());
         int pageSize = 45;
@@ -189,8 +179,6 @@ final class MiscScreen {
         player.openInventory(inv);
         h.playClickSound(player);
     }
-
-    // ── Rezept-Vorschau ───────────────────────────────────────────────────────
 
     void openRecipePreview(Player player, boolean showKeyRecipe) {
         ShapedRecipe recipe = showKeyRecipe
@@ -240,8 +228,6 @@ final class MiscScreen {
         h.playClickSound(player);
     }
 
-    // ── Statistiken ───────────────────────────────────────────────────────────
-
     void openStats(Player player) {
         LockStats s = plugin.locks().getLockStats(player.getUniqueId());
 
@@ -279,8 +265,6 @@ final class MiscScreen {
         h.playClickSound(player);
     }
 
-    // ── Bestätigung ───────────────────────────────────────────────────────────
-
     void openConfirm(Player player, String title, List<String> lines) {
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.CONFIRM, "");
         Inventory inv = Bukkit.createInventory(holder, 27,
@@ -302,8 +286,6 @@ final class MiscScreen {
         player.openInventory(inv);
         h.playClickSound(player);
     }
-
-    // ── Private Helpers ───────────────────────────────────────────────────────
 
     private ItemStack buildHopperListEntry(Location loc, String id) {
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "?";

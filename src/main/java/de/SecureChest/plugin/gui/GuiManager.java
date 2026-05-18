@@ -6,18 +6,6 @@ import org.bukkit.entity.Player;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Fassade fuer alle GUI-Screens.
- *
- * <p>Delegiert jeden Screen-Aufruf an die zustaendige Screen-Klasse.
- * Enthaelt selbst keine Inventar-Logik – diese liegt in:</p>
- * <ul>
- *   <li>{@link MiscScreen}  – Hauptmenü, Hilfe, Stats, Hopper, Rezept, Bestätigung</li>
- *   <li>{@link LockScreen}  – LockListe, LockManage, TrustNearby, TrustRole</li>
- *   <li>{@link AdminScreen} – Admin-Panel, Logs</li>
- *   <li>{@link GuiHelper}   – geteilte Hilfsmethoden (buildButton, Formatter, …)</li>
- * </ul>
- */
 public final class GuiManager {
 
     private final MiscScreen  misc;
@@ -31,8 +19,6 @@ public final class GuiManager {
         this.admin = new AdminScreen(plugin, helper, this);
     }
 
-    // ── Hauptmenü & allgemeine Screens ───────────────────────────────────────
-
     public void openMain(Player player)                                 { misc.openMain(player); }
     public void openHelp(Player player)                                 { misc.openHelp(player); }
     public void openStats(Player player)                                { misc.openStats(player); }
@@ -40,14 +26,10 @@ public final class GuiManager {
     public void openRecipePreview(Player player, boolean showKeyRecipe) { misc.openRecipePreview(player, showKeyRecipe); }
     public void openConfirm(Player player, String title, List<String> lines) { misc.openConfirm(player, title, lines); }
 
-    // ── Lock & Trust ─────────────────────────────────────────────────────────
-
     public void openLocksList(Player player, int page)                  { locks.openLocksList(player, page); }
     public void openLockManage(Player player, String lockId)            { locks.openLockManage(player, lockId); }
     public void openTrustNearby(Player player, String lockId)           { locks.openTrustNearby(player, lockId); }
     public void openTrustRole(Player player, String lockId, UUID target){ locks.openTrustRole(player, lockId, target); }
-
-    // ── Admin ────────────────────────────────────────────────────────────────
 
     public void openAdmin(Player player)                                { admin.openAdmin(player); }
     public void openLogs(Player player, int page)                       { admin.openLogs(player, page); }

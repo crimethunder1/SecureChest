@@ -8,11 +8,6 @@ import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Testet die statische Hilfsmethode {@code translateColorCodes} und
- * die Platzhalter-Logik von {@link MessageService} ohne laufenden Bukkit-Server.
- * Da {@code translateColorCodes} private ist, testen wir sie ueber Reflection.
- */
 @DisplayName("MessageService – Farbcodes und Platzhalter")
 class MessageServiceTest {
 
@@ -28,8 +23,6 @@ class MessageServiceTest {
     private String translate(String input) throws Exception {
         return (String) translateColorCodes.invoke(null, input);
     }
-
-    // ── Farbcode-Konvertierung ────────────────────────────────────────────────
 
     @Test
     @DisplayName("&a wird zu §a konvertiert")
@@ -74,9 +67,6 @@ class MessageServiceTest {
         assertEquals("", translate(""));
     }
 
-    // ── Platzhalter-Ersetzung ────────────────────────────────────────────────
-    // Getestet über eine Hilfsklasse, da MessageService Bukkit benötigt.
-
     @Test
     @DisplayName("Platzhalter {0} wird durch erstes Argument ersetzt")
     void platzhalter_einzel() {
@@ -101,7 +91,7 @@ class MessageServiceTest {
     void platzhalter_fehlend() {
         String raw = "{0} hat {1} Schlösser.";
         String result = raw.replace("{0}", "Spieler");
-        // {1} wurde nicht ersetzt – soll als roher Text sichtbar bleiben
+
         assertTrue(result.contains("{1}"), "Unreplaced placeholder should remain visible");
     }
 
@@ -112,9 +102,6 @@ class MessageServiceTest {
         String result = raw.replace("{0}", String.valueOf((Object) null));
         assertEquals("Besitzer: null", result);
     }
-
-    // ── Reihenfolge: Color-Codes vor Argument-Einsetzung ──────────────────────
-    // Simuliert die get()-Logik aus MessageService ohne Bukkit-FileConfiguration.
 
     private String renderLikeService(String raw, Object... args) throws Exception {
         String translated = (String) translateColorCodes.invoke(null, raw);

@@ -9,12 +9,6 @@ import java.time.Instant;
 import java.util.*;
 import java.util.logging.Level;
 
-/**
- * Kapselt alle Datenbank-Operationen fuer Spielereinstellungen
- * (QuickLock, QuickRemove) und Benachrichtigungen.
- *
- * <p>Keine Cache-Referenzen – reine DB-I/O-Schicht.</p>
- */
 public final class PlayerSettingsRepository {
 
     private static final Set<String> ALLOWED_FIELDS = Set.of("quick_lock", "quick_remove");
@@ -33,23 +27,13 @@ public final class PlayerSettingsRepository {
         }
     }
 
-    // ── Einstellungen ────────────────────────────────────────────────────────
-
-    /**
-     * Liest einen Boolean-Wert aus {@code player_settings}.
-     * <strong>Nicht auf dem Main-Thread aufrufen</strong> – blockiert kurz fuer DB-I/O.
-     *
-     * @param player Spieler-UUID
-     * @param field  Spaltenname ("quick_lock" oder "quick_remove")
-     * @return gespeicherter Wert, {@code false} als Default
-     */
     public boolean loadSetting(UUID player, String field) {
         requireAllowedField(field);
         if (Bukkit.isPrimaryThread()) {
             plugin.getLogger().warning("[SecureChest] loadSetting('" + field
                     + "') auf dem Main-Thread fuer " + player
                     + " – gibt Default zurueck. Einstellungen werden bald nachgeladen.");
-            // Asynchron nachladen – beim naechsten Zugriff im Cache vorhanden
+
             return false;
         }
         try (Connection c = db.getConnection();
@@ -65,10 +49,6 @@ public final class PlayerSettingsRepository {
         return false;
     }
 
-    /**
-     * Schreibt einen Boolean-Wert in {@code player_settings}.
-     * Legt die Zeile bei Bedarf an.
-     */
     public void saveSetting(UUID player, String field, boolean value) {
         requireAllowedField(field);
         ensureSettingsRow(player);
@@ -83,7 +63,6 @@ public final class PlayerSettingsRepository {
         }
     }
 
-    /** Stellt sicher, dass eine Settings-Zeile fuer den Spieler existiert. */
     public void ensureSettingsRow(UUID player) {
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -96,12 +75,6 @@ public final class PlayerSettingsRepository {
         }
     }
 
-    // ── Benachrichtigungen ───────────────────────────────────────────────────
-
-    /**
-     * Fuegt eine Benachrichtigung asynchron in die DB ein und begrenzt
-     * die Anzahl auf {@code maxPerPlayer}.
-     */
     public void addNotification(UUID ownerUuid, String message) {
         if (!plugin.cfg().notificationsEnabled()) return;
         long now = Instant.now().toEpochMilli();
@@ -118,7 +91,6 @@ public final class PlayerSettingsRepository {
                     ps.executeUpdate();
                 }
 
-                // Aelteste Eintraege loeschen wenn Limit ueberschritten
                 try (PreparedStatement ps = c.prepareStatement(
                         "DELETE FROM notifications WHERE owner_uuid=? AND id NOT IN"
                         + " (SELECT id FROM notifications WHERE owner_uuid=? ORDER BY id DESC LIMIT ?)")) {
@@ -132,10 +104,6 @@ public final class PlayerSettingsRepository {
         });
     }
 
-    /**
-     * Liest und loescht alle Benachrichtigungen des Spielers in einer Transaktion.
-     * <strong>Blockiert kurz – nur auf einem Async-Thread aufrufen.</strong>
-     */
     public List<Notification> fetchAndClearNotifications(UUID playerUuid) {
         List<Notification> out = new ArrayList<>();
         final String uuidStr = playerUuid.toString();

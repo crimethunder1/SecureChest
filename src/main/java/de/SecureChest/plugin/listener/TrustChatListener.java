@@ -42,10 +42,6 @@ public final class TrustChatListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> handleOnMain(uuid, msg));
     }
 
-    /**
-     * Prüft ob ein Spielername syntaktisch gültig ist (3–16 Zeichen, a-z, A-Z, 0-9, _).
-     * Verhindert dass UUIDs oder Sonderzeichen als Name akzeptiert werden.
-     */
     private static boolean isValidPlayerName(String name) {
         return name.length() >= 3 && name.length() <= 16
                 && name.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '_');

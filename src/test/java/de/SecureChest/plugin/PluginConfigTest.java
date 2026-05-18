@@ -8,24 +8,16 @@ import java.io.StringReader;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Testet {@link PluginConfig} ohne laufenden Bukkit-Server.
- * Nutzt den package-private Konstruktor der direkt eine {@link YamlConfiguration} akzeptiert.
- */
 @DisplayName("PluginConfig – Defaults und Werte-Laden")
 class PluginConfigTest {
 
-    /** Erzeugt eine PluginConfig aus einem YAML-String. */
     private static PluginConfig from(String yaml) {
         return new PluginConfig(YamlConfiguration.loadConfiguration(new StringReader(yaml)));
     }
 
-    /** Leere Konfiguration – alles auf Default-Werten. */
     private static PluginConfig defaults() {
         return from("");
     }
-
-    // ── Default-Werte ─────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("sounds.enabled ist standardmäßig true")
@@ -129,8 +121,6 @@ class PluginConfigTest {
         assertNotNull(defaults().enabledWorlds());
         assertTrue(defaults().enabledWorlds().isEmpty());
     }
-
-    // ── Benutzerdefinierte Werte ──────────────────────────────────────────────
 
     @Test
     @DisplayName("sounds.enabled kann auf false gesetzt werden")

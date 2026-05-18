@@ -77,19 +77,14 @@ public final class SignManager implements Listener {
         if (e != null && e.isValid()) e.remove();
     }
 
-    /**
-     * Spawnt Signs fuer alle gecachten Locks in Haeppchen von je {@code BATCH_SIZE}
-     * Eintraegen pro Tick. Verhindert, dass ein Server mit vielen Locks beim Start
-     * kurz einfriert.
-     */
     public void spawnAllSigns() {
         if (!isEnabled()) return;
 
         java.util.List<LockEntry> all = new java.util.ArrayList<>(plugin.locks().getAllCachedLocks());
         if (all.isEmpty()) return;
 
-        final int BATCH_SIZE  = 50;   // Signs pro Tick
-        final int TICK_DELAY  = 1;    // Abstand zwischen Batches in Ticks
+        final int BATCH_SIZE  = 50;
+        final int TICK_DELAY  = 1;
         final int total       = all.size();
 
         for (int batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
@@ -134,12 +129,6 @@ public final class SignManager implements Listener {
         });
     }
 
-    /**
-     * Periodische Validierung: iteriert alle gecachten Locks und Hopper in geladenen
-     * Chunks und räumt Orphans auf (Block durch Weltmechanik verschwunden, z.B.
-     * Dragon-Pillar-Regeneration, End-Plattform, etc.)
-     * Wird aus ChestSecurePlugin alle 5 Minuten aufgerufen.
-     */
     public void validateAndCleanOrphans() {
         if (!isEnabled()) return;
         int cleaned = 0;

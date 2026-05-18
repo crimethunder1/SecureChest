@@ -4,22 +4,10 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.List;
 
-/**
- * Zentralisierter Zugriff auf alle Werte aus {@code config.yml}.
- *
- * <p>Vorteile gegenueber direktem {@code plugin.getConfig().getX("key", default)}:
- * <ul>
- *   <li>Alle Schluessel an einer Stelle – Tippfehler fallen sofort auf.</li>
- *   <li>Haeufig gelesene Werte (z.B. {@link #confirmTimeoutSeconds()},
- *       das fruher 9x pro Event gelesen wurde) werden einmalig gecacht.</li>
- *   <li>{@link #reload()} aktualisiert den Cache synchron nach {@code /cs reload}.</li>
- * </ul>
- */
 public final class PluginConfig {
 
     private final ChestSecurePlugin plugin;
 
-    // ── gecachte Werte (einmalig beim Laden / Reload gelesen) ────────────────
     private boolean soundsEnabled;
     private boolean particlesEnabled;
     private boolean signsEnabled;
@@ -43,16 +31,11 @@ public final class PluginConfig {
         reload();
     }
 
-    /**
-     * Test-Konstruktor: laedt Werte direkt aus einer {@code FileConfiguration}
-     * ohne laufenden Bukkit-Server. {@code plugin} bleibt {@code null}.
-     */
     PluginConfig(FileConfiguration cfg) {
         this.plugin = null;
         loadFrom(cfg);
     }
 
-    /** Liest alle gecachten Werte neu aus der aktuellen {@code FileConfiguration}. */
     public void reload() {
         FileConfiguration cfg = plugin.getConfig();
         loadFrom(cfg);
@@ -79,8 +62,6 @@ public final class PluginConfig {
         enabledWorlds              = cfg.getStringList("worlds.enabled");
     }
 
-    // ── Getter ───────────────────────────────────────────────────────────────
-
     public boolean soundsEnabled()            { return soundsEnabled; }
     public boolean particlesEnabled()         { return particlesEnabled; }
     public boolean signsEnabled()             { return signsEnabled; }
@@ -104,10 +85,6 @@ public final class PluginConfig {
 
     public List<String> enabledWorlds()       { return enabledWorlds; }
 
-    /**
-     * Liefert den Konfigurations-Abschnitt fuer ein Rezept direkt
-     * (nicht gecacht, da selten gelesen und strukturell komplex).
-     */
     public org.bukkit.configuration.ConfigurationSection recipeSection(String name) {
         return plugin.getConfig().getConfigurationSection("recipes." + name);
     }

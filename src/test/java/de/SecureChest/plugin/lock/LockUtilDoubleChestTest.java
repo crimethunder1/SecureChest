@@ -24,8 +24,6 @@ class LockUtilDoubleChestTest {
         return block;
     }
 
-    // ── Single+Single (Vanilla wird beim Place mergen) ────────────────────────
-
     @Test
     @DisplayName("Single+Single, Facing NORTH, Nachbar EAST → Vanilla mergt → als Double erkannt")
     void singleSingle_facingNorth_neighborEast_wirdAlsDouble() {
@@ -59,8 +57,6 @@ class LockUtilDoubleChestTest {
         assertFalse(LockUtil.wouldFormDoubleChestWith(placed, neighbor, BlockFace.EAST));
     }
 
-    // ── Bereits gemerged (LEFT/RIGHT) ─────────────────────────────────────────
-
     @Test
     @DisplayName("Placed LEFT trifft Neighbor RIGHT auf korrekter Achse → Double Chest")
     void leftPlusRight_korrekteAchse_istDouble() {
@@ -76,8 +72,6 @@ class LockUtilDoubleChestTest {
         Block neighbor = mockChest(Material.CHEST, BlockFace.NORTH, Chest.Type.LEFT);
         assertFalse(LockUtil.wouldFormDoubleChestWith(placed, neighbor, BlockFace.EAST));
     }
-
-    // ── Material-Mismatch ─────────────────────────────────────────────────────
 
     @Test
     @DisplayName("Verschiedene Materials (CHEST vs TRAPPED_CHEST) → nicht verbunden")
@@ -96,8 +90,6 @@ class LockUtilDoubleChestTest {
         when(neighbor.getType()).thenReturn(Material.BARREL);
         assertFalse(LockUtil.wouldFormDoubleChestWith(placed, neighbor, BlockFace.EAST));
     }
-
-    // ── Helper ────────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("lateralFaces() liefert genau N/S/E/W")

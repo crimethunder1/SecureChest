@@ -16,7 +16,6 @@ public final class LockEntry {
 
     private final Map<UUID, AccessLevel> trustedInternal = new ConcurrentHashMap<>();
 
-    /** Unveränderliche Sicht auf die Trust-Map – sicher für externe Caller. */
     private final Map<UUID, AccessLevel> trustedView = Collections.unmodifiableMap(trustedInternal);
 
     public LockEntry(LockKey key, Material blockType, UUID owner, long createdAt) {
@@ -31,16 +30,7 @@ public final class LockEntry {
     public UUID owner()        { return owner; }
     public long createdAt()    { return createdAt; }
 
-    /**
-     * Unveränderliche Sicht auf die vertrauten Spieler.
-     * Für Lese-Zugriff von außen (GUI, Listener).
-     */
     public Map<UUID, AccessLevel> trusted() { return trustedView; }
 
-    /**
-     * Veränderliche interne Map – nur für {@link SqlLockService} im selben Paket.
-     * Externe Klassen sollen ausschließlich über {@link SqlLockService}-Methoden
-     * (setTrust, removeTrust) mutieren.
-     */
     Map<UUID, AccessLevel> trustedMutable() { return trustedInternal; }
 }

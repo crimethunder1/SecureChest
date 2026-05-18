@@ -14,19 +14,11 @@ import java.time.Instant;
 import java.util.*;
 import java.util.logging.Level;
 
-/**
- * Kapselt alle Datenbank-Operationen rund um Logs und Admin-Reports.
- *
- * <p>Keine Cache-Referenzen – reine DB-I/O-Schicht.</p>
- */
 public final class LogRepository {
 
-    // ── Action-Konstanten (Audit-Trail) ──────────────────────────────────────
-    // Bereits in v1.4.0+ in Benutzung:
     public static final String ACTION_UNAUTHORIZED_BREAK = "UNAUTHORIZED_BREAK";
     public static final String ACTION_ADMIN_BREAK        = "ADMIN_BREAK";
 
-    // Neu in v1.5.2 (SEC-14):
     public static final String ACTION_LOCK_CREATE           = "LOCK_CREATE";
     public static final String ACTION_LOCK_REMOVE           = "LOCK_REMOVE";
     public static final String ACTION_LOCK_REMOVE_ADMIN     = "LOCK_REMOVE_ADMIN";
@@ -48,16 +40,6 @@ public final class LogRepository {
         this.db     = db;
     }
 
-    // ── Schreiben ────────────────────────────────────────────────────────────
-
-    /**
-     * Fuegt einen Log-Eintrag asynchron in die Datenbank ein.
-     *
-     * @param action    Log-Typ (z.B. "UNAUTHORIZED_BREAK", "ADMIN_BREAK")
-     * @param actor     Spieler, der die Aktion ausgeloest hat
-     * @param target    Betroffener Block
-     * @param extra     Optionale Zusatzinformation (darf {@code null} sein)
-     */
     public void insertLog(String action, Player actor, Block target, String extra) {
         long now = Instant.now().toEpochMilli();
         final String actorUuid = actor.getUniqueId().toString();
@@ -70,11 +52,6 @@ public final class LogRepository {
         persistLog(now, action, actorUuid, actorName, worldName, worldUuid, bx, by, bz, extra);
     }
 
-    /**
-     * Variante mit {@link LockKey} statt {@link Block} – fuer Service-Aufrufe ohne direkte
-     * Block-Referenz. Wenn die Welt nicht (mehr) geladen ist, wird "unknown" als Weltname
-     * eingetragen.
-     */
     public void insertLog(String action, Player actor, LockKey key, String extra) {
         long now = Instant.now().toEpochMilli();
         final String actorUuid = actor.getUniqueId().toString();
@@ -86,10 +63,6 @@ public final class LogRepository {
         persistLog(now, action, actorUuid, actorName, worldName, worldUuid, key.x(), key.y(), key.z(), extra);
     }
 
-    /**
-     * Variante fuer Aktionen ohne konkreten Block-Target (z.B. UNLOCK_ALL, UNDO_RESTORE) –
-     * nutzt die aktuelle Spielerposition als Anchor.
-     */
     public void insertLogAtActor(String action, Player actor, String extra) {
         insertLog(action, actor, actor.getLocation().getBlock(), extra);
     }
@@ -115,11 +88,6 @@ public final class LogRepository {
         });
     }
 
-    // ── Lesen ────────────────────────────────────────────────────────────────
-
-    /**
-     * Erstellt ein Buch-ItemStack mit den letzten {@code maxEntries} Log-Eintraegen.
-     */
     public ItemStack createLogsBook(int maxEntries) {
         List<String> lines = new ArrayList<>();
         try (Connection c = db.getConnection();
@@ -142,9 +110,6 @@ public final class LogRepository {
         return BookUtil.buildLogsBook(lines);
     }
 
-    /**
-     * Gibt eine gefilterte, paginierte Liste von Log-Eintraegen zurueck.
-     */
     public List<LogRecord> listLogs(String actionFilter, long minCreatedAt,
                                     String actorNameLike, int offset, int limit) {
         List<LogRecord> out    = new ArrayList<>();
@@ -169,9 +134,6 @@ public final class LogRepository {
         return out;
     }
 
-    /**
-     * Zaehlt Log-Eintraege (fuer Paginierung).
-     */
     public int countLogs(String actionFilter, long minCreatedAt, String actorNameLike) {
         StringBuilder sql    = new StringBuilder("SELECT COUNT(*) FROM logs WHERE 1=1");
         List<Object>  params = buildLogParams(actionFilter, minCreatedAt, actorNameLike);
@@ -189,9 +151,6 @@ public final class LogRepository {
         return 0;
     }
 
-    /**
-     * Gibt einen einzelnen Log-Eintrag anhand seiner ID zurueck.
-     */
     public Optional<LogRecord> getLogById(long id) {
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -208,9 +167,6 @@ public final class LogRepository {
         }
     }
 
-    /**
-     * Erstellt ein Admin-Report-Buch mit Gesamtstatistiken.
-     */
     public ItemStack createAdminReportBook() {
         List<String> lines  = new ArrayList<>();
         int totalLocks = 0, totalHoppers = 0, logs24h = 0, logs7d = 0, unauth24h = 0, admin24h = 0;
@@ -261,8 +217,6 @@ public final class LogRepository {
 
         return BookUtil.buildBook("ChestSecure Report", "ChestSecure Report", "ChestSecure", lines);
     }
-
-    // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     private int countLogsRaw(Connection c, String action, long minTs) throws SQLException {
         String sql = "SELECT COUNT(*) FROM logs WHERE created_at>=?"

@@ -15,15 +15,13 @@ import java.util.logging.Level;
 
 public final class DatabaseManager {
 
-    /** Poolgröße: für SQLite reichen 4 gleichzeitige Verbindungen problemlos. */
     private static final int POOL_SIZE = 4;
 
     private final ChestSecurePlugin plugin;
     private String jdbcUrl;
 
-    /** Pool gepoolter, sofort einsatzbereiter Verbindungen. */
     private final BlockingQueue<Connection> pool = new ArrayBlockingQueue<>(POOL_SIZE);
-    /** Separate Liste für sauberes Shutdown. */
+
     private final List<Connection> allConnections = new CopyOnWriteArrayList<>();
 
     public DatabaseManager(ChestSecurePlugin plugin) {
@@ -60,7 +58,6 @@ public final class DatabaseManager {
         }
     }
 
-    /** Erstellt eine neue, konfigurierte Verbindung (WAL-Modus + Foreign Keys). */
     private Connection createConnection() throws SQLException {
         Connection c = DriverManager.getConnection(jdbcUrl);
         try (Statement st = c.createStatement()) {
@@ -160,14 +157,6 @@ public final class DatabaseManager {
         }
     }
 
-    /**
-     * Gibt eine gepoolte {@link Connection} zurueck, die in try-with-resources genutzt werden kann.
-     * <p>
-     * Das {@code close()} der zurueckgegebenen Verbindung gibt sie <em>nicht</em> wirklich frei,
-     * sondern legt sie zurueck in den Pool. Vor der Rueckgabe wird die Verbindung auf einen
-     * sauberen Zustand zurueckgesetzt (autoCommit=true, offene Transaktion rollback,
-     * Warnings geleert). Mehrfaches {@code close()} ist idempotent.
-     */
     public Connection getConnection() throws SQLException {
         try {
             Connection real = pool.take();
@@ -224,11 +213,10 @@ public final class DatabaseManager {
             try { connection.clearWarnings(); }
             catch (SQLException ignored) {}
         } catch (SQLException ignored) {
-            // getAutoCommit() schlug fehl - Connection ist unbrauchbar, Aufrufer entscheidet
+
         }
     }
 
-    /** Schließt alle gepoolten Verbindungen sauber beim Shutdown. */
     public void close() {
         for (Connection c : allConnections) {
             try {

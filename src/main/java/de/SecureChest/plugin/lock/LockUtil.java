@@ -73,17 +73,6 @@ public final class LockUtil {
         return null;
     }
 
-    /**
-     * Prueft, ob eine gerade platzierte Chest mit einer Nachbar-Chest eine Double Chest bilden wuerde.
-     * Wird im {@code BlockPlaceEvent} verwendet (vor dem Chest-Connection-Tick von Vanilla).
-     *
-     * <p>Vanilla-Regel: Zwei Chests gleichen Materials verbinden sich, wenn sie
-     * <ul>
-     *   <li>das gleiche Facing haben,</li>
-     *   <li>auf der Achse <em>senkrecht zum Facing</em> direkt nebeneinander stehen,</li>
-     *   <li>und entweder beide noch SINGLE sind oder bereits gegenseitig LEFT/RIGHT zeigen.</li>
-     * </ul>
-     */
     public static boolean wouldFormDoubleChestWith(Block placedBlock, Block neighborBlock, BlockFace face) {
         Material placedType = placedBlock.getType();
         if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) return false;
@@ -112,11 +101,6 @@ public final class LockUtil {
         return alreadyMerged || vanillaWillMerge;
     }
 
-    /**
-     * Pruefen, ob {@code face} eine gueltige Verbindungs-Achse fuer eine Chest mit dem gegebenen
-     * Facing ist. Eine Chest mit Facing NORTH/SOUTH verbindet sich entlang der EAST/WEST-Achse,
-     * eine Chest mit Facing EAST/WEST entlang der NORTH/SOUTH-Achse.
-     */
     private static boolean isConnectionAxis(BlockFace chestFacing, BlockFace candidateFace) {
         return switch (chestFacing) {
             case NORTH, SOUTH -> candidateFace == BlockFace.EAST || candidateFace == BlockFace.WEST;
