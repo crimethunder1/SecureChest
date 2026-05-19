@@ -26,17 +26,10 @@ class AccessLevelTest {
         assertEquals(AccessLevel.STOCKER, AccessLevel.fromString(input));
     }
 
-    @ParameterizedTest(name = "\"{0}\" → CO_OWNER")
-    @ValueSource(strings = {"CO_OWNER", "co_owner", "Co_Owner"})
-    @DisplayName("CO_OWNER wird case-insensitiv erkannt")
-    void fromString_coOwner(String input) {
-        assertEquals(AccessLevel.CO_OWNER, AccessLevel.fromString(input));
-    }
-
     @ParameterizedTest(name = "ungültig: \"{0}\"")
     @NullAndEmptySource
-    @ValueSource(strings = {"ADMIN", "OWNER", "NONE", "co-owner", "0"})
-    @DisplayName("Ungültige Strings liefern null")
+    @ValueSource(strings = {"ADMIN", "OWNER", "NONE", "co-owner", "0", "CO_OWNER", "co_owner"})
+    @DisplayName("Ungültige Strings liefern null (CO_OWNER entfernt, Migration setzt sie auf STOCKER)")
     void fromString_ungueltig(String input) {
         assertNull(AccessLevel.fromString(input));
     }
@@ -46,7 +39,6 @@ class AccessLevelTest {
     void name_kannonischForDb() {
         assertEquals("VIEW",     AccessLevel.VIEW.name());
         assertEquals("STOCKER",  AccessLevel.STOCKER.name());
-        assertEquals("CO_OWNER", AccessLevel.CO_OWNER.name());
     }
 
     @Test

@@ -57,6 +57,8 @@ public final class SqlLockService implements LockService {
     }
 
     private void loadAllLocks() throws SQLException {
+        migrateCoOwnerToStocker();
+
         try (Connection c = db.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
@@ -96,6 +98,20 @@ public final class SqlLockService implements LockService {
                 UUID owner   = UUID.fromString(rs.getString(5));
                 LockKey bound = new LockKey(UUID.fromString(rs.getString(6)), rs.getInt(7), rs.getInt(8), rs.getInt(9));
                 cacheManager.putHopper(hk.asId(), new SecureHopperEntry(hk, owner, bound));
+            }
+        }
+    }
+
+    private void migrateCoOwnerToStocker() throws SQLException {
+        try (Connection c = db.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "UPDATE trusted SET level=? WHERE level=?")) {
+            ps.setString(1, AccessLevel.STOCKER.name());
+            ps.setString(2, "CO_OWNER");
+            int migratedRows = ps.executeUpdate();
+            if (migratedRows > 0) {
+                plugin.getLogger().info("Migration: " + migratedRows
+                        + " CO_OWNER Trusts auf STOCKER umgestellt.");
             }
         }
     }
@@ -679,8 +695,8 @@ public final class SqlLockService implements LockService {
     public AccessLevel getAccessLevel(Player player, Block block) {
         LockEntry entry = getLock(block).orElse(null);
         if (entry == null) return null;
-        if (player.hasPermission(Permissions.ADMIN)) return AccessLevel.CO_OWNER;
-        if (entry.owner().equals(player.getUniqueId())) return AccessLevel.CO_OWNER;
+        if (player.hasPermission(Permissions.ADMIN)) return AccessLevel.STOCKER;
+        if (entry.owner().equals(player.getUniqueId())) return AccessLevel.STOCKER;
         return entry.trusted().get(player.getUniqueId());
     }
 

@@ -51,9 +51,9 @@ class LockEntryTest {
     @DisplayName("Mehrere Spieler können mit unterschiedlichen Levels vertraut sein")
     void trusted_mehrereEintraege() {
         entry.trustedMutable().put(USER_A, AccessLevel.VIEW);
-        entry.trustedMutable().put(USER_B, AccessLevel.CO_OWNER);
-        assertEquals(AccessLevel.VIEW,     entry.trusted().get(USER_A));
-        assertEquals(AccessLevel.CO_OWNER, entry.trusted().get(USER_B));
+        entry.trustedMutable().put(USER_B, AccessLevel.STOCKER);
+        assertEquals(AccessLevel.VIEW,    entry.trusted().get(USER_A));
+        assertEquals(AccessLevel.STOCKER, entry.trusted().get(USER_B));
     }
 
     @Test

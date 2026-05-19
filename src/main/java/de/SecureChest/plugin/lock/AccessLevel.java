@@ -2,8 +2,7 @@ package de.SecureChest.plugin.lock;
 
 public enum AccessLevel {
     VIEW,
-    STOCKER,
-    CO_OWNER;
+    STOCKER;
 
     public static AccessLevel fromString(String s) {
         if (s == null) return null;

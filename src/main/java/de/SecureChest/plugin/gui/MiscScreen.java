@@ -129,8 +129,7 @@ final class MiscScreen {
                 "§7Normale Hopper können nicht durchgreifen")));
         inv.setItem(31, h.buildInfoItem(Material.PLAYER_HEAD, "§fVertrauensstufen", List.of(
                 "§7VIEW: Nur Inhalt anzeigen",
-                "§7STOCKER: Items nehmen/legen, nicht abbauen",
-                "§7CO-OWNER: Wie STOCKER (Verwaltung bleibt beim Besitzer)")));
+                "§7STOCKER: Items nehmen und legen, nicht abbauen")));
 
         inv.setItem(40, h.buildButton(Material.ARROW, "§fZurück",
                 List.of("§7Zurück zum Hauptmenü"), "back_main", ""));

@@ -219,7 +219,6 @@ public final class GuiListener implements Listener {
                 String roleLabel = switch (trustLevel) {
                     case "VIEW"     -> "Viewer";
                     case "STOCKER"  -> "Stocker";
-                    case "CO_OWNER" -> "Co-Owner";
                     default         -> trustLevel;
                 };
                 player.closeInventory();

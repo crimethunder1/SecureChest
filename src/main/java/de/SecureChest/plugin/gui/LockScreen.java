@@ -174,21 +174,17 @@ final class LockScreen {
                             formatWarningLine("Vertrauensliste wird zurückgesetzt"),
                             formatHintLine("Undo danach verfügbar")),
                     "transfer_lock_name", lockId));
-            inv.setItem(28, h.buildButton(Material.PLAYER_HEAD, "§fSpieler in der Nähe hinzufügen",
+            inv.setItem(29, h.buildButton(Material.PLAYER_HEAD, "§fSpieler in der Nähe vertrauen",
                     List.of(formatInfoLine("Vertrauen aus Online-Spielern in der Nähe wählen")),
                     "open_trust_nearby", lockId));
-            inv.setItem(30, h.buildButton(Material.MAP, "§fViewer hinzufügen §8(per Name)",
+            inv.setItem(31, h.buildButton(Material.SPYGLASS, "§fViewer per Name hinzufügen",
                     List.of(formatInfoLine("Kann Inhalt anzeigen, nichts bewegen"),
                             formatActionLine("Name im Chat eingeben")),
                     "add_trust_name", "VIEW|" + lockId));
-            inv.setItem(31, h.buildButton(Material.CHEST, "§fStocker hinzufügen §8(per Name)",
-                    List.of(formatInfoLine("Kann Items nehmen und legen"),
+            inv.setItem(33, h.buildButton(Material.CHEST, "§fStocker per Name hinzufügen",
+                    List.of(formatInfoLine("Kann Items nehmen und legen, nichts abbauen"),
                             formatActionLine("Name im Chat eingeben")),
                     "add_trust_name", "STOCKER|" + lockId));
-            inv.setItem(32, h.buildButton(Material.DIAMOND, "§fCo-Owner hinzufügen §8(per Name)",
-                    List.of(formatInfoLine("Voller Zugriff — wie Besitzer"),
-                            formatActionLine("Name im Chat eingeben")),
-                    "add_trust_name", "CO_OWNER|" + lockId));
         }
 
         List<Map.Entry<UUID, AccessLevel>> trustList = lockEntry.trusted().entrySet().stream()
@@ -266,18 +262,14 @@ final class LockScreen {
         String statusLine = cur == null ? formatInfoLine("Aktuell nicht vertraut")
                 : formatInfoLine("Aktuell: §f" + buildAccessLevelLabel(cur));
 
-        inv.setItem(11, h.buildButton(Material.MAP, "§fViewer: §e" + name,
+        inv.setItem(11, h.buildButton(Material.SPYGLASS, "§fViewer: §e" + name,
                 List.of(formatInfoLine("Kann Inhalt anzeigen, nichts bewegen"),
                         statusLine, formatActionLine("Klicken zum Vergeben")),
                 "set_trust_role", "VIEW|" + lockId + "|" + targetUuid));
-        inv.setItem(13, h.buildButton(Material.CHEST, "§fStocker: §e" + name,
-                List.of(formatInfoLine("Kann Items nehmen und legen"),
+        inv.setItem(15, h.buildButton(Material.CHEST, "§fStocker: §e" + name,
+                List.of(formatInfoLine("Kann Items nehmen und legen, nichts abbauen"),
                         statusLine, formatActionLine("Klicken zum Vergeben")),
                 "set_trust_role", "STOCKER|" + lockId + "|" + targetUuid));
-        inv.setItem(15, h.buildButton(Material.DIAMOND, "§fCo-Owner: §e" + name,
-                List.of(formatInfoLine("Voller Zugriff — wie Besitzer"),
-                        statusLine, formatActionLine("Klicken zum Vergeben")),
-                "set_trust_role", "CO_OWNER|" + lockId + "|" + targetUuid));
 
         if (cur != null)
             inv.setItem(26, h.buildButton(Material.BARRIER,
@@ -363,7 +355,6 @@ final class LockScreen {
         return switch (level) {
             case VIEW     -> "Viewer";
             case STOCKER  -> "Stocker";
-            case CO_OWNER -> "Co-Owner";
         };
     }
 }
