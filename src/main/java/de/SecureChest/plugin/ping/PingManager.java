@@ -32,8 +32,6 @@ public final class PingManager {
     public void startPing(Player player, Location targetLocation) {
         stopPing(player);
 
-        player.setCompassTarget(targetLocation);
-
         UUID playerUuid = player.getUniqueId();
 
         BukkitTask updateTask = new BukkitRunnable() {

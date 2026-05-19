@@ -54,19 +54,20 @@ final class AdminScreen {
                 List.of("§7Klicken um Admin-Key zu empfangen"), "give_admin_key", ""));
         inv.setItem(21, h.buildButton(Material.WRITTEN_BOOK, "§fAktivitätslog als Buch",
                 List.of(formatInfoLine("Neueste Log-Einträge als Buch")), "give_logs_book", ""));
-        inv.setItem(23, h.buildButton(Material.WRITTEN_BOOK, "§fServer-Bericht",
+        inv.setItem(23, h.buildButton(Material.ENCHANTED_BOOK, "§fServer-Bericht",
                 List.of(formatInfoLine("Vollständige Server-Schlossübersicht als Buch")),
                 "give_admin_report", ""));
         inv.setItem(25, h.buildButton(Material.PAPER, "§fLogs durchsuchen",
                 List.of(formatInfoLine("Aktivitätslogs filtern und durchsuchen"),
-                        formatInfoLine("Klick → Kompass  |  Shift+Klick → Teleport (OP)")),
+                        formatInfoLine("Klick startet Ping zur Position"),
+                        formatInfoLine("Shift+Klick teleportiert (Admin)")),
                 "open_logs", ""));
         inv.setItem(28, h.buildToggleButton("Inspect-Modus", inspectOn, "toggle_inspect",
-                inspectOn ? "Schleichen + Rechtsklick zeigt Schloss-Informationen."
+                inspectOn ? "Schleichen und Rechtsklick zeigt Schloss-Informationen."
                           : "Aktivieren um Behälter per Schleich-Klick zu untersuchen."));
         inv.setItem(31, h.buildButton(Material.BARRIER, "§cGlobal entsperren",
                 List.of(formatWarningLine("Alle Schlösser eines Spielers entfernen"),
-                        formatHintLine("Spielername im Chat — Bestätigung erforderlich")),
+                        formatHintLine("Spielername im Chat, Bestätigung erforderlich")),
                 "global_unlock", ""));
         inv.setItem(49, h.buildButton(Material.ARROW, "§fZurück",
                 List.of("§7Zurück zum Hauptmenü"), "back_main", ""));
@@ -176,8 +177,8 @@ final class AdminScreen {
         if (r.extra() != null && !r.extra().isBlank())
             lore.add(formatInfoLine("Hinweis:  §f" + r.extra()));
         lore.add(LOG_SEPARATOR);
-        lore.add(formatActionLine("Klick → Kompass setzen"));
-        lore.add(formatActionLine("Shift+Klick → Teleport (OP, Bestätigung)"));
+        lore.add(formatActionLine("Klick startet Ping zur Position"));
+        lore.add(formatActionLine("Shift+Klick teleportiert (Admin, mit Bestätigung)"));
 
         return h.buildButton(icon, title, lore, "log_entry", String.valueOf(r.id()));
     }

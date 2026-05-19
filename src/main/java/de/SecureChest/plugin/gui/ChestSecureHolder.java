@@ -8,6 +8,7 @@ public final class ChestSecureHolder implements InventoryHolder {
     public enum GuiId {
         MAIN,
         HELP,
+        SETTINGS,
         LOCKS_LIST,
         LOCK_MANAGE,
         TRUST_NEARBY,

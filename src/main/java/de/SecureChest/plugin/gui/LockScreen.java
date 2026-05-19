@@ -157,17 +157,14 @@ final class LockScreen {
                         formatInfoLine("Gesperrt: §f"
                                 + DATE_FMT.format(Instant.ofEpochMilli(lockEntry.createdAt()))))));
 
-        inv.setItem(12, h.buildButton(Material.COMPASS, "§fStorage anpingen",
+        inv.setItem(13, h.buildButton(Material.RECOVERY_COMPASS, "§fStorage anpingen",
                 List.of(formatInfoLine("Richtungsanzeige über der Hotbar aktivieren")),
                 "ping_lock", lockId));
-        inv.setItem(13, h.buildButton(Material.PAPER, "§fKoordinaten kopieren",
-                List.of(formatInfoLine("Koordinaten in den Chat schreiben"),
-                        formatActionLine("Klicken zum Kopieren")), "copy_lock", lockId));
 
         if (canManage) {
             inv.setItem(16, h.buildButton(Material.BARRIER, "§cSchloss entfernen",
                     List.of(formatWarningLine("Entfernt dieses Schloss dauerhaft"),
-                            formatHintLine("Bestätigung erforderlich — Undo verfügbar")),
+                            formatHintLine("Bestätigung erforderlich, Undo verfügbar")),
                     "confirm_unlock_one", lockId));
             inv.setItem(15, h.buildButton(Material.ENDER_PEARL, "§fEigentum übertragen",
                     List.of(formatInfoLine("An anderen Spieler übergeben"),

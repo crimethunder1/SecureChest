@@ -3,9 +3,11 @@ package de.SecureChest.plugin.listener;
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.PendingChatAction;
 import de.SecureChest.plugin.Permissions;
+import de.SecureChest.plugin.lock.LockStats;
 import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -79,6 +81,7 @@ public final class GuiListener implements Listener {
         switch (action) {
             case "back_main"         -> plugin.gui().openMain(player);
             case "open_help"         -> plugin.gui().openHelp(player);
+            case "open_settings", "back_settings" -> plugin.gui().openSettings(player);
             case "open_stats"        -> plugin.gui().openStats(player);
             case "open_locks", "back_locks" ->
                     plugin.gui().openLocksList(player, plugin.ui().locks(player.getUniqueId()).page);
@@ -89,24 +92,35 @@ public final class GuiListener implements Listener {
             case "toggle_quicklock" -> {
                 boolean newQuickLockState = !plugin.locks().getQuickLock(player.getUniqueId());
                 plugin.locks().setQuickLock(player.getUniqueId(), newQuickLockState);
-                plugin.gui().openMain(player);
+                plugin.gui().openSettings(player);
             }
             case "toggle_quickremove" -> {
                 boolean newQuickRemoveState = !plugin.locks().getQuickRemove(player.getUniqueId());
                 plugin.locks().setQuickRemove(player.getUniqueId(), newQuickRemoveState);
-                plugin.gui().openMain(player);
+                plugin.gui().openSettings(player);
             }
 
             case "confirm_unlock_all_self" -> {
                 int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                LockStats playerStats = plugin.locks().getLockStats(player.getUniqueId());
+                if (playerStats.totalLocks() == 0 && playerStats.totalSecureHoppers() == 0) {
+                    player.sendMessage(Component.text(
+                            "Du hast keine Schlösser oder Secure Hopper zum Entfernen.",
+                            NamedTextColor.YELLOW));
+                    plugin.gui().openSettings(player);
+                    return;
+                }
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
-                        ConfirmType.UNLOCK_ALL_SELF, player.getUniqueId().toString(), "MAIN", expiresAt));
+                        ConfirmType.UNLOCK_ALL_SELF, player.getUniqueId().toString(), "SETTINGS", expiresAt));
                 plugin.gui().openConfirm(player, "Alle Schlösser entfernen", List.of(
-                        "§7Alle deine gesperrten Blöcke wirklich entfernen?",
-                        "§7Dies schließt alle Secure Hopper ein.",
+                        "§7Folgendes wird unwiderruflich entfernt:",
                         "",
-                        "§eEin Undo ist danach verfügbar."
+                        "§c " + playerStats.totalLocks() + " §7Schlösser",
+                        "§c " + playerStats.totalSecureHoppers() + " §7Secure Hopper",
+                        "§c " + playerStats.totalTrustedRelations() + " §7Vertrauens-Einträge",
+                        "",
+                        "§aEin Undo ist " + plugin.cfg().undoSeconds() + " Sekunden lang verfügbar."
                 ));
             }
 
@@ -114,10 +128,17 @@ public final class GuiListener implements Listener {
                 int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
                 int undoCount  = plugin.undos().count(player.getUniqueId());
+                if (undoCount == 0) {
+                    player.sendMessage(Component.text(
+                            "Keine Aktion zum Rückgängigmachen verfügbar.",
+                            NamedTextColor.YELLOW));
+                    plugin.gui().openMain(player);
+                    return;
+                }
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
                         ConfirmType.UNDO_RESTORE, "", "MAIN", expiresAt));
                 plugin.gui().openConfirm(player, "Rückgängig machen", List.of(
-                        "§7Letzte Aktion (Entsperren oder Transfer) rückgängig?",
+                        "§7Letzte Aktion rückgängig machen?",
                         "",
                         "§7" + undoCount + " Snapshot(s) im Verlauf."
                 ));
@@ -166,33 +187,32 @@ public final class GuiListener implements Listener {
                 player.closeInventory();
             }
 
-            case "copy_lock" -> {
-                var lockEntry = plugin.locks().getLockFromId(actionContext).orElse(null);
-                if (lockEntry != null) {
-                    World lockWorld = Bukkit.getWorld(lockEntry.key().worldUuid());
-                    String worldName = lockWorld != null ? lockWorld.getName()
-                            : lockEntry.key().worldUuid().toString();
-                    player.sendMessage(Component.text(
-                            "Koordinaten: " + worldName
-                                    + " " + lockEntry.key().x()
-                                    + " " + lockEntry.key().y()
-                                    + " " + lockEntry.key().z(),
-                            NamedTextColor.AQUA));
-                }
-                plugin.gui().openLockManage(player, actionContext);
-            }
-
             case "confirm_unlock_one" -> {
                 int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
                 long expiresAt = System.currentTimeMillis() + timeoutSeconds * 1000L;
+                var lockOptional = plugin.locks().getLockFromId(actionContext);
+                if (lockOptional.isEmpty()) {
+                    player.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
+                    plugin.gui().openLocksList(player, 0);
+                    return;
+                }
+                int trustCount = lockOptional.get().trusted().size();
+                String blockName = lockOptional.get().blockType().name().replace('_', ' ').toLowerCase();
                 plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
                         ConfirmType.UNLOCK_ONE, actionContext,
                         "LOCK_MANAGE|" + actionContext, expiresAt));
-                plugin.gui().openConfirm(player, "Schloss entfernen", List.of(
+                List<String> confirmLines = new ArrayList<>(List.of(
                         "§7Dieses Schloss wirklich entfernen?",
                         "",
-                        "§eEin Undo ist danach verfügbar."
-                ));
+                        "§c " + blockName + " §7wird freigegeben"));
+                if (trustCount > 0) {
+                    confirmLines.add("§c " + trustCount + " §7Vertrauens"
+                            + (trustCount == 1 ? "-Eintrag" : "-Einträge")
+                            + " gehen verloren");
+                }
+                confirmLines.add("");
+                confirmLines.add("§aEin Undo ist " + plugin.cfg().undoSeconds() + " Sekunden lang verfügbar.");
+                plugin.gui().openConfirm(player, "Schloss entfernen", confirmLines);
             }
 
             case "confirm_remove_trust" -> {
@@ -342,12 +362,6 @@ public final class GuiListener implements Listener {
                 }
                 LogRecord logRecord = logRecordOptional.get();
                 World targetWorld = Bukkit.getWorld(logRecord.worldUuid());
-                if (targetWorld != null) {
-                    Location targetLocation = new Location(targetWorld,
-                            logRecord.x(), logRecord.y(), logRecord.z());
-                    player.setCompassTarget(targetLocation);
-                    player.sendMessage(Component.text(plugin.msg().get("kompass-gesetzt"), NamedTextColor.AQUA));
-                }
 
                 if (event.getClick() == ClickType.SHIFT_LEFT
                         || event.getClick() == ClickType.SHIFT_RIGHT) {
@@ -379,6 +393,21 @@ public final class GuiListener implements Listener {
                     ));
                     return;
                 }
+
+                if (targetWorld != null) {
+                    Location targetLocation = new Location(targetWorld,
+                            logRecord.x() + 0.5,
+                            logRecord.y() + 0.5,
+                            logRecord.z() + 0.5);
+                    plugin.ping().startPing(player, targetLocation);
+                    player.sendMessage(Component.text(
+                            "Ping aktiv, Richtungsanzeige über der Hotbar gestartet.",
+                            NamedTextColor.AQUA));
+                    player.closeInventory();
+                    return;
+                }
+                player.sendMessage(Component.text(
+                        "Welt der Log-Position ist nicht geladen.", NamedTextColor.RED));
                 plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
             }
 
@@ -459,6 +488,10 @@ public final class GuiListener implements Listener {
     private void routeToDestination(Player player, String destination) {
         if (destination == null || destination.isBlank() || destination.equals("MAIN")) {
             plugin.gui().openMain(player);
+            return;
+        }
+        if (destination.equals("SETTINGS")) {
+            plugin.gui().openSettings(player);
             return;
         }
         if (destination.equals("ADMIN")) {

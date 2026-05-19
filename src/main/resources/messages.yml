@@ -59,7 +59,6 @@ admin-key-erhalten: "Admin-Key erhalten."
 log-buch-erhalten: "Log-Buch erhalten."
 admin-bericht-erhalten: "Admin-Bericht erhalten."
 log-nicht-gefunden: "Log-Eintrag nicht gefunden."
-kompass-gesetzt: "Kompass auf Log-Position gesetzt."
 teleport-keine-berechtigung: "Teleport erfordert die Berechtigung chestsecure.admin.teleport."
 teleport-nur-op: "Teleport erfordert die Berechtigung chestsecure.admin.teleport."
 

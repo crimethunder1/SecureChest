@@ -21,6 +21,7 @@ public final class GuiManager {
 
     public void openMain(Player player)                                 { misc.openMain(player); }
     public void openHelp(Player player)                                 { misc.openHelp(player); }
+    public void openSettings(Player player)                             { misc.openSettings(player); }
     public void openStats(Player player)                                { misc.openStats(player); }
     public void openHoppersList(Player player, int page)                { misc.openHoppersList(player, page); }
     public void openRecipePreview(Player player, boolean showKeyRecipe) { misc.openRecipePreview(player, showKeyRecipe); }

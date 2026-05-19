@@ -40,8 +40,6 @@ final class MiscScreen {
 
     void openMain(Player player) {
         LockStats stats = plugin.locks().getLockStats(player.getUniqueId());
-        boolean qlOn  = plugin.locks().getQuickLock(player.getUniqueId());
-        boolean qrOn  = plugin.locks().getQuickRemove(player.getUniqueId());
 
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.MAIN, "");
         Inventory inv = Bukkit.createInventory(holder, 54, Component.text("§6⚿ §lChestSecure"));
@@ -51,48 +49,68 @@ final class MiscScreen {
                 List.of(formatInfoLine("Schlösser anzeigen und verwalten"),
                         formatInfoLine(stats.totalLocks() + " Schloss/Schlösser vorhanden")),
                 "open_locks", ""));
-        inv.setItem(11, h.buildButton(Material.WRITABLE_BOOK, "§fMeine Statistiken",
+        inv.setItem(12, h.buildButton(Material.BOOK, "§fMeine Statistiken",
                 List.of(formatInfoLine("Übersicht über alle deine Schlösser")),
                 "open_stats", ""));
-        inv.setItem(12, h.buildButton(Material.HOPPER, "§fMeine Secure Hopper",
+        inv.setItem(14, h.buildButton(Material.HOPPER, "§fMeine Secure Hopper",
                 List.of(formatInfoLine("Secure Hopper anzeigen"),
                         formatInfoLine(stats.totalSecureHoppers() + " Secure Hopper vorhanden")),
                 "open_hoppers", ""));
-
-        inv.setItem(14, h.buildButton(Material.TRIPWIRE_HOOK, "§fRezept: Chest Key",
-                List.of(formatInfoLine("Crafting-Rezept anzeigen")), "open_recipe_key", ""));
-        inv.setItem(16, h.buildButton(Material.HOPPER, "§fRezept: Secure Hopper",
-                List.of(formatInfoLine("Crafting-Rezept anzeigen")), "open_recipe_hopper", ""));
-
-        inv.setItem(28, h.buildToggleButton("Quick Lock", qlOn, "toggle_quicklock",
-                qlOn ? "Rechtsklick mit leerer Hand sperrt sofort."
-                     : "Rechtsklick mit Chest Key öffnet Bestätigungsfenster."));
-        inv.setItem(30, h.buildToggleButton("Quick Remove", qrOn, "toggle_quickremove",
-                qrOn ? "Rechtsklick mit Chest Key entsperrt sofort."
-                     : "Rechtsklick mit Chest Key öffnet Bestätigungsfenster."));
-
-        inv.setItem(32, h.buildButton(Material.BARRIER, "§cAlle Schlösser entfernen",
-                List.of(formatWarningLine("Entfernt alle Schlösser und Secure Hopper"),
-                        formatHintLine("Bestätigung erforderlich — Undo danach verfügbar")),
-                "confirm_unlock_all_self", ""));
-        inv.setItem(34, h.buildButton(Material.BOOK, "§fHilfe",
+        inv.setItem(16, h.buildButton(Material.KNOWLEDGE_BOOK, "§fHilfe",
                 List.of(formatInfoLine("Anleitung zur Nutzung von ChestSecure")), "open_help", ""));
+
+        inv.setItem(28, h.buildButton(Material.TRIPWIRE_HOOK, "§fRezept: Chest Key",
+                List.of(formatInfoLine("Crafting-Rezept anzeigen")), "open_recipe_key", ""));
+        inv.setItem(30, h.buildButton(Material.HOPPER, "§fRezept: Secure Hopper",
+                List.of(formatInfoLine("Crafting-Rezept anzeigen")), "open_recipe_hopper", ""));
 
         int undoCount = plugin.undos().count(player.getUniqueId());
         if (undoCount > 0) {
             String undoLabel = undoCount == 1 ? "Letzte Aktion rückgängig"
                     : "Rückgängig (" + undoCount + " Schritte verfügbar)";
-            inv.setItem(31, h.buildButton(Material.SLIME_BALL, "§f" + undoLabel,
+            inv.setItem(32, h.buildButton(Material.ECHO_SHARD, "§f" + undoLabel,
                     List.of(formatInfoLine("Letztes Entsperren oder Transfer rückgängig machen"),
                             formatInfoLine(undoCount + " Snapshot(s) im Verlauf"),
                             formatHintLine("Bestätigung erforderlich")),
                     "confirm_undo_restore", ""));
         }
 
+        inv.setItem(45, h.buildButton(Material.COMPARATOR, "§fEinstellungen",
+                List.of(formatInfoLine("Quick Lock, Quick Remove und mehr")),
+                "open_settings", ""));
+
         if (player.hasPermission(Permissions.ADMIN))
-            inv.setItem(49, h.buildButton(Material.NETHER_STAR, "§6Admin-Panel",
-                    List.of(formatInfoLine("Admin-Werkzeuge — alle Schlösser verwalten")),
+            inv.setItem(53, h.buildButton(Material.NETHER_STAR, "§6Admin-Panel",
+                    List.of(formatInfoLine("Admin-Werkzeuge, alle Schlösser verwalten")),
                     "open_admin", ""));
+
+        h.fillEmptySlots(inv, Material.GRAY_STAINED_GLASS_PANE);
+        player.openInventory(inv);
+        h.playClickSound(player);
+    }
+
+    void openSettings(Player player) {
+        boolean qlOn  = plugin.locks().getQuickLock(player.getUniqueId());
+        boolean qrOn  = plugin.locks().getQuickRemove(player.getUniqueId());
+
+        ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.SETTINGS, "");
+        Inventory inv = Bukkit.createInventory(holder, 54, Component.text("§6⚿ §lEinstellungen"));
+        holder.setInventory(inv);
+
+        inv.setItem(20, h.buildToggleButton("Quick Lock", qlOn, "toggle_quicklock",
+                qlOn ? "Rechtsklick mit leerer Hand sperrt sofort."
+                     : "Rechtsklick mit Chest Key öffnet Bestätigungsfenster."));
+        inv.setItem(24, h.buildToggleButton("Quick Remove", qrOn, "toggle_quickremove",
+                qrOn ? "Rechtsklick mit Chest Key entsperrt sofort."
+                     : "Rechtsklick mit Chest Key öffnet Bestätigungsfenster."));
+
+        inv.setItem(40, h.buildButton(Material.BARRIER, "§cAlle Schlösser entfernen",
+                List.of(formatWarningLine("Entfernt alle Schlösser und Secure Hopper"),
+                        formatHintLine("Bestätigung erforderlich, Undo danach verfügbar")),
+                "confirm_unlock_all_self", ""));
+
+        inv.setItem(45, h.buildButton(Material.ARROW, "§fZurück",
+                List.of("§7Zurück zum Hauptmenü"), "back_main", ""));
 
         h.fillEmptySlots(inv, Material.GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
