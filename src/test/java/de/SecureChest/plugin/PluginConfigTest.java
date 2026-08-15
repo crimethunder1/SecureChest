@@ -104,15 +104,15 @@ class PluginConfigTest {
     }
 
     @Test
-    @DisplayName("limits.max_locks_per_player ist standardmäßig 0 (kein Limit)")
+    @DisplayName("limits.max_locks_per_player ist standardmäßig 1000")
     void default_maxLocks() {
-        assertEquals(0, defaults().maxLocksPerPlayer());
+        assertEquals(1000, defaults().maxLocksPerPlayer());
     }
 
     @Test
-    @DisplayName("limits.max_hoppers_per_player ist standardmäßig 0 (kein Limit)")
+    @DisplayName("limits.max_hoppers_per_player ist standardmäßig 50")
     void default_maxHoppers() {
-        assertEquals(0, defaults().maxHoppersPerPlayer());
+        assertEquals(50, defaults().maxHoppersPerPlayer());
     }
 
     @Test

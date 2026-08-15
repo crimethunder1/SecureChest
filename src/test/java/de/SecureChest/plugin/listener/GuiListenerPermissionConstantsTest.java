@@ -1,5 +1,6 @@
 package de.SecureChest.plugin.listener;
 
+import de.SecureChest.plugin.Permissions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +12,7 @@ class GuiListenerPermissionConstantsTest {
     @Test
     @DisplayName("Teleport-Permission folgt dem Schema chestsecure.admin.<feature>")
     void teleportPermission_followsAdminNamespace() {
-        assertEquals("chestsecure.admin.teleport", GuiListener.PERMISSION_TELEPORT,
+        assertEquals("chestsecure.admin.teleport", Permissions.ADMIN_TELEPORT,
                 "Permission muss unter chestsecure.admin.* liegen, "
                         + "damit Permission-Plugins sie granular vergeben koennen");
     }
@@ -19,7 +20,7 @@ class GuiListenerPermissionConstantsTest {
     @Test
     @DisplayName("Permission-String enthaelt keine Tippfehler oder Whitespace")
     void teleportPermission_isCleanString() {
-        String permission = GuiListener.PERMISSION_TELEPORT;
+        String permission = Permissions.ADMIN_TELEPORT;
         assertFalse(permission.isBlank(), "Permission darf nicht leer sein");
         assertEquals(permission.trim(), permission, "Permission darf keinen Whitespace haben");
         assertFalse(permission.contains(" "), "Permission darf keine Leerzeichen enthalten");
