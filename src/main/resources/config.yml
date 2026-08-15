@@ -1,3 +1,10 @@
+# Whitelist der geschützten Welten: nur hier gelistete Welten sind geschützt.
+# Sonderfall: eine leere Liste (enabled: []) bedeutet "alle Welten geschützt",
+# nicht "keine Welt geschützt" (Auswertung in Worlds.java und
+# PluginConfig.DEFAULT_ENABLED_WORLDS).
+# Ausgeliefert werden world, world_nether, world_the_end. Wer eigene Weltnamen
+# nutzt (z. B. Skyblock- oder Prefix-Welten), muss sie hier eintragen, sonst
+# greift der Schutz dort nicht.
 worlds:
   enabled:
     - world
