@@ -6,6 +6,9 @@ import java.util.List;
 
 public final class PluginConfig {
 
+    static final List<String> DEFAULT_ENABLED_WORLDS =
+            List.of("world", "world_nether", "world_the_end");
+
     private final ChestSecurePlugin plugin;
 
     private boolean soundsEnabled;
@@ -63,7 +66,9 @@ public final class PluginConfig {
         maxHoppersPerPlayer        = cfg.getInt    ("limits.max_hoppers_per_player",       50);
         lockActionCooldownMs        = cfg.getLong   ("cooldowns.lock_action_ms",             1000L);
         breakNotificationCooldownMs = cfg.getLong   ("cooldowns.break_notification_ms",     30000L);
-        enabledWorlds              = cfg.getStringList("worlds.enabled");
+        enabledWorlds              = cfg.isList("worlds.enabled")
+                ? cfg.getStringList("worlds.enabled")
+                : DEFAULT_ENABLED_WORLDS;
     }
 
     public boolean soundsEnabled()            { return soundsEnabled; }

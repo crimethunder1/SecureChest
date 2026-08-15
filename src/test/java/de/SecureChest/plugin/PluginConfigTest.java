@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.StringReader;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -116,10 +117,16 @@ class PluginConfigTest {
     }
 
     @Test
-    @DisplayName("worlds.enabled ist standardmäßig eine leere Liste")
+    @DisplayName("worlds.enabled ist standardmäßig die Liste der drei Standardwelten")
     void default_enabledWorlds() {
-        assertNotNull(defaults().enabledWorlds());
-        assertTrue(defaults().enabledWorlds().isEmpty());
+        assertEquals(List.of("world", "world_nether", "world_the_end"), defaults().enabledWorlds());
+    }
+
+    @Test
+    @DisplayName("worlds.enabled als leere Liste bleibt leer und wird nicht durch den Default ersetzt")
+    void custom_enabledWorldsLeereListe() {
+        PluginConfig cfg = from("worlds:\n  enabled: []");
+        assertTrue(cfg.enabledWorlds().isEmpty());
     }
 
     @Test

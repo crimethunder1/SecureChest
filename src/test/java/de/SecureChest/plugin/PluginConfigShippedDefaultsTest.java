@@ -45,14 +45,10 @@ class PluginConfigShippedDefaultsTest {
             Map.entry("maxLocksPerPlayer",           "limits.max_locks_per_player"),
             Map.entry("maxHoppersPerPlayer",         "limits.max_hoppers_per_player"),
             Map.entry("lockActionCooldownMs",        "cooldowns.lock_action_ms"),
-            Map.entry("breakNotificationCooldownMs", "cooldowns.break_notification_ms"));
+            Map.entry("breakNotificationCooldownMs", "cooldowns.break_notification_ms"),
+            Map.entry("enabledWorlds",               "worlds.enabled"));
 
-    // TODO enabledWorlds laesst sich nicht gegen die ausgelieferte config.yml pruefen:
-    // loadFrom() nutzt getStringList(), das ohne Eintrag immer eine leere Liste liefert und
-    // damit keinen Code-Default besitzt, der mit den drei Welten aus config.yml vergleichbar
-    // waere. Sobald PluginConfig einen expliziten Default fuer worlds.enabled bekommt, gehoert
-    // der Accessor nach YAML_PATH_BY_ACCESSOR statt hierher.
-    private static final Set<String> ACCESSORS_WITHOUT_CODE_DEFAULT = Set.of("enabledWorlds");
+    private static final Set<String> ACCESSORS_WITHOUT_CODE_DEFAULT = Set.of();
 
     private static PluginConfig configFrom(Reader reader) {
         return new PluginConfig(YamlConfiguration.loadConfiguration(reader));
