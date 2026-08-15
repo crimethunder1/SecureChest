@@ -98,6 +98,13 @@ public final class PluginConfig {
     public List<String> enabledWorlds()       { return enabledWorlds; }
 
     public org.bukkit.configuration.ConfigurationSection recipeSection(String name) {
+        if (plugin == null) {
+            throw new IllegalStateException(
+                    "recipeSection(\"" + name + "\") benoetigt die Plugin-Instanz, um die Rezepte "
+                            + "aus der Live-Config zu lesen. Diese PluginConfig wurde ueber den "
+                            + "paketprivaten Konstruktor aus einer FileConfiguration erzeugt und "
+                            + "kennt kein Plugin.");
+        }
         return plugin.getConfig().getConfigurationSection("recipes." + name);
     }
 }
