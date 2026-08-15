@@ -44,6 +44,31 @@
     </dependency>
   </dependencies>
 
+  <profiles>
+    <profile>
+      <id>ide-build-output-eclipse</id>
+      <activation>
+        <property>
+          <name>m2e.version</name>
+        </property>
+      </activation>
+      <build>
+        <directory>${project.basedir}/.ide-build</directory>
+      </build>
+    </profile>
+    <profile>
+      <id>ide-build-output-intellij</id>
+      <activation>
+        <property>
+          <name>idea.version</name>
+        </property>
+      </activation>
+      <build>
+        <directory>${project.basedir}/.ide-build</directory>
+      </build>
+    </profile>
+  </profiles>
+
   <build>
     <plugins>
       <plugin>
