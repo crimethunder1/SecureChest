@@ -23,7 +23,7 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 * The management menu shows the position and trusted players. From there you can ping the storage, transfer ownership, remove the lock and add trusted players, either from online players nearby or by typing a name in chat.
 * Trust levels: a Viewer can open the container and look at the contents but cannot move items. A Stocker can take and put items. Only the owner and admins can break a locked block.
 * A text display with the owner name appears at each locked block.
-* Secure Hopper: place it facing a container you locked. It binds to that container. Normal hoppers and hopper minecarts cannot move items into or out of locked containers. Only the owner can open or break a Secure Hopper. Breaking it drops the Secure Hopper item.
+* Secure Hopper: place it facing a container you locked. It binds to that container. Normal hoppers and hopper minecarts cannot move items into or out of locked containers. Only the owner can open a Secure Hopper, and admins can open it with the Admin Key. The owner and admins can break it. Breaking it drops the Secure Hopper item.
 * Undo: removing a lock, removing all your locks and transferring a lock can be undone in the main menu `/cs` for 20 seconds. Up to 5 steps are kept.
 * Locked blocks and Secure Hoppers are not destroyed by explosions, do not burn, cannot be moved by pistons and cannot be changed by entities. Players cannot place a chest next to a locked chest of another player to form a double chest.
 * When another player tries to break a locked block, the owner gets a chat notification. Offline owners see it at their next join.
