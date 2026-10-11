@@ -111,7 +111,7 @@ public final class SqlLockService implements LockService {
             int migratedRows = ps.executeUpdate();
             if (migratedRows > 0) {
                 plugin.getLogger().info("Migration: " + migratedRows
-                        + " CO_OWNER Trusts auf STOCKER umgestellt.");
+                        + " CO_OWNER trusts changed to STOCKER.");
             }
         }
     }
@@ -140,8 +140,8 @@ public final class SqlLockService implements LockService {
 
         if (Bukkit.isPrimaryThread()) {
             plugin.getLogger().warning("[SecureChest] getLockFromId(\"" + lockId
-                    + "\") trifft synchronen DB-Fallback auf dem Main-Thread! "
-                    + "Sicherstellen, dass der Cache-Warmup vor Spieler-Events abgeschlossen ist.");
+                    + "\") hits the synchronous DB fallback on the main thread! "
+                    + "Make sure the cache warmup finishes before player events.");
         }
 
         try (Connection c = db.getConnection();
@@ -185,7 +185,7 @@ public final class SqlLockService implements LockService {
         String id = key.asId();
         if (cacheManager.removeLock(id) == null) return;
         plugin.signs().removeSign(id);
-        plugin.getLogger().info("[SecureChest] ForceRemove lock " + id + " (block zerstört durch Weltmechanik)");
+        plugin.getLogger().info("[SecureChest] ForceRemove lock " + id + " (block destroyed by world mechanics)");
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection()) {
@@ -213,7 +213,7 @@ public final class SqlLockService implements LockService {
     public void forceRemoveHopperAt(LockKey key) {
         String id = key.asId();
         if (cacheManager.removeHopper(id) == null) return;
-        plugin.getLogger().info("[SecureChest] ForceRemove hopper " + id + " (block zerstört durch Weltmechanik)");
+        plugin.getLogger().info("[SecureChest] ForceRemove hopper " + id + " (block destroyed by world mechanics)");
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection c = db.getConnection();
@@ -351,8 +351,8 @@ public final class SqlLockService implements LockService {
     @Deprecated
     @Override
     public boolean unlockAll(UUID owner) {
-        plugin.getLogger().warning("[SecureChest] unlockAll(UUID) wurde aufgerufen ohne Actor-Kontext. "
-                + "Bitte unlockAllWithUndo(Player, UUID) verwenden.");
+        plugin.getLogger().warning("[SecureChest] unlockAll(UUID) was called without an actor context. "
+                + "Please use unlockAllWithUndo(Player, UUID).");
         boolean hasLocks   = cacheManager.lockValues().stream().anyMatch(e -> e.owner().equals(owner));
         boolean hasHoppers = cacheManager.hopperValues().stream().anyMatch(e -> e.owner().equals(owner));
         if (!hasLocks && !hasHoppers) return false;
@@ -445,8 +445,8 @@ public final class SqlLockService implements LockService {
             return false;
         }
         if (!isSnapshotRestorableBy(peek, actor)) {
-            plugin.getLogger().warning("[SecureChest] restoreUndo abgelehnt: "
-                    + actor.getName() + " besitzt keine Berechtigung fuer Snapshot.");
+            plugin.getLogger().warning("[SecureChest] restoreUndo denied: "
+                    + actor.getName() + " has no permission for this snapshot.");
             return false;
         }
 
@@ -526,8 +526,8 @@ public final class SqlLockService implements LockService {
                     for (UndoSnapshot.SecureHopperRow hr : snapshot.secureHoppers()) {
                         cacheManager.removeHopper(hr.hopperKey().asId());
                     }
-                    plugin.getLogger().warning("[SecureChest] Undo-Restore fehlgeschlagen – "
-                            + "Cache-Rollback durchgeführt. Bitte DB prüfen.");
+                    plugin.getLogger().warning("[SecureChest] Undo restore failed, "
+                            + "cache rollback performed. Please check the database.");
                 });
             }
         });

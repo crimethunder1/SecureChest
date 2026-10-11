@@ -2,7 +2,6 @@ package de.SecureChest.plugin.gui;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -50,16 +49,14 @@ public final class GuiHelper {
         Material pane = enabled ? Material.LIME_STAINED_GLASS_PANE
                                 : Material.RED_STAINED_GLASS_PANE;
         net.kyori.adventure.text.Component displayName =
-                Component.text(label + " — ")
-                        .append(Component.text(enabled ? "AN" : "AUS",
-                                enabled ? NamedTextColor.GREEN : NamedTextColor.RED));
+                Component.text(plugin.msg().get(enabled ? "gui-toggle-name-on" : "gui-toggle-name-off", label));
         ItemStack item = new ItemStack(pane);
         ItemMeta  meta = item.getItemMeta();
         meta.displayName(displayName);
         List<net.kyori.adventure.text.Component> loreCmp = new ArrayList<>();
         if (description != null && !description.isBlank())
             loreCmp.add(Component.text(formatInfoLine(description)));
-        loreCmp.add(Component.text(formatActionLine("Klicken zum Umschalten")));
+        loreCmp.add(Component.text(formatActionLine(plugin.msg().get("gui-toggle-click"))));
         meta.lore(loreCmp);
         meta.getPersistentDataContainer().set(
                 plugin.keyGuiAction(), PersistentDataType.STRING, action);

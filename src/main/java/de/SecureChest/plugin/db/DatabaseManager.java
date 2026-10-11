@@ -40,7 +40,7 @@ public final class DatabaseManager {
 
             try { Class.forName("org.sqlite.JDBC"); }
             catch (ClassNotFoundException ignored) {
-                plugin.getLogger().warning("SQLite JDBC driver nicht gefunden – versuche fortzufahren...");
+                plugin.getLogger().warning("SQLite JDBC driver not found, trying to continue...");
             }
 
             for (int i = 0; i < POOL_SIZE; i++) {
@@ -50,10 +50,10 @@ public final class DatabaseManager {
             }
 
             createTables();
-            plugin.getLogger().info("Datenbankverbindungen initialisiert (Pool-Größe: " + POOL_SIZE + ").");
+            plugin.getLogger().info("Database connections initialized (pool size: " + POOL_SIZE + ").");
             return true;
         } catch (Exception ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB-Initialisierung fehlgeschlagen", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB initialization failed", ex);
             return false;
         }
     }
@@ -161,7 +161,7 @@ public final class DatabaseManager {
         try {
             Connection real = pool.take();
             if (real.isClosed() || !real.isValid(1)) {
-                plugin.getLogger().warning("Ungueltige DB-Verbindung erkannt – erstelle neue.");
+                plugin.getLogger().warning("Invalid DB connection detected, creating a new one.");
                 real.close();
                 real = createConnection();
                 allConnections.add(real);
@@ -224,11 +224,11 @@ public final class DatabaseManager {
                     c.close();
                 }
             } catch (SQLException ex) {
-                plugin.getLogger().log(Level.WARNING, "Fehler beim Schließen einer DB-Verbindung", ex);
+                plugin.getLogger().log(Level.WARNING, "Error while closing a DB connection", ex);
             }
         }
         allConnections.clear();
         pool.clear();
-        plugin.getLogger().info("Datenbankverbindungen geschlossen.");
+        plugin.getLogger().info("Database connections closed.");
     }
 }

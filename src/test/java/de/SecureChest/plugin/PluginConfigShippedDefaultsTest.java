@@ -46,7 +46,8 @@ class PluginConfigShippedDefaultsTest {
             Map.entry("maxHoppersPerPlayer",         "limits.max_hoppers_per_player"),
             Map.entry("lockActionCooldownMs",        "cooldowns.lock_action_ms"),
             Map.entry("breakNotificationCooldownMs", "cooldowns.break_notification_ms"),
-            Map.entry("enabledWorlds",               "worlds.enabled"));
+            Map.entry("enabledWorlds",               "worlds.enabled"),
+            Map.entry("language",                    "language"));
 
     private static final Set<String> ACCESSORS_WITHOUT_CODE_DEFAULT = Set.of();
 

@@ -3,11 +3,16 @@ package de.SecureChest.plugin;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.logging.Logger;
 
 public final class PluginConfig {
 
     static final List<String> DEFAULT_ENABLED_WORLDS =
             List.of("world", "world_nether", "world_the_end");
+
+    static final String DEFAULT_LANGUAGE = "en";
+    static final List<String> SUPPORTED_LANGUAGES = List.of("en", "de");
 
     private final ChestSecurePlugin plugin;
 
@@ -30,6 +35,7 @@ public final class PluginConfig {
     private long    lockActionCooldownMs;
     private long    breakNotificationCooldownMs;
     private List<String> enabledWorlds;
+    private String  language;
 
     public PluginConfig(ChestSecurePlugin plugin) {
         this.plugin = plugin;
@@ -69,6 +75,20 @@ public final class PluginConfig {
         enabledWorlds              = cfg.isList("worlds.enabled")
                 ? cfg.getStringList("worlds.enabled")
                 : DEFAULT_ENABLED_WORLDS;
+        language                   = resolveLanguage(cfg.getString("language"));
+    }
+
+    private String resolveLanguage(String configuredLanguage) {
+        if (configuredLanguage == null) return DEFAULT_LANGUAGE;
+        String normalizedLanguage = configuredLanguage.trim().toLowerCase(Locale.ROOT);
+        if (SUPPORTED_LANGUAGES.contains(normalizedLanguage)) return normalizedLanguage;
+        logger().warning("Unsupported language '" + configuredLanguage + "' in config.yml, using "
+                + DEFAULT_LANGUAGE + ". Supported values: " + String.join(", ", SUPPORTED_LANGUAGES) + ".");
+        return DEFAULT_LANGUAGE;
+    }
+
+    private Logger logger() {
+        return plugin != null ? plugin.getLogger() : Logger.getLogger("ChestSecure");
     }
 
     public boolean soundsEnabled()            { return soundsEnabled; }
@@ -96,6 +116,8 @@ public final class PluginConfig {
     public long    breakNotificationCooldownMs() { return breakNotificationCooldownMs; }
 
     public List<String> enabledWorlds()       { return enabledWorlds; }
+
+    public String  language()                 { return language; }
 
     public org.bukkit.configuration.ConfigurationSection recipeSection(String name) {
         if (plugin == null) {

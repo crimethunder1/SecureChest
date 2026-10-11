@@ -31,8 +31,8 @@ public final class PlayerSettingsRepository {
         requireAllowedField(field);
         if (Bukkit.isPrimaryThread()) {
             plugin.getLogger().warning("[SecureChest] loadSetting('" + field
-                    + "') auf dem Main-Thread fuer " + player
-                    + " – gibt Default zurueck. Einstellungen werden bald nachgeladen.");
+                    + "') on the main thread for " + player
+                    + ", returning the default. Settings will be loaded shortly.");
 
             return false;
         }
@@ -44,7 +44,7 @@ public final class PlayerSettingsRepository {
                 if (rs.next()) return rs.getInt(1) == 1;
             }
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB loadSetting fehlgeschlagen fuer " + player, ex);
+            plugin.getLogger().log(Level.SEVERE, "DB loadSetting failed for " + player, ex);
         }
         return false;
     }
@@ -59,7 +59,7 @@ public final class PlayerSettingsRepository {
             ps.setString(2, player.toString());
             ps.executeUpdate();
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB saveSetting fehlgeschlagen fuer " + player, ex);
+            plugin.getLogger().log(Level.SEVERE, "DB saveSetting failed for " + player, ex);
         }
     }
 
@@ -71,7 +71,7 @@ public final class PlayerSettingsRepository {
             ps.setString(1, player.toString());
             ps.executeUpdate();
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.WARNING, "DB ensureSettingsRow fehlgeschlagen fuer " + player, ex);
+            plugin.getLogger().log(Level.WARNING, "DB ensureSettingsRow failed for " + player, ex);
         }
     }
 
@@ -99,7 +99,7 @@ public final class PlayerSettingsRepository {
                 }
                 c.commit();
             } catch (SQLException ex) {
-                plugin.getLogger().log(Level.SEVERE, "DB addNotification fehlgeschlagen fuer " + ownerStr, ex);
+                plugin.getLogger().log(Level.SEVERE, "DB addNotification failed for " + ownerStr, ex);
             }
         });
     }
@@ -126,7 +126,7 @@ public final class PlayerSettingsRepository {
                 }
             }
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB fetchAndClearNotifications fehlgeschlagen fuer " + playerUuid, ex);
+            plugin.getLogger().log(Level.SEVERE, "DB fetchAndClearNotifications failed for " + playerUuid, ex);
         }
         return out;
     }

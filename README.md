@@ -11,7 +11,7 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 ## Installation
 
 * Put the JAR into the `plugins` folder and start the server.
-* ChestSecure creates `plugins/ChestSecure` with `config.yml`, `messages.yml` and the database `chestsecure.db`.
+* ChestSecure creates `plugins/ChestSecure` with `config.yml`, the folder `lang` with `en.yml` and `de.yml`, and the database `chestsecure.db`.
 * Set the worlds in `config.yml` under `worlds.enabled`. The defaults are `world`, `world_nether` and `world_the_end`. Players can only lock blocks in listed worlds. An empty list (`enabled: []`) enables all worlds.
 
 ## Usage
@@ -64,6 +64,7 @@ I = Iron Block, H = Hopper, K = Chest Key, empty brackets mean an empty slot
 
 ## Configuration
 
+* `language: en` sets the language for the whole server. The values are `en` and `de`, the default is `en`.
 * `sounds.enabled: true` and `particles.enabled: true` play feedback on lock actions.
 * `signs.enabled: true` shows the owner text display at locked blocks.
 * `ui.confirm_timeout_seconds: 15` is the time a confirmation stays valid.
@@ -78,7 +79,13 @@ I = Iron Block, H = Hopper, K = Chest Key, empty brackets mean an empty slot
 
 ## Language
 
-Menus and chat messages are in German. Most chat messages and the item names and lore are in `messages.yml` and can be changed there. Run `/cs reload` after editing. The menu labels are fixed in the code.
+ChestSecure ships with English and German.
+
+* Set `language` in `config.yml` to `en` or `de`. The setting applies to the whole server.
+* The texts are in `plugins/ChestSecure/lang/en.yml` and `plugins/ChestSecure/lang/de.yml` and can be changed there.
+* Color codes are written with `&`, for example `&a` for green. Placeholders like `{0}` are replaced with values such as player names or numbers.
+* Run `/cs reload` after changing the setting or a language file.
+* Items that were already created keep the name and lore of the language they were created in.
 
 ## Building
 

@@ -24,8 +24,6 @@ import de.SecureChest.plugin.lock.LockUtil;
 import de.SecureChest.plugin.lock.SecureHopperEntry;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 
 public final class SignManager implements Listener {
 
@@ -54,9 +52,7 @@ public final class SignManager implements Listener {
             Location loc = new Location(world, key.x() + 0.5, key.y() + SIGN_Y_OFFSET, key.z() + 0.5);
             TextDisplay td = world.spawn(loc, TextDisplay.class, entity -> {
                 entity.text(
-                    Component.text("\uD83D\uDD12 ", NamedTextColor.GOLD)
-                             .append(Component.text(ownerName, NamedTextColor.YELLOW)
-                                              .decorate(TextDecoration.BOLD))
+                    Component.text(plugin.msg().get("sign-owner-display", ownerName))
                 );
                 entity.setBillboard(Display.Billboard.CENTER);
                 entity.setPersistent(false);
@@ -98,7 +94,7 @@ public final class SignManager implements Listener {
                 }
                 if (end == total) {
                     plugin.getLogger().info("SignManager: " + signEntities.size()
-                            + " Signs gespawnt (Batches à " + BATCH_SIZE + ").");
+                            + " signs spawned (batches of " + BATCH_SIZE + ").");
                 }
             }, delay);
         }
@@ -117,8 +113,8 @@ public final class SignManager implements Listener {
                 if ((k.x() >> 4) != cx || (k.z() >> 4) != cz) continue;
                 Block block = world.getBlockAt(k.x(), k.y(), k.z());
                 if (!LockUtil.isLockable(block)) {
-                    plugin.getLogger().info("[SecureChest] Orphan-Lock bei " + k.asId()
-                            + " (Blocktyp: " + block.getType() + "), räume auf.");
+                    plugin.getLogger().info("[SecureChest] Orphan lock at " + k.asId()
+                            + " (block type: " + block.getType() + "), cleaning up.");
                     plugin.locks().forceRemoveLockAt(k);
                     continue;
                 }
@@ -141,8 +137,8 @@ public final class SignManager implements Listener {
 
             Block block = world.getBlockAt(k.x(), k.y(), k.z());
             if (!LockUtil.isLockable(block)) {
-                plugin.getLogger().info("[SecureChest] Orphan-Lock (periodisch) bei " + k.asId()
-                        + " (Blocktyp: " + block.getType() + "), räume auf.");
+                plugin.getLogger().info("[SecureChest] Orphan lock (periodic check) at " + k.asId()
+                        + " (block type: " + block.getType() + "), cleaning up.");
                 plugin.locks().forceRemoveLockAt(k);
                 cleaned++;
             }
@@ -156,15 +152,15 @@ public final class SignManager implements Listener {
 
             Block block = world.getBlockAt(k.x(), k.y(), k.z());
             if (block.getType() != Material.HOPPER) {
-                plugin.getLogger().info("[SecureChest] Orphan-Hopper (periodisch) bei " + k.asId()
-                        + " (Blocktyp: " + block.getType() + "), räume auf.");
+                plugin.getLogger().info("[SecureChest] Orphan hopper (periodic check) at " + k.asId()
+                        + " (block type: " + block.getType() + "), cleaning up.");
                 plugin.locks().forceRemoveHopperAt(k);
                 cleaned++;
             }
         }
 
         if (cleaned > 0) {
-            plugin.getLogger().info("[SecureChest] Periodische Validierung: " + cleaned + " Orphan(s) bereinigt.");
+            plugin.getLogger().info("[SecureChest] Periodic validation: cleaned up " + cleaned + " orphan(s).");
         }
     }
 

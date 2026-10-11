@@ -85,7 +85,7 @@ public final class LogRepository {
                 ps.setString(10, extra);
                 ps.executeUpdate();
             } catch (SQLException ex) {
-                plugin.getLogger().log(Level.SEVERE, "DB log insert fehlgeschlagen", ex);
+                plugin.getLogger().log(Level.SEVERE, "DB log insert failed", ex);
             }
         });
     }
@@ -106,9 +106,9 @@ public final class LogRepository {
                 }
             }
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB Log-Buch lesen fehlgeschlagen", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB reading log book failed", ex);
         }
-        if (lines.isEmpty()) lines.add("Noch keine Logs vorhanden.");
+        if (lines.isEmpty()) lines.add(plugin.msg().get("book-logs-empty"));
         return BookUtil.buildLogsBook(lines);
     }
 
@@ -131,7 +131,7 @@ public final class LogRepository {
                 }
             }
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB listLogs fehlgeschlagen", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB listLogs failed", ex);
         }
         return out;
     }
@@ -148,7 +148,7 @@ public final class LogRepository {
                 if (rs.next()) return rs.getInt(1);
             }
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB countLogs fehlgeschlagen", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB countLogs failed", ex);
         }
         return 0;
     }
@@ -164,7 +164,7 @@ public final class LogRepository {
                 return Optional.of(mapLogRecord(rs));
             }
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB getLogById fehlgeschlagen", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB getLogById failed", ex);
             return Optional.empty();
         }
     }
@@ -190,19 +190,19 @@ public final class LogRepository {
             unauth24h = countLogsRaw(c, "UNAUTHORIZED_BREAK", h24);
             admin24h  = countLogsRaw(c, "ADMIN_BREAK",        h24);
         } catch (SQLException ex) {
-            plugin.getLogger().log(Level.SEVERE, "DB Admin-Report fehlgeschlagen", ex);
+            plugin.getLogger().log(Level.SEVERE, "DB admin report failed", ex);
         }
 
-        lines.add("ChestSecure Admin Report");
-        lines.add(""); lines.add("Gesamt:");
-        lines.add("- Locks: "          + totalLocks);
-        lines.add("- Secure Hopper: "  + totalHoppers);
-        lines.add(""); lines.add("Logs:");
-        lines.add("- Letzte 24h: "     + logs24h);
-        lines.add("- Letzte 7 Tage: "  + logs7d);
-        lines.add("- Unauth (24h): "   + unauth24h);
-        lines.add("- Admin (24h): "    + admin24h);
-        lines.add(""); lines.add("Top Unauth (7d):");
+        lines.add(plugin.msg().get("book-report-title"));
+        lines.add(""); lines.add(plugin.msg().get("book-report-totals"));
+        lines.add(plugin.msg().get("book-report-locks",              totalLocks));
+        lines.add(plugin.msg().get("book-report-hoppers",            totalHoppers));
+        lines.add(""); lines.add(plugin.msg().get("book-report-logs"));
+        lines.add(plugin.msg().get("book-report-logs-24-hours",      logs24h));
+        lines.add(plugin.msg().get("book-report-logs-7-days",        logs7d));
+        lines.add(plugin.msg().get("book-report-unauthorized-24-hours", unauth24h));
+        lines.add(plugin.msg().get("book-report-admin-24-hours",     admin24h));
+        lines.add(""); lines.add(plugin.msg().get("book-report-top-unauthorized"));
 
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -212,10 +212,10 @@ public final class LogRepository {
             ps.setLong(1, d7);
             try (ResultSet rs = ps.executeQuery()) {
                 boolean any = false;
-                while (rs.next()) { any = true; lines.add("- " + rs.getString(1) + ": " + rs.getInt(2)); }
-                if (!any) lines.add("- keine");
+                while (rs.next()) { any = true; lines.add(plugin.msg().get("book-report-top-entry", rs.getString(1), rs.getInt(2))); }
+                if (!any) lines.add(plugin.msg().get("book-report-none"));
             }
-        } catch (SQLException ex) { lines.add("- (Fehler)"); }
+        } catch (SQLException ex) { lines.add(plugin.msg().get("book-report-error")); }
 
         return BookUtil.buildBook("ChestSecure Report", "ChestSecure Report", "ChestSecure", lines);
     }

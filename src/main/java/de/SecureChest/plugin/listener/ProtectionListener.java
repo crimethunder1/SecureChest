@@ -213,16 +213,13 @@ public final class ProtectionListener implements Listener {
                 expiresAt
         ));
         String blockTypeName = block.getType().name().replace('_', ' ');
-        Bukkit.getScheduler().runTask(plugin, () ->
-                plugin.gui().openConfirm(player, "Block sperren",
-                        List.of(
-                                "Diesen " + blockTypeName + " sperren?",
-                                "",
-                                "Tipp: Schalte Quick Lock ein,",
-                                "um diesen Schritt zu überspringen."
-                        )
-                )
-        );
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            List<String> confirmLines = new ArrayList<>();
+            confirmLines.add(plugin.msg().get("confirm-lock-block-question", blockTypeName));
+            confirmLines.add("");
+            confirmLines.addAll(plugin.msg().getList("confirm-lock-block-tip"));
+            plugin.gui().openConfirm(player, plugin.msg().get("confirm-lock-block-title"), confirmLines);
+        });
     }
 
     private void processUnlockRequest(Player player, Block block) {
@@ -726,12 +723,13 @@ public final class ProtectionListener implements Listener {
         }
 
         String locationString = block.getWorld().getName() + " " + block.getX() + " " + block.getY() + " " + block.getZ();
-        String notificationMessage = attacker.getName() + " hat versucht, dein " + blockTypeName + " bei " + locationString + " zu zerstören";
+        String notificationMessage = plugin.msg().get("notification-break-attempt",
+                attacker.getName(), blockTypeName, locationString);
 
         Player onlineOwner = Bukkit.getPlayer(ownerUuid);
         if (onlineOwner != null && onlineOwner.isOnline()) {
             onlineOwner.sendMessage(
-                    Component.text("⚠ [ChestSecure] ", NamedTextColor.RED)
+                    Component.text(plugin.msg().get("notification-break-attempt-prefix"), NamedTextColor.RED)
                             .append(Component.text(notificationMessage, NamedTextColor.YELLOW))
             );
         } else {

@@ -3,7 +3,6 @@ package de.SecureChest.plugin.ping;
 import de.SecureChest.plugin.ChestSecurePlugin;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -87,9 +86,7 @@ public final class PingManager {
     }
 
     private Component buildNavigationActionBarMessage(String directionLabel, int distanceBlocks) {
-        return Component.text("⟶ ", TextColor.color(0x00CFFF))
-                .append(Component.text(directionLabel + "  ", NamedTextColor.WHITE))
-                .append(Component.text(distanceBlocks + " Blöcke", TextColor.color(0xFFAA00)));
+        return Component.text(plugin.msg().get("ping-navigation", directionLabel, distanceBlocks));
     }
 
     private Component buildArrivalActionBarMessage() {
@@ -107,8 +104,11 @@ public final class PingManager {
         if (angleDegrees < 0) {
             angleDegrees += 360.0;
         }
-        String[] directionLabels = {"↑ N", "↗ NO", "→ O", "↘ SO", "↓ S", "↙ SW", "← W", "↖ NW"};
+        String[] directionLabelKeys = {
+                "ping-direction-north", "ping-direction-north-east", "ping-direction-east",
+                "ping-direction-south-east", "ping-direction-south", "ping-direction-south-west",
+                "ping-direction-west", "ping-direction-north-west"};
         int labelIndex = (int) Math.round(angleDegrees / 45.0) % 8;
-        return directionLabels[labelIndex];
+        return plugin.msg().get(directionLabelKeys[labelIndex]);
     }
 }

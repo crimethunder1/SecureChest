@@ -18,7 +18,6 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import static de.SecureChest.plugin.gui.GuiHelper.*;
 
 final class LockScreen {
 
@@ -64,20 +63,17 @@ final class LockScreen {
 
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.LOCKS_LIST, "");
         Inventory inv = Bukkit.createInventory(holder, 54,
-                Component.text("§6Meine Schlösser §8(§f" + (state.page + 1)
-                        + "§8/§f" + (maxPage + 1) + "§8)"));
+                Component.text(text("gui-lock-list-title", state.page + 1, maxPage + 1)));
         holder.setInventory(inv);
 
         if (views.isEmpty()) {
             boolean hasAny = plugin.locks().countLocks(player.getUniqueId()) > 0;
             if (hasAny) {
-                inv.setItem(22, h.buildInfoItem(Material.COMPASS, "§eKeine Schlösser für aktive Filter",
-                        List.of(formatInfoLine("Versuche Welt- oder Typ-Filter zu ändern."),
-                                formatActionLine("Filter zurücksetzen: Welt=ALLE, Typ=ALLE"))));
+                inv.setItem(22, h.buildInfoItem(Material.COMPASS, text("gui-lock-list-filter-empty-name"),
+                        lines("gui-lock-list-filter-empty-lore")));
             } else {
-                inv.setItem(22, h.buildInfoItem(Material.CHEST, "§eNoch keine gesperrten Blöcke",
-                        List.of(formatInfoLine("Chest Key craften und Rechtsklick auf Kiste/Barrel/Shulker."),
-                                formatHintLine("Rezept im Hauptmenü ansehen."))));
+                inv.setItem(22, h.buildInfoItem(Material.CHEST, text("gui-lock-list-empty-name"),
+                        lines("gui-lock-list-empty-lore")));
             }
         }
 
@@ -86,21 +82,21 @@ final class LockScreen {
         for (int i = start; i < end; i++)
             inv.setItem(i - start, buildLockListEntry(player, views.get(i)));
 
-        inv.setItem(45, h.buildButton(Material.ARROW, "§fZurück",
-                List.of("§7Zurück zum Hauptmenü"), "back_main", ""));
-        inv.setItem(47, h.buildButton(Material.HOPPER, "§fSortierung: §e" + state.sort,
-                List.of("§7Klicken zum Wechseln"), "locks_cycle_sort", ""));
-        inv.setItem(48, h.buildButton(Material.COMPASS, "§fWelt: §e" + state.world,
-                List.of("§7Klicken zum Wechseln"), "locks_cycle_world", ""));
-        inv.setItem(49, h.buildButton(Material.ITEM_FRAME, "§fTyp: §e" + state.type,
-                List.of("§7Klicken zum Wechseln"), "locks_cycle_type", ""));
+        inv.setItem(45, h.buildButton(Material.ARROW, text("gui-back-name"),
+                lines("gui-back-main-lore"), "back_main", ""));
+        inv.setItem(47, h.buildButton(Material.HOPPER, text("gui-lock-list-sort-name", text(state.sort.labelKey())),
+                lines("gui-cycle-lore"), "locks_cycle_sort", ""));
+        inv.setItem(48, h.buildButton(Material.COMPASS, text("gui-lock-list-world-name", text(state.world.labelKey())),
+                lines("gui-cycle-lore"), "locks_cycle_world", ""));
+        inv.setItem(49, h.buildButton(Material.ITEM_FRAME, text("gui-lock-list-type-name", text(state.type.labelKey())),
+                lines("gui-cycle-lore"), "locks_cycle_type", ""));
 
         if (state.page > 0)
-            inv.setItem(52, h.buildButton(Material.PAPER, "§fVorherige Seite",
-                    List.of("§7Seite " + state.page), "locks_page", String.valueOf(state.page - 1)));
+            inv.setItem(52, h.buildButton(Material.PAPER, text("gui-page-previous-name"),
+                    lines("gui-page-lore", state.page), "locks_page", String.valueOf(state.page - 1)));
         if (state.page < maxPage)
-            inv.setItem(53, h.buildButton(Material.PAPER, "§fNächste Seite",
-                    List.of("§7Seite " + (state.page + 2)), "locks_page", String.valueOf(state.page + 1)));
+            inv.setItem(53, h.buildButton(Material.PAPER, text("gui-page-next-name"),
+                    lines("gui-page-lore", state.page + 2), "locks_page", String.valueOf(state.page + 1)));
 
         h.fillEmptySlots(inv, Material.GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
@@ -140,56 +136,51 @@ final class LockScreen {
         Location lockLoc  = new Location(Bukkit.getWorld(lockEntry.key().worldUuid()),
                 lockEntry.key().x(), lockEntry.key().y(), lockEntry.key().z());
         String worldName  = lockLoc.getWorld() != null ? lockLoc.getWorld().getName() : "?";
-        String ownerLabel = isOwner ? " §a(deins)"
-                : " §7– Besitzer: §f" + h.resolvePlayerName(lockEntry.owner());
+        String infoName   = isOwner
+                ? text("gui-lock-manage-info-name-own", blockName)
+                : text("gui-lock-manage-info-name-other", blockName, h.resolvePlayerName(lockEntry.owner()));
 
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.LOCK_MANAGE, lockId);
         Inventory inv = Bukkit.createInventory(holder, 54,
-                Component.text("§6Schloss verwalten §8– §f" + blockName));
+                Component.text(text("gui-lock-manage-title", blockName)));
         holder.setInventory(inv);
 
         inv.setItem(10, h.buildInfoItem(
                 lockEntry.blockType().isItem() ? lockEntry.blockType() : Material.CHEST,
-                "§f" + blockName + ownerLabel,
-                List.of(formatInfoLine("Welt:     §f" + worldName),
-                        formatInfoLine("Position: §f" + lockLoc.getBlockX()
-                                + " " + lockLoc.getBlockY() + " " + lockLoc.getBlockZ()),
-                        formatInfoLine("Gesperrt: §f"
-                                + DATE_FMT.format(Instant.ofEpochMilli(lockEntry.createdAt()))))));
+                infoName,
+                lines("gui-lock-manage-info-lore", worldName,
+                        lockLoc.getBlockX(), lockLoc.getBlockY(), lockLoc.getBlockZ(),
+                        DATE_FMT.format(Instant.ofEpochMilli(lockEntry.createdAt())))));
 
-        inv.setItem(13, h.buildButton(Material.RECOVERY_COMPASS, "§fStorage anpingen",
-                List.of(formatInfoLine("Richtungsanzeige über der Hotbar aktivieren")),
+        inv.setItem(13, h.buildButton(Material.RECOVERY_COMPASS, text("gui-lock-manage-ping-name"),
+                lines("gui-lock-manage-ping-lore"),
                 "ping_lock", lockId));
 
         if (canManage) {
-            inv.setItem(16, h.buildButton(Material.BARRIER, "§cSchloss entfernen",
-                    List.of(formatWarningLine("Entfernt dieses Schloss dauerhaft"),
-                            formatHintLine("Bestätigung erforderlich, Undo verfügbar")),
+            inv.setItem(16, h.buildButton(Material.BARRIER, text("gui-lock-manage-remove-name"),
+                    lines("gui-lock-manage-remove-lore"),
                     "confirm_unlock_one", lockId));
-            inv.setItem(15, h.buildButton(Material.ENDER_PEARL, "§fEigentum übertragen",
-                    List.of(formatInfoLine("An anderen Spieler übergeben"),
-                            formatWarningLine("Vertrauensliste wird zurückgesetzt"),
-                            formatHintLine("Undo danach verfügbar")),
+            inv.setItem(15, h.buildButton(Material.ENDER_PEARL, text("gui-lock-manage-transfer-name"),
+                    lines("gui-lock-manage-transfer-lore"),
                     "transfer_lock_name", lockId));
-            inv.setItem(29, h.buildButton(Material.PLAYER_HEAD, "§fSpieler in der Nähe vertrauen",
-                    List.of(formatInfoLine("Vertrauen aus Online-Spielern in der Nähe wählen")),
+            inv.setItem(29, h.buildButton(Material.PLAYER_HEAD, text("gui-lock-manage-trust-nearby-name"),
+                    lines("gui-lock-manage-trust-nearby-lore"),
                     "open_trust_nearby", lockId));
-            inv.setItem(31, h.buildButton(Material.SPYGLASS, "§fViewer per Name hinzufügen",
-                    List.of(formatInfoLine("Kann Inhalt anzeigen, nichts bewegen"),
-                            formatActionLine("Name im Chat eingeben")),
+            inv.setItem(31, h.buildButton(Material.SPYGLASS, text("gui-lock-manage-add-viewer-name"),
+                    lines("gui-lock-manage-add-viewer-lore"),
                     "add_trust_name", "VIEW|" + lockId));
-            inv.setItem(33, h.buildButton(Material.CHEST, "§fStocker per Name hinzufügen",
-                    List.of(formatInfoLine("Kann Items nehmen und legen, nichts abbauen"),
-                            formatActionLine("Name im Chat eingeben")),
+            inv.setItem(33, h.buildButton(Material.CHEST, text("gui-lock-manage-add-stocker-name"),
+                    lines("gui-lock-manage-add-stocker-lore"),
                     "add_trust_name", "STOCKER|" + lockId));
         }
 
         List<Map.Entry<UUID, AccessLevel>> trustList = lockEntry.trusted().entrySet().stream()
                 .sorted(Comparator.comparing(e -> e.getValue().name())).toList();
         int trustCount = trustList.size();
-        String countLabel = trustCount == 0 ? "§7Keine vertrauten Spieler"
-                : "§f" + trustCount + " vertraute" + (trustCount == 1 ? "r Spieler" : " Spieler")
-                  + (trustCount > 9 ? " §8(erste 9 angezeigt)" : "");
+        String countLabel = trustCount == 0 ? text("gui-lock-manage-trusted-none")
+                : trustCount == 1 ? text("gui-lock-manage-trusted-one", trustCount)
+                : trustCount > 9  ? text("gui-lock-manage-trusted-many-limited", trustCount)
+                : text("gui-lock-manage-trusted-many", trustCount);
         inv.setItem(35, h.buildInfoItem(Material.NAME_TAG, countLabel, List.of()));
 
         int trustSlot = 36;
@@ -198,8 +189,8 @@ final class LockScreen {
             inv.setItem(trustSlot++, buildTrustListEntry(e.getKey(), e.getValue(), lockId, canManage));
         }
 
-        inv.setItem(45, h.buildButton(Material.ARROW, "§fZurück",
-                List.of("§7Zurück zur Schlossliste"), "back_locks", ""));
+        inv.setItem(45, h.buildButton(Material.ARROW, text("gui-back-name"),
+                lines("gui-back-lock-list-lore"), "back_locks", ""));
         h.fillEmptySlots(inv, Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
         h.playClickSound(player);
@@ -208,7 +199,7 @@ final class LockScreen {
     void openTrustNearby(Player player, String lockId) {
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.TRUST_NEARBY, lockId);
         Inventory inv = Bukkit.createInventory(holder, 54,
-                Component.text("§6Spieler in der Nähe – Vertrauen vergeben"));
+                Component.text(text("gui-trust-nearby-title")));
         holder.setInventory(inv);
 
         Map<UUID, AccessLevel> existing = plugin.locks().getLockFromId(lockId)
@@ -227,20 +218,18 @@ final class LockScreen {
             if (slot >= 45) break;
             AccessLevel cur = existing.get(p.getUniqueId());
             List<String> lore = cur != null
-                    ? List.of(formatInfoLine("Bereits vertraut als: §f" + buildAccessLevelLabel(cur)),
-                              formatActionLine("Klicken um Rolle zu ändern oder zu entfernen"))
-                    : List.of(formatActionLine("Klicken um Vertrauensrolle zuzuweisen"));
+                    ? lines("gui-trust-nearby-trusted-lore", buildAccessLevelLabel(cur))
+                    : lines("gui-trust-nearby-untrusted-lore");
             inv.setItem(slot++, h.buildPlayerHeadButton(p.getUniqueId(), p.getName(), lore,
                     "open_trust_role", lockId + "|" + p.getUniqueId()));
         }
 
         if (nearby.isEmpty())
-            inv.setItem(22, h.buildInfoItem(Material.BARRIER, "§eKeine Spieler in der Nähe",
-                    List.of(formatInfoLine("Keine anderen Spieler innerhalb von " + (int) radius + " Blöcken."),
-                            formatHintLine("Näher herangehen oder 'per Name hinzufügen' verwenden."))));
+            inv.setItem(22, h.buildInfoItem(Material.BARRIER, text("gui-trust-nearby-empty-name"),
+                    lines("gui-trust-nearby-empty-lore", (int) radius)));
 
-        inv.setItem(45, h.buildButton(Material.ARROW, "§fZurück",
-                List.of("§7Zurück zur Schlossverwaltung"), "back_lock_manage", lockId));
+        inv.setItem(45, h.buildButton(Material.ARROW, text("gui-back-name"),
+                lines("gui-back-lock-manage-lore"), "back_lock_manage", lockId));
         h.fillEmptySlots(inv, Material.GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
         h.playClickSound(player);
@@ -250,33 +239,30 @@ final class LockScreen {
         ChestSecureHolder holder = new ChestSecureHolder(
                 ChestSecureHolder.GuiId.TRUST_ROLE, lockId + "|" + targetUuid);
         Inventory inv = Bukkit.createInventory(holder, 27,
-                Component.text("§6Vertrauensrolle wählen"));
+                Component.text(text("gui-trust-role-title")));
         holder.setInventory(inv);
 
         String name = h.resolvePlayerName(targetUuid);
         AccessLevel cur = plugin.locks().getLockFromId(lockId)
                 .map(e -> e.trusted().get(targetUuid)).orElse(null);
-        String statusLine = cur == null ? formatInfoLine("Aktuell nicht vertraut")
-                : formatInfoLine("Aktuell: §f" + buildAccessLevelLabel(cur));
+        String statusLine = cur == null ? text("gui-trust-role-status-none")
+                : text("gui-trust-role-status-current", buildAccessLevelLabel(cur));
 
-        inv.setItem(11, h.buildButton(Material.SPYGLASS, "§fViewer: §e" + name,
-                List.of(formatInfoLine("Kann Inhalt anzeigen, nichts bewegen"),
-                        statusLine, formatActionLine("Klicken zum Vergeben")),
+        inv.setItem(11, h.buildButton(Material.SPYGLASS, text("gui-trust-role-viewer-name", name),
+                lines("gui-trust-role-viewer-lore", statusLine),
                 "set_trust_role", "VIEW|" + lockId + "|" + targetUuid));
-        inv.setItem(15, h.buildButton(Material.CHEST, "§fStocker: §e" + name,
-                List.of(formatInfoLine("Kann Items nehmen und legen, nichts abbauen"),
-                        statusLine, formatActionLine("Klicken zum Vergeben")),
+        inv.setItem(15, h.buildButton(Material.CHEST, text("gui-trust-role-stocker-name", name),
+                lines("gui-trust-role-stocker-lore", statusLine),
                 "set_trust_role", "STOCKER|" + lockId + "|" + targetUuid));
 
         if (cur != null)
             inv.setItem(26, h.buildButton(Material.BARRIER,
-                    "§cZugriff entfernen: §e" + name,
-                    List.of(formatWarningLine("Entfernt alle Zugriffsrechte"),
-                            formatHintLine("Bestätigung erforderlich")),
+                    text("gui-trust-role-remove-name", name),
+                    lines("gui-trust-role-remove-lore"),
                     "confirm_remove_trust", lockId + "|" + targetUuid));
 
-        inv.setItem(18, h.buildButton(Material.ARROW, "§fZurück",
-                List.of("§7Zurück zur Spielerauswahl"), "back_trust_nearby", lockId));
+        inv.setItem(18, h.buildButton(Material.ARROW, text("gui-back-name"),
+                lines("gui-back-trust-nearby-lore"), "back_trust_nearby", lockId));
         h.fillEmptySlots(inv, Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
         h.playClickSound(player);
@@ -288,18 +274,18 @@ final class LockScreen {
     private ItemStack buildLockListEntry(Player viewer, LockView v) {
         String world = v.location().getWorld() != null ? v.location().getWorld().getName() : "?";
         List<String> lore = new ArrayList<>();
-        lore.add("§7" + world + "  §f" + v.location().getBlockX()
-                + " " + v.location().getBlockY() + " " + v.location().getBlockZ());
+        lore.add(text("gui-lock-list-entry-location", world,
+                v.location().getBlockX(), v.location().getBlockY(), v.location().getBlockZ()));
         if (v.location().getWorld() != null && v.location().getWorld().equals(viewer.getWorld()))
-            lore.add("§8Entfernung: §f"
-                    + Math.round(Math.sqrt(v.location().distanceSquared(viewer.getLocation()))) + " Blöcke");
+            lore.add(text("gui-lock-list-entry-distance",
+                    Math.round(Math.sqrt(v.location().distanceSquared(viewer.getLocation())))));
         else
-            lore.add("§8Andere Welt");
+            lore.add(text("gui-lock-list-entry-other-world"));
         if (v.trustedCount() > 0)
-            lore.add("§8Vertraute Spieler: §f" + v.trustedCount());
-        lore.add(formatActionLine("Klicken zum Verwalten"));
+            lore.add(text("gui-lock-list-entry-trusted", v.trustedCount()));
+        lore.add(text("gui-lock-list-entry-click"));
         Material icon = v.blockType().isItem() ? v.blockType() : Material.CHEST;
-        return h.buildButton(icon, "§f" + v.blockType().name().replace('_', ' '),
+        return h.buildButton(icon, text("gui-lock-list-entry-name", v.blockType().name().replace('_', ' ')),
                 lore, "manage_lock", v.lockId());
     }
 
@@ -309,12 +295,10 @@ final class LockScreen {
         String role  = buildAccessLevelLabel(level);
         if (canManage)
             return h.buildPlayerHeadButton(uuid, name,
-                    List.of(formatInfoLine("Rolle: §f" + role),
-                            formatWarningLine("Klicken um Zugriff zu entziehen"),
-                            formatHintLine("Bestätigung erforderlich")),
+                    lines("gui-lock-manage-trusted-entry-manage-lore", role),
                     "confirm_remove_trust", lockId + "|" + uuid);
         return h.buildPlayerHeadButton(uuid, name,
-                List.of(formatInfoLine("Rolle: §f" + role)), "noop", "");
+                lines("gui-lock-manage-trusted-entry-lore", role), "noop", "");
     }
 
     private Comparator<LockView> buildLockComparator(Player player, UiStateStore.LockSort sort) {
@@ -348,10 +332,18 @@ final class LockScreen {
         };
     }
 
-    static String buildAccessLevelLabel(AccessLevel level) {
+    private String buildAccessLevelLabel(AccessLevel level) {
         return switch (level) {
-            case VIEW     -> "Viewer";
-            case STOCKER  -> "Stocker";
+            case VIEW     -> text("gui-role-viewer");
+            case STOCKER  -> text("gui-role-stocker");
         };
+    }
+
+    private String text(String key, Object... args) {
+        return plugin.msg().get(key, args);
+    }
+
+    private List<String> lines(String key, Object... args) {
+        return plugin.msg().getList(key, args);
     }
 }

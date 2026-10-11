@@ -17,12 +17,12 @@ public final class UiStateStore {
             return values[(ordinal() + 1) % values.length];
         }
 
-        public String label() {
+        public String labelKey() {
             return switch (this) {
-                case DISTANCE -> "Entfernung";
-                case WORLD    -> "Welt";
-                case TYPE     -> "Typ";
-                case RECENT   -> "Neueste";
+                case DISTANCE -> "enum-lock-sort-distance";
+                case WORLD    -> "enum-lock-sort-world";
+                case TYPE     -> "enum-lock-sort-type";
+                case RECENT   -> "enum-lock-sort-recent";
             };
         }
     }
@@ -36,10 +36,10 @@ public final class UiStateStore {
             return values[(ordinal() + 1) % values.length];
         }
 
-        public String label() {
+        public String labelKey() {
             return switch (this) {
-                case ALL     -> "Alle Welten";
-                case CURRENT -> "Aktuelle Welt";
+                case ALL     -> "enum-world-filter-all";
+                case CURRENT -> "enum-world-filter-current";
             };
         }
     }
@@ -55,12 +55,12 @@ public final class UiStateStore {
             return values[(ordinal() + 1) % values.length];
         }
 
-        public String label() {
+        public String labelKey() {
             return switch (this) {
-                case ALL      -> "Alle Typen";
-                case CHESTS   -> "Kisten";
-                case BARRELS  -> "Fässer";
-                case SHULKERS -> "Shulker-Boxen";
+                case ALL      -> "enum-lock-type-filter-all";
+                case CHESTS   -> "enum-lock-type-filter-chests";
+                case BARRELS  -> "enum-lock-type-filter-barrels";
+                case SHULKERS -> "enum-lock-type-filter-shulkers";
             };
         }
     }
@@ -75,11 +75,11 @@ public final class UiStateStore {
             return values[(ordinal() + 1) % values.length];
         }
 
-        public String label() {
+        public String labelKey() {
             return switch (this) {
-                case ALL                -> "Alle Aktionen";
-                case UNAUTHORIZED_BREAK -> "Unerlaubte Breaks";
-                case ADMIN_BREAK        -> "Admin-Breaks";
+                case ALL                -> "enum-logs-action-filter-all";
+                case UNAUTHORIZED_BREAK -> "enum-logs-action-filter-unauthorized-break";
+                case ADMIN_BREAK        -> "enum-logs-action-filter-admin-break";
             };
         }
 
@@ -103,12 +103,12 @@ public final class UiStateStore {
             return values[(ordinal() + 1) % values.length];
         }
 
-        public String label() {
+        public String labelKey() {
             return switch (this) {
-                case LAST_24_HOURS -> "Letzte 24 Std";
-                case LAST_7_DAYS   -> "Letzte 7 Tage";
-                case LAST_30_DAYS  -> "Letzte 30 Tage";
-                case ALL_TIME      -> "Gesamte Zeit";
+                case LAST_24_HOURS -> "enum-logs-time-filter-last-24-hours";
+                case LAST_7_DAYS   -> "enum-logs-time-filter-last-7-days";
+                case LAST_30_DAYS  -> "enum-logs-time-filter-last-30-days";
+                case ALL_TIME      -> "enum-logs-time-filter-all-time";
             };
         }
 

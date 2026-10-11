@@ -1,3 +1,5 @@
+language: en
+
 # Whitelist der geschützten Welten: nur hier gelistete Welten sind geschützt.
 # Sonderfall: eine leere Liste (enabled: []) bedeutet "alle Welten geschützt",
 # nicht "keine Welt geschützt" (Auswertung in Worlds.java und
