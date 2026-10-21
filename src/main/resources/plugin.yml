@@ -1,9 +1,9 @@
 name: ChestSecure
-version: 1.6.0
+version: 1.6.1
 main: de.SecureChest.plugin.ChestSecurePlugin
-api-version: "1.21"
+api-version: "26.2"
 author: "crimethunder"
-description: "ChestSecure - Lock & protect containers with keys (Paper 1.21.11)."
+description: "ChestSecure - Lock & protect containers with keys (Paper 26.2)."
 
 commands:
   chestsecure:

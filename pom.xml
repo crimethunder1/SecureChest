@@ -5,13 +5,13 @@
 
   <groupId>de.SecureChest</groupId>
   <artifactId>ChestSecure</artifactId>
-  <version>1.6.0</version>
+  <version>1.6.1</version>
   <name>ChestSecure</name>
 
   <properties>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
+    <paper.api.version>26.2.build.134-stable</paper.api.version>
   </properties>
 
   <repositories>
@@ -29,7 +29,6 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- Test-Abhängigkeiten -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -39,7 +38,7 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <version>5.11.0</version>
+      <version>5.24.0</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -74,12 +73,12 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.2.5</version>
+        <version>3.6.0</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.12.1</version>
+        <version>3.16.0</version>
         <configuration>
           <release>${maven.compiler.release}</release>
           <encoding>${project.build.sourceEncoding}</encoding>

@@ -4,8 +4,9 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 
 ## Requirements
 
-* Paper 1.21.11 (api version 1.21)
-* Java 21
+* Paper 26.2 (api version 26.2)
+* Java 25
+* For Minecraft 1.21 use version 1.6.0.
 * No other plugins. Locks, trust lists, player settings and logs are stored in a local SQLite database.
 
 ## Installation
@@ -54,7 +55,7 @@ I = Iron Block, H = Hopper, K = Chest Key, empty brackets mean an empty slot
 ## Commands
 
 * `/chestsecure` or `/cs` opens the main menu. Players only.
-* `/cs reload` reloads `config.yml`, `messages.yml` and the world list. Recipes are only registered at server start.
+* `/cs reload` reloads `config.yml` with the language setting, the language files in the folder `lang` and the world list. Recipes are only registered at server start.
 
 ## Permissions
 
@@ -93,7 +94,7 @@ ChestSecure ships with English and German.
 mvn clean package
 ```
 
-This builds the JAR in the target folder. Use JDK 21. With JDK 25 the Mockito tests fail because the Byte Buddy version in Mockito 5.11 does not support Java 25.
+This builds the JAR in the target folder. Use JDK 25.
 
 ## Author
 
