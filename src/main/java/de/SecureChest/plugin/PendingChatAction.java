@@ -4,7 +4,10 @@ public sealed interface PendingChatAction
         permits PendingChatAction.AddTrust,
                 PendingChatAction.GlobalUnlock,
                 PendingChatAction.LogActorFilter,
-                PendingChatAction.TransferLock {
+                PendingChatAction.TransferLock,
+                PendingChatAction.AreaCreateName,
+                PendingChatAction.AreaCreateCoordinates,
+                PendingChatAction.AreaResizeCoordinates {
 
     record AddTrust(String lockId, String level) implements PendingChatAction {}
 
@@ -13,4 +16,10 @@ public sealed interface PendingChatAction
     record LogActorFilter() implements PendingChatAction {}
 
     record TransferLock(String lockId) implements PendingChatAction {}
+
+    record AreaCreateName() implements PendingChatAction {}
+
+    record AreaCreateCoordinates(String name) implements PendingChatAction {}
+
+    record AreaResizeCoordinates(String name) implements PendingChatAction {}
 }

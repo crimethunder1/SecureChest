@@ -8,5 +8,6 @@ public enum ConfirmType {
     REMOVE_TRUST,
     LOG_TELEPORT,
     UNDO_RESTORE,
-    TRANSFER_LOCK
+    TRANSFER_LOCK,
+    AREA_CHANGE
 }

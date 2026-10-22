@@ -23,6 +23,7 @@ import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -128,10 +129,76 @@ class ProtectionListenerAreaTest {
     }
 
     @Test
-    @DisplayName("Quick Lock ausserhalb: Oeffnen abgebrochen, neue Meldung, keine Sperre")
+    @DisplayName("Quick Lock ausserhalb greift nicht: Oeffnen nicht abgebrochen, keine Meldung, keine Sperre")
     void quickLock_ausserhalb() {
         service.setQuickLock(alice.getUniqueId(), true);
         when(items.hasChestKeyInInventory(alice)).thenReturn(true);
+        Block chest = world.setBlock(50, 64, 50, Material.BARREL);
+        PlayerInteractEvent event = rightClick(alice, chest);
+
+        listener.onPlayerInteract(event);
+
+        verify(event, never()).setCancelled(anyBoolean());
+        verify(messages, never()).get(anyString());
+        verify(alice, never()).sendMessage(any(net.kyori.adventure.text.Component.class));
+        assertFalse(service.isLocked(chest));
+    }
+
+    @Test
+    @DisplayName("Quick Lock ausserhalb verbraucht keinen Aktions-Cooldown")
+    void quickLock_ausserhalbOhneCooldown() {
+        when(fixture.config.lockActionCooldownMs()).thenReturn(60_000L);
+        service.setQuickLock(alice.getUniqueId(), true);
+        when(items.hasChestKeyInInventory(alice)).thenReturn(true);
+        Block outsideChest = world.setBlock(50, 64, 50, Material.BARREL);
+        Block insideChest = world.setBlock(5, 64, 5, Material.BARREL);
+
+        listener.onPlayerInteract(rightClick(alice, outsideChest));
+        listener.onPlayerInteract(rightClick(alice, insideChest));
+
+        assertFalse(service.isLocked(outsideChest));
+        assertTrue(service.isLocked(insideChest));
+    }
+
+    @Test
+    @DisplayName("Quick Lock innerhalb sperrt wie bisher")
+    void quickLock_innerhalb() {
+        service.setQuickLock(alice.getUniqueId(), true);
+        when(items.hasChestKeyInInventory(alice)).thenReturn(true);
+        Block chest = world.setBlock(5, 64, 5, Material.BARREL);
+        PlayerInteractEvent event = rightClick(alice, chest);
+
+        listener.onPlayerInteract(event);
+
+        verify(event).setCancelled(true);
+        verify(messages).get("block-gesperrt");
+        verify(messages, never()).get(OUTSIDE_MESSAGE_KEY);
+        assertTrue(service.isLocked(chest));
+    }
+
+    @Test
+    @DisplayName("Quick Lock bei ausgeschaltetem Wirkungsbereich sperrt ueberall")
+    void quickLock_schalterAus() {
+        assertTrue(fixture.areas.apply(new AreaChange.Disable()).applied());
+        service.setQuickLock(alice.getUniqueId(), true);
+        when(items.hasChestKeyInInventory(alice)).thenReturn(true);
+        Block chest = world.setBlock(50, 64, 50, Material.BARREL);
+        PlayerInteractEvent event = rightClick(alice, chest);
+
+        listener.onPlayerInteract(event);
+
+        verify(event).setCancelled(true);
+        verify(messages).get("block-gesperrt");
+        verify(messages, never()).get(OUTSIDE_MESSAGE_KEY);
+        assertTrue(service.isLocked(chest));
+    }
+
+    @Test
+    @DisplayName("Chest Key in der Hand ausserhalb bei aktivem Quick Lock: weiterhin neue Meldung, keine Sperre")
+    void chestKeyMitQuickLock_ausserhalb() {
+        service.setQuickLock(alice.getUniqueId(), true);
+        when(items.hasChestKeyInInventory(alice)).thenReturn(true);
+        when(items.isHoldingChestKey(alice)).thenReturn(true);
         Block chest = world.setBlock(50, 64, 50, Material.BARREL);
         PlayerInteractEvent event = rightClick(alice, chest);
 

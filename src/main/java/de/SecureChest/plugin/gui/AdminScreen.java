@@ -63,6 +63,11 @@ final class AdminScreen {
         inv.setItem(31, h.buildButton(Material.BARRIER, text("gui-admin-global-unlock-name"),
                 lines("gui-admin-global-unlock-lore"),
                 "global_unlock", ""));
+        inv.setItem(34, h.buildButton(Material.FILLED_MAP, text("gui-admin-areas-name"),
+                lines("gui-admin-areas-lore",
+                        plugin.areas().isEnabled() ? text("gui-areas-state-on") : text("gui-areas-state-off"),
+                        plugin.areas().areas().size()),
+                "open_areas", ""));
         inv.setItem(49, h.buildButton(Material.ARROW, text("gui-back-name"),
                 lines("gui-back-main-lore"), "back_main", ""));
 

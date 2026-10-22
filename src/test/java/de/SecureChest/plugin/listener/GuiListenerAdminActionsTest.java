@@ -1,7 +1,10 @@
 package de.SecureChest.plugin.listener;
 
+import de.SecureChest.plugin.gui.ScreenActionRecorder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -67,6 +70,42 @@ class GuiListenerAdminActionsTest {
         assertFalse(GuiListener.ADMIN_ONLY_ACTIONS.contains("add_trust_name"));
         assertFalse(GuiListener.ADMIN_ONLY_ACTIONS.contains("set_trust_role"));
         assertFalse(GuiListener.ADMIN_ONLY_ACTIONS.contains("confirm_remove_trust"));
+    }
+
+    @Test
+    @DisplayName("Wirkungsbereich-Actions sind komplett enthalten")
+    void wirkungsbereichActions_komplettEnthalten() {
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("open_areas"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("areas_page"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("area_toggle"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("area_create"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("area_entry"));
+    }
+
+    @Test
+    @DisplayName("Jede Action, die der Wirkungsbereich-Screen erzeugt, ist Admin-only")
+    void wirkungsbereichScreen_alleErzeugtenActionsAdminOnly() {
+        Set<String> actions = ScreenActionRecorder.areaScreenActions();
+
+        assertTrue(actions.containsAll(Set.of("area_toggle", "area_create", "area_entry", "areas_page", "back_admin")),
+                "Der Screen sollte alle Buttons inklusive Blaettern erzeugen: " + actions);
+        for (String action : actions) {
+            assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
+                    "Action des Wirkungsbereich-Screens fehlt in ADMIN_ONLY_ACTIONS: " + action);
+        }
+    }
+
+    @Test
+    @DisplayName("Jede Action des Admin-Panels ausser Zurueck zum Hauptmenue ist Admin-only")
+    void adminPanel_alleErzeugtenActionsAdminOnly() {
+        Set<String> actions = ScreenActionRecorder.adminScreenActions();
+
+        assertTrue(actions.contains("open_areas"), "Admin-Panel sollte den Wirkungsbereich-Button haben: " + actions);
+        for (String action : actions) {
+            if (action.equals("back_main")) continue;
+            assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
+                    "Action des Admin-Panels fehlt in ADMIN_ONLY_ACTIONS: " + action);
+        }
     }
 
     @Test

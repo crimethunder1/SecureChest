@@ -140,10 +140,10 @@ public final class ProtectionListener implements Listener {
         boolean canQuickLock = isQuickLockEnabled && isHandEmpty && !blockAlreadyLocked && !isBlockASecureHopper
                 && worldEnabled && playerHasChestKeyInInventory(player);
         if (!canQuickLock) return false;
+        if (!plugin.areas().isLockPlacementAllowed(block)) return false;
 
         event.setCancelled(true);
         if (!consumeActionCooldown(player.getUniqueId())) return true;
-        if (rejectIfOutsideArea(player, block)) return true;
         lockBlockDirectly(player, block);
         return true;
     }

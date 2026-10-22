@@ -3,6 +3,11 @@ package de.SecureChest.plugin.listener;
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.PendingChatAction;
 import de.SecureChest.plugin.Permissions;
+import de.SecureChest.plugin.area.Area;
+import de.SecureChest.plugin.area.AreaChange;
+import de.SecureChest.plugin.area.AreaChangePreview;
+import de.SecureChest.plugin.area.AreaChangeResult;
+import de.SecureChest.plugin.area.AreaValidationError;
 import de.SecureChest.plugin.lock.LockStats;
 import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.ui.ConfirmRequest;
@@ -37,7 +42,8 @@ public final class GuiListener implements Listener {
             "give_admin_key", "give_logs_book", "give_admin_report",
             "toggle_inspect", "global_unlock",
             "open_logs", "logs_page", "logs_cycle_action", "logs_cycle_time",
-            "logs_set_actor", "log_entry"
+            "logs_set_actor", "log_entry",
+            "open_areas", "areas_page", "area_toggle", "area_create", "area_entry"
     );
 
     private final ChestSecurePlugin plugin;
@@ -406,6 +412,43 @@ public final class GuiListener implements Listener {
                 plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
             }
 
+            case "open_areas"  -> plugin.gui().openAreas(player, 0);
+            case "areas_page"  -> plugin.gui().openAreas(player, parseIntSafe(actionContext));
+
+            case "area_toggle" -> {
+                if (plugin.areas().isEnabled()) {
+                    plugin.gui().sendAreaResult(player, plugin.areas().apply(new AreaChange.Disable()));
+                    plugin.gui().openAreas(player, 0);
+                    return;
+                }
+                openAreaChangeConfirm(player, plugin.areas().previewEnable());
+            }
+
+            case "area_create" -> {
+                player.closeInventory();
+                plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.AreaCreateName());
+                plugin.gui().promptAreaName(player);
+            }
+
+            case "area_entry" -> {
+                Optional<Area> areaOptional = plugin.areas().find(actionContext);
+                if (areaOptional.isEmpty()) {
+                    plugin.gui().sendAreaErrors(player, List.of(new AreaValidationError(
+                            AreaValidationError.Code.AREA_NOT_FOUND, actionContext)));
+                    plugin.gui().openAreas(player, 0);
+                    return;
+                }
+                Area area = areaOptional.get();
+                if (event.getClick().isLeftClick()) {
+                    player.closeInventory();
+                    plugin.pendingChat().put(player.getUniqueId(),
+                            new PendingChatAction.AreaResizeCoordinates(area.name()));
+                    plugin.gui().promptAreaResizeCoordinates(player, area);
+                } else if (event.getClick().isRightClick()) {
+                    openAreaChangeConfirm(player, plugin.areas().previewDelete(area.name()));
+                }
+            }
+
             case "confirm_yes" -> handleConfirmAction(player, true);
             case "confirm_no"  -> handleConfirmAction(player, false);
 
@@ -425,7 +468,7 @@ public final class GuiListener implements Listener {
         }
     }
 
-    private void handleConfirmAction(Player player, boolean confirmed) {
+    void handleConfirmAction(Player player, boolean confirmed) {
         var confirmRequestOptional = plugin.confirms().get(player.getUniqueId());
         if (confirmRequestOptional.isEmpty()) {
             player.sendMessage(Component.text(
@@ -472,12 +515,31 @@ public final class GuiListener implements Listener {
             }
             case UNDO_RESTORE  -> plugin.locks().restoreUndo(player);
             case LOG_TELEPORT  -> handleLogTeleport(player, confirmRequest.data());
+            case AREA_CHANGE   -> applyConfirmedAreaChange(player, confirmRequest.areaChange());
         };
 
-        player.sendMessage(actionSuccessful
-                ? Component.text(plugin.msg().get("gui-erledigt"), NamedTextColor.GREEN)
-                : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
+        if (confirmRequest.type() != ConfirmType.AREA_CHANGE) {
+            player.sendMessage(actionSuccessful
+                    ? Component.text(plugin.msg().get("gui-erledigt"), NamedTextColor.GREEN)
+                    : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
+        }
         routeToDestination(player, confirmRequest.returnTo());
+    }
+
+    private boolean applyConfirmedAreaChange(Player player, AreaChange change) {
+        if (change == null || !player.hasPermission(Permissions.ADMIN)) return false;
+        AreaChangeResult result = plugin.areas().apply(change);
+        plugin.gui().sendAreaResult(player, result);
+        return result.applied();
+    }
+
+    private void openAreaChangeConfirm(Player player, AreaChangePreview preview) {
+        if (!preview.isValid()) {
+            plugin.gui().sendAreaErrors(player, preview.errors());
+            plugin.gui().openAreas(player, 0);
+            return;
+        }
+        plugin.gui().openAreaChangeConfirm(player, preview);
     }
 
     private void routeToDestination(Player player, String destination) {
@@ -491,6 +553,10 @@ public final class GuiListener implements Listener {
         }
         if (destination.equals("ADMIN")) {
             plugin.gui().openAdmin(player);
+            return;
+        }
+        if (destination.equals("AREAS")) {
+            plugin.gui().openAreas(player, 0);
             return;
         }
         if (destination.equals("LOGS")) {
