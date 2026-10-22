@@ -26,7 +26,12 @@ public final class GuiHelper {
 
     public ItemStack buildButton(Material material, String name, List<String> lore,
                                  String action, String context) {
-        ItemStack item = new ItemStack(material);
+        return buildItemButton(new ItemStack(material), name, lore, action, context);
+    }
+
+    public ItemStack buildItemButton(ItemStack base, String name, List<String> lore,
+                                     String action, String context) {
+        ItemStack item = base.clone();
         ItemMeta  meta = item.getItemMeta();
         meta.displayName(Component.text(name));
         if (lore != null && !lore.isEmpty())

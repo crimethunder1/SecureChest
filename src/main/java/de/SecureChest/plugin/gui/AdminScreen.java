@@ -68,6 +68,8 @@ final class AdminScreen {
                         plugin.areas().isEnabled() ? text("gui-areas-state-on") : text("gui-areas-state-off"),
                         plugin.areas().areas().size()),
                 "open_areas", ""));
+        inv.setItem(37, h.buildButton(Material.CRAFTING_TABLE, text("gui-admin-recipes-name"),
+                lines("gui-admin-recipes-lore"), "open_recipes", ""));
         inv.setItem(49, h.buildButton(Material.ARROW, text("gui-back-name"),
                 lines("gui-back-main-lore"), "back_main", ""));
 

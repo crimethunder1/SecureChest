@@ -9,5 +9,6 @@ public enum ConfirmType {
     LOG_TELEPORT,
     UNDO_RESTORE,
     TRANSFER_LOCK,
-    AREA_CHANGE
+    AREA_CHANGE,
+    RECIPE_RESET
 }

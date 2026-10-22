@@ -20,7 +20,9 @@ public final class ChestSecureHolder implements InventoryHolder {
         LOGS_LIST,
         CONFIRM,
         STATS,
-        AREAS
+        AREAS,
+        RECIPES,
+        RECIPE_EDIT
     }
 
     private final GuiId id;

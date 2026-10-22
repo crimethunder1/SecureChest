@@ -5,7 +5,12 @@ import de.SecureChest.plugin.MessageService;
 import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.area.Area;
 import de.SecureChest.plugin.area.AreaService;
+import de.SecureChest.plugin.recipe.RecipeDefinition;
+import de.SecureChest.plugin.recipe.RecipeKind;
+import de.SecureChest.plugin.recipe.RecipeRegistry;
+import de.SecureChest.plugin.recipe.RecipeValidator;
 import de.SecureChest.plugin.ui.UiStateStore;
+import de.SecureChest.plugin.util.Items;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -15,6 +20,7 @@ import org.mockito.MockedStatic;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -64,6 +70,25 @@ public final class ScreenActionRecorder {
         return actions;
     }
 
+    public static Set<String> recipeScreenActions() {
+        Set<String> actions = new TreeSet<>();
+        ChestSecurePlugin plugin = pluginWithAreas(List.of());
+        RecipeRegistry recipes = mock(RecipeRegistry.class);
+        when(recipes.currentDefinition(RecipeKind.SECURE_HOPPER)).thenReturn(new RecipeDefinition(true,
+                List.of(" I ", "HKH", " I "),
+                Map.of("I", "IRON_BLOCK", "H", "HOPPER", "K", RecipeValidator.CHEST_KEY_INGREDIENT)));
+        when(plugin.recipes()).thenReturn(recipes);
+        when(plugin.items()).thenReturn(mock(Items.class));
+        RecipeScreen screen = new RecipeScreen(plugin, recordingHelper(actions), mock(GuiManager.class),
+                material -> true);
+        Player player = adminPlayer();
+        withInventories(() -> {
+            screen.openRecipes(player);
+            for (RecipeKind kind : RecipeKind.values()) screen.openEditor(player, kind);
+        });
+        return actions;
+    }
+
     private static ChestSecurePlugin pluginWithAreas(List<Area> areas) {
         ChestSecurePlugin plugin = mock(ChestSecurePlugin.class);
         MessageService messages = keyEchoingMessages();
@@ -94,6 +119,10 @@ public final class ScreenActionRecorder {
             return null;
         });
         when(helper.buildPlayerHeadButton(any(), any(), any(), anyString(), any())).thenAnswer(invocation -> {
+            actions.add(invocation.getArgument(3));
+            return null;
+        });
+        when(helper.buildItemButton(any(), any(), any(), anyString(), any())).thenAnswer(invocation -> {
             actions.add(invocation.getArgument(3));
             return null;
         });

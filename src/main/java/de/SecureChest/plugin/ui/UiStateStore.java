@@ -1,5 +1,7 @@
 package de.SecureChest.plugin.ui;
 
+import de.SecureChest.plugin.recipe.RecipeEditorModel;
+import de.SecureChest.plugin.recipe.RecipeKind;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -140,6 +142,7 @@ public final class UiStateStore {
     private final Map<UUID, LockListState> lockListStates = new ConcurrentHashMap<>();
     private final Map<UUID, LogsState>     logStates      = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean>       inspectModes   = new ConcurrentHashMap<>();
+    private final Map<UUID, RecipeEditorModel> recipeEditors = new ConcurrentHashMap<>();
 
     public LockListState locks(UUID playerUuid) {
         return lockListStates.computeIfAbsent(playerUuid, ignored -> new LockListState());
@@ -157,9 +160,27 @@ public final class UiStateStore {
         inspectModes.put(playerUuid, enabled);
     }
 
+    public RecipeEditorModel recipeEditor(UUID playerUuid, RecipeKind kind) {
+        RecipeEditorModel model = recipeEditors.get(playerUuid);
+        return model != null && model.kind() == kind ? model : null;
+    }
+
+    public void setRecipeEditor(UUID playerUuid, RecipeEditorModel model) {
+        recipeEditors.put(playerUuid, model);
+    }
+
+    public void clearRecipeEditor(UUID playerUuid) {
+        recipeEditors.remove(playerUuid);
+    }
+
+    public void clearRecipeEditors() {
+        recipeEditors.clear();
+    }
+
     public void cleanup(UUID playerUuid) {
         lockListStates.remove(playerUuid);
         logStates.remove(playerUuid);
         inspectModes.remove(playerUuid);
+        recipeEditors.remove(playerUuid);
     }
 }

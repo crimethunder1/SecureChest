@@ -101,10 +101,37 @@ class GuiListenerAdminActionsTest {
         Set<String> actions = ScreenActionRecorder.adminScreenActions();
 
         assertTrue(actions.contains("open_areas"), "Admin-Panel sollte den Wirkungsbereich-Button haben: " + actions);
+        assertTrue(actions.contains("open_recipes"), "Admin-Panel sollte den Rezepte-Button haben: " + actions);
         for (String action : actions) {
             if (action.equals("back_main")) continue;
             assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
                     "Action des Admin-Panels fehlt in ADMIN_ONLY_ACTIONS: " + action);
+        }
+    }
+
+    @Test
+    @DisplayName("Rezept-Actions sind komplett enthalten")
+    void rezeptActions_komplettEnthalten() {
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("open_recipes"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("back_recipes"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("recipe_entry"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("recipe_cell"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("recipe_toggle"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("recipe_save"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("recipe_reset"));
+    }
+
+    @Test
+    @DisplayName("Jede Action, die Rezeptuebersicht und Rezept-Editor erzeugen, ist Admin-only")
+    void rezeptScreens_alleErzeugtenActionsAdminOnly() {
+        Set<String> actions = ScreenActionRecorder.recipeScreenActions();
+
+        assertTrue(actions.containsAll(Set.of("recipe_entry", "back_admin", "recipe_cell", "recipe_toggle",
+                        "recipe_save", "recipe_reset", "back_recipes")),
+                "Uebersicht und Editor sollten alle Buttons erzeugen: " + actions);
+        for (String action : actions) {
+            assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
+                    "Action der Rezept-Screens fehlt in ADMIN_ONLY_ACTIONS: " + action);
         }
     }
 

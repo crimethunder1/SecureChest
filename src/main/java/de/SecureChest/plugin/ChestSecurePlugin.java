@@ -121,6 +121,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public void onDisable() {
         if (database != null) database.close();
         pendingChatActions.clear();
+        if (uiStateStore != null) uiStateStore.clearRecipeEditors();
         getLogger().info("ChestSecure disabled.");
     }
 

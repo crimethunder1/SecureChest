@@ -6,6 +6,9 @@ import de.SecureChest.plugin.area.AreaChangePreview;
 import de.SecureChest.plugin.area.AreaChangeResult;
 import de.SecureChest.plugin.area.AreaCoordinateParser;
 import de.SecureChest.plugin.area.AreaValidationError;
+import de.SecureChest.plugin.recipe.RecipeChangeResult;
+import de.SecureChest.plugin.recipe.RecipeKind;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
 import java.util.List;
@@ -17,6 +20,7 @@ public final class GuiManager {
     private final LockScreen  locks;
     private final AdminScreen admin;
     private final AreaScreen  areas;
+    private final RecipeScreen recipes;
 
     public GuiManager(ChestSecurePlugin plugin) {
         GuiHelper helper = new GuiHelper(plugin);
@@ -24,6 +28,7 @@ public final class GuiManager {
         this.locks = new LockScreen(plugin, helper, this);
         this.admin = new AdminScreen(plugin, helper, this);
         this.areas = new AreaScreen(plugin, helper, this);
+        this.recipes = new RecipeScreen(plugin, helper, this, Material::isItem);
     }
 
     public void openMain(Player player)                                 { misc.openMain(player); }
@@ -50,4 +55,11 @@ public final class GuiManager {
     public void sendAreaErrors(Player player, List<AreaValidationError> errors) { areas.sendValidationErrors(player, errors); }
     public void sendAreaCoordinateError(Player player, AreaCoordinateParser.Rejected rejected) { areas.sendCoordinateError(player, rejected); }
     public void sendAreaResult(Player player, AreaChangeResult result)  { areas.sendResult(player, result); }
+
+    public void openRecipes(Player player)                              { recipes.openRecipes(player); }
+    public void openRecipeEditor(Player player, RecipeKind kind)        { recipes.openEditor(player, kind); }
+    public void refreshRecipeEditor(Player player)                      { recipes.refreshEditor(player); }
+    public void openRecipeResetConfirm(Player player, RecipeKind kind)  { recipes.openResetConfirm(player, kind); }
+    public void sendRecipeSaveResult(Player player, RecipeChangeResult result)  { recipes.sendSaveResult(player, result); }
+    public void sendRecipeResetResult(Player player, RecipeChangeResult result) { recipes.sendResetResult(player, result); }
 }

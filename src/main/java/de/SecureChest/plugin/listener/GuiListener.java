@@ -8,8 +8,12 @@ import de.SecureChest.plugin.area.AreaChange;
 import de.SecureChest.plugin.area.AreaChangePreview;
 import de.SecureChest.plugin.area.AreaChangeResult;
 import de.SecureChest.plugin.area.AreaValidationError;
+import de.SecureChest.plugin.gui.ChestSecureHolder;
 import de.SecureChest.plugin.lock.LockStats;
 import de.SecureChest.plugin.lock.LogRecord;
+import de.SecureChest.plugin.recipe.RecipeChangeResult;
+import de.SecureChest.plugin.recipe.RecipeEditorModel;
+import de.SecureChest.plugin.recipe.RecipeKind;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
 import java.util.ArrayList;
@@ -17,10 +21,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -29,6 +35,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -43,13 +50,21 @@ public final class GuiListener implements Listener {
             "toggle_inspect", "global_unlock",
             "open_logs", "logs_page", "logs_cycle_action", "logs_cycle_time",
             "logs_set_actor", "log_entry",
-            "open_areas", "areas_page", "area_toggle", "area_create", "area_entry"
+            "open_areas", "areas_page", "area_toggle", "area_create", "area_entry",
+            "open_recipes", "back_recipes", "recipe_entry", "recipe_cell", "recipe_toggle",
+            "recipe_save", "recipe_reset"
     );
 
     private final ChestSecurePlugin plugin;
+    private final Predicate<Material> itemMaterial;
 
     public GuiListener(ChestSecurePlugin plugin) {
+        this(plugin, Material::isItem);
+    }
+
+    GuiListener(ChestSecurePlugin plugin, Predicate<Material> itemMaterial) {
         this.plugin = plugin;
+        this.itemMaterial = itemMaterial;
     }
 
     private static boolean isAdminOnlyAction(String action) {
@@ -67,9 +82,16 @@ public final class GuiListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         Inventory topInventory = event.getView().getTopInventory();
-        if (!(topInventory.getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
+        if (!(topInventory.getHolder() instanceof ChestSecureHolder holder)) return;
 
         event.setCancelled(true);
+
+        if (holder.id() == ChestSecureHolder.GuiId.RECIPE_EDIT
+                && event.getClickedInventory() != null
+                && event.getClickedInventory() == event.getView().getBottomInventory()) {
+            selectRecipeMaterial(player, holder, event.getClick(), event.getCurrentItem());
+            return;
+        }
 
         ItemStack clickedItem = event.getCurrentItem();
         if (clickedItem == null || clickedItem.getType().isAir()) return;
@@ -449,6 +471,32 @@ public final class GuiListener implements Listener {
                 }
             }
 
+            case "open_recipes", "back_recipes" -> {
+                plugin.ui().clearRecipeEditor(player.getUniqueId());
+                plugin.gui().openRecipes(player);
+            }
+
+            case "recipe_entry" -> {
+                RecipeKind kind = RecipeKind.fromConfigKey(actionContext);
+                if (kind == null) {
+                    player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
+                    plugin.gui().openRecipes(player);
+                    return;
+                }
+                plugin.gui().openRecipeEditor(player, kind);
+            }
+
+            case "recipe_cell"   -> editRecipeCell(player, editorKind(holder), parseIntSafe(actionContext),
+                    event.getClick());
+            case "recipe_toggle" -> {
+                RecipeEditorModel model = recipeEditor(player, editorKind(holder));
+                if (model == null) return;
+                model.toggleEnabled();
+                plugin.gui().refreshRecipeEditor(player);
+            }
+            case "recipe_save"   -> saveRecipe(player, editorKind(holder));
+            case "recipe_reset"  -> requestRecipeReset(player, editorKind(holder));
+
             case "confirm_yes" -> handleConfirmAction(player, true);
             case "confirm_no"  -> handleConfirmAction(player, false);
 
@@ -456,10 +504,22 @@ public final class GuiListener implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof ChestSecureHolder holder
+                && holder.id() == ChestSecureHolder.GuiId.RECIPE_EDIT) {
+            event.setCancelled(true);
+        }
+    }
+
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (!(event.getInventory().getHolder() instanceof de.SecureChest.plugin.gui.ChestSecureHolder)) return;
+        if (!(event.getInventory().getHolder() instanceof ChestSecureHolder holder)) return;
+
+        if (holder.id() == ChestSecureHolder.GuiId.RECIPE_EDIT) {
+            plugin.ui().clearRecipeEditor(player.getUniqueId());
+        }
 
         if (plugin.pendingChat().containsKey(player.getUniqueId())) {
             plugin.pendingChat().remove(player.getUniqueId());
@@ -516,9 +576,10 @@ public final class GuiListener implements Listener {
             case UNDO_RESTORE  -> plugin.locks().restoreUndo(player);
             case LOG_TELEPORT  -> handleLogTeleport(player, confirmRequest.data());
             case AREA_CHANGE   -> applyConfirmedAreaChange(player, confirmRequest.areaChange());
+            case RECIPE_RESET  -> applyConfirmedRecipeReset(player, confirmRequest.data());
         };
 
-        if (confirmRequest.type() != ConfirmType.AREA_CHANGE) {
+        if (confirmRequest.type() != ConfirmType.AREA_CHANGE && confirmRequest.type() != ConfirmType.RECIPE_RESET) {
             player.sendMessage(actionSuccessful
                     ? Component.text(plugin.msg().get("gui-erledigt"), NamedTextColor.GREEN)
                     : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
@@ -542,6 +603,89 @@ public final class GuiListener implements Listener {
         plugin.gui().openAreaChangeConfirm(player, preview);
     }
 
+    void selectRecipeMaterial(Player player, ChestSecureHolder holder, ClickType click, ItemStack item) {
+        if (click != ClickType.LEFT && click != ClickType.RIGHT) return;
+        if (item == null || RecipeEditorModel.isAir(item.getType())) return;
+        if (!requireAdmin(player)) return;
+        RecipeEditorModel model = recipeEditor(player, editorKind(holder));
+        if (model == null) return;
+        if (!model.select(item.getType(), itemMaterial)) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("rezept-auswahl-ungueltig", item.getType().name()), NamedTextColor.RED));
+            return;
+        }
+        plugin.gui().refreshRecipeEditor(player);
+    }
+
+    void editRecipeCell(Player player, RecipeKind kind, int index, ClickType click) {
+        RecipeEditorModel model = recipeEditor(player, kind);
+        if (model == null || index < 0 || index >= RecipeEditorModel.CELL_COUNT) return;
+        switch (click) {
+            case LEFT -> {
+                if (!model.placeSelection(index)) {
+                    player.sendMessage(Component.text(
+                            plugin.msg().get("rezept-keine-auswahl"), NamedTextColor.YELLOW));
+                    return;
+                }
+            }
+            case SHIFT_LEFT -> {
+                if (!model.placeChestKey(index)) {
+                    player.sendMessage(Component.text(
+                            plugin.msg().get("rezept-chest-key-nur-hopper"), NamedTextColor.YELLOW));
+                    return;
+                }
+            }
+            case RIGHT -> model.clearCell(index);
+            default -> {
+                return;
+            }
+        }
+        plugin.gui().refreshRecipeEditor(player);
+    }
+
+    void saveRecipe(Player player, RecipeKind kind) {
+        if (!requireAdmin(player)) return;
+        RecipeEditorModel model = recipeEditor(player, kind);
+        if (model == null) return;
+        RecipeChangeResult result = plugin.recipes().apply(kind, model.toDefinition());
+        plugin.gui().sendRecipeSaveResult(player, result);
+        if (!result.applied()) return;
+        plugin.ui().clearRecipeEditor(player.getUniqueId());
+        plugin.gui().openRecipes(player);
+    }
+
+    void requestRecipeReset(Player player, RecipeKind kind) {
+        if (kind == null) return;
+        if (!plugin.recipes().isOverridden(kind)) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("rezept-bereits-standard", kind.displayName()), NamedTextColor.YELLOW));
+            return;
+        }
+        plugin.gui().openRecipeResetConfirm(player, kind);
+    }
+
+    private boolean applyConfirmedRecipeReset(Player player, String configKey) {
+        RecipeKind kind = RecipeKind.fromConfigKey(configKey);
+        if (kind == null || !player.hasPermission(Permissions.ADMIN)) return false;
+        RecipeChangeResult result = plugin.recipes().resetToDefault(kind);
+        plugin.gui().sendRecipeResetResult(player, result);
+        return result.applied();
+    }
+
+    private RecipeEditorModel recipeEditor(Player player, RecipeKind kind) {
+        RecipeEditorModel model = kind == null ? null : plugin.ui().recipeEditor(player.getUniqueId(), kind);
+        if (model == null) {
+            player.sendMessage(Component.text(plugin.msg().get("rezept-arbeitskopie-fehlt"), NamedTextColor.RED));
+            plugin.gui().openRecipes(player);
+        }
+        return model;
+    }
+
+    private static RecipeKind editorKind(ChestSecureHolder holder) {
+        if (holder.id() != ChestSecureHolder.GuiId.RECIPE_EDIT) return null;
+        return RecipeKind.fromConfigKey(holder.context());
+    }
+
     private void routeToDestination(Player player, String destination) {
         if (destination == null || destination.isBlank() || destination.equals("MAIN")) {
             plugin.gui().openMain(player);
@@ -557,6 +701,10 @@ public final class GuiListener implements Listener {
         }
         if (destination.equals("AREAS")) {
             plugin.gui().openAreas(player, 0);
+            return;
+        }
+        if (destination.equals("RECIPES")) {
+            plugin.gui().openRecipes(player);
             return;
         }
         if (destination.equals("LOGS")) {
