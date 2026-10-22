@@ -144,9 +144,11 @@ public final class DatabaseManager {
                 " id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 " owner_uuid TEXT NOT NULL," +
                 " message TEXT NOT NULL," +
-                " created_at INTEGER NOT NULL" +
+                " created_at INTEGER NOT NULL," +
+                " always_deliver INTEGER NOT NULL DEFAULT 0" +
                 ");"
             );
+            addColumnIfMissing(c, "notifications", "always_deliver", "INTEGER NOT NULL DEFAULT 0");
 
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_locks_owner       ON locks(owner_uuid);");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_created      ON logs(created_at);");
@@ -155,6 +157,19 @@ public final class DatabaseManager {
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_hoppers_owner     ON secure_hoppers(owner_uuid);");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_notifications_owner ON notifications(owner_uuid);");
         }
+    }
+
+    private void addColumnIfMissing(Connection c, String table, String column, String definition) throws SQLException {
+        try (Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("PRAGMA table_info(" + table + ");")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) return;
+            }
+        }
+        try (Statement st = c.createStatement()) {
+            st.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition + ";");
+        }
+        plugin.getLogger().info("Migration: column " + column + " added to table " + table + ".");
     }
 
     public Connection getConnection() throws SQLException {

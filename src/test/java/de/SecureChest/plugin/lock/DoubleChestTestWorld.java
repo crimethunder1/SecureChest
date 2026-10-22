@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +30,12 @@ final class DoubleChestTestWorld {
     DoubleChestTestWorld() {
         when(world.getUID()).thenReturn(worldUuid);
         when(world.getName()).thenReturn("world");
+        when(world.getBlockAt(anyInt(), anyInt(), anyInt())).thenAnswer(invocation ->
+                blockAt(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2)));
+        when(world.getBlockAt(any(Location.class))).thenAnswer(invocation -> {
+            Location location = invocation.getArgument(0);
+            return blockAt(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        });
     }
 
     World world() {
@@ -53,6 +60,13 @@ final class DoubleChestTestWorld {
         Position position = new Position(x, y, z);
         materials.put(position, material);
         blockData.put(position, mock(BlockData.class));
+        return blockAt(x, y, z);
+    }
+
+    Block setBlock(int x, int y, int z, Material material, BlockData data) {
+        Position position = new Position(x, y, z);
+        materials.put(position, material);
+        blockData.put(position, data);
         return blockAt(x, y, z);
     }
 

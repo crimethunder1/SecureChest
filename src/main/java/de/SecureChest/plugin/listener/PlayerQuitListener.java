@@ -34,8 +34,9 @@ public final class PlayerQuitListener implements Listener {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             plugin.locks().preloadPlayerSettings(playerUuid);
 
-            if (!plugin.cfg().notificationsEnabled()) return;
-            List<Notification> notifications = plugin.locks().fetchAndClearNotifications(playerUuid);
+            List<Notification> notifications = plugin.cfg().notificationsEnabled()
+                    ? plugin.locks().fetchAndClearNotifications(playerUuid)
+                    : plugin.locks().fetchAndClearAlwaysDeliveredNotifications(playerUuid);
                 if (notifications.isEmpty()) return;
 
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {

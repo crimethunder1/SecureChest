@@ -241,6 +241,112 @@ public final class SqlLockService implements LockService {
     }
 
     @Override
+    public LockRemovalBatch removeOutsideArea(Collection<LockEntry> locks, Collection<SecureHopperEntry> secureHoppers) {
+        List<LockEntry> removedLocks = new ArrayList<>();
+        Map<LockKey, String> logExtras = new LinkedHashMap<>();
+        for (LockEntry requested : locks) {
+            String id = requested.key().asId();
+            LockEntry removed = cacheManager.removeLock(id);
+            if (removed == null) continue;
+            removedLocks.add(removed);
+            plugin.signs().removeSign(id);
+            logExtras.put(removed.key(), "owner=" + removed.owner());
+        }
+
+        List<SecureHopperEntry> removedHoppers = new ArrayList<>();
+        for (SecureHopperEntry requested : secureHoppers) {
+            SecureHopperEntry removed = cacheManager.removeHopper(requested.hopperKey().asId());
+            if (removed == null) continue;
+            removedHoppers.add(removed);
+            clearSecureHopperMarkIfLoaded(removed.hopperKey());
+        }
+
+        LockRemovalBatch batch = new LockRemovalBatch(removedLocks, removedHoppers);
+        if (batch.isEmpty()) return batch;
+
+        logRepo.insertSystemLogs(LogRepository.ACTION_LOCK_REMOVE_AREA, logExtras);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> persistAreaRemoval(batch));
+        return batch;
+    }
+
+    private void persistAreaRemoval(LockRemovalBatch batch) {
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement(
+                    "DELETE FROM locks WHERE world_uuid=? AND x=? AND y=? AND z=? AND created_at=?")) {
+                for (LockEntry lock : batch.locks()) {
+                    LockKey key = lock.key();
+                    ps.setString(1, key.worldUuid().toString());
+                    ps.setInt(2, key.x()); ps.setInt(3, key.y()); ps.setInt(4, key.z());
+                    ps.setLong(5, lock.createdAt());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "DELETE FROM secure_hoppers WHERE world_uuid=? AND x=? AND y=? AND z=? AND owner_uuid=?"
+                    + " AND bound_world_uuid=? AND bound_x=? AND bound_y=? AND bound_z=?")) {
+                for (SecureHopperEntry hopper : batch.secureHoppers()) {
+                    LockKey hk = hopper.hopperKey();
+                    LockKey bnd = hopper.boundLock();
+                    ps.setString(1, hk.worldUuid().toString());
+                    ps.setInt(2, hk.x()); ps.setInt(3, hk.y()); ps.setInt(4, hk.z());
+                    ps.setString(5, hopper.owner().toString());
+                    ps.setString(6, bnd.worldUuid().toString());
+                    ps.setInt(7, bnd.x()); ps.setInt(8, bnd.y()); ps.setInt(9, bnd.z());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            c.commit();
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.SEVERE, "DB area removal persist failed", ex);
+            Bukkit.getScheduler().runTask(plugin, () -> restoreAfterFailedAreaRemoval(batch));
+        }
+    }
+
+    private void restoreAfterFailedAreaRemoval(LockRemovalBatch batch) {
+        for (LockEntry lock : batch.locks()) {
+            if (cacheManager.putLockIfAbsent(lock.key().asId(), lock) == null) {
+                plugin.signs().spawnSign(lock.key(), ownerName(lock.owner()));
+            }
+        }
+        for (SecureHopperEntry hopper : batch.secureHoppers()) {
+            cacheManager.putHopperIfAbsent(hopper.hopperKey().asId(), hopper);
+        }
+        plugin.getLogger().warning("[SecureChest] Area removal could not be saved, "
+                + batch.locks().size() + " locks and " + batch.secureHoppers().size()
+                + " secure hoppers were restored in the cache. Please check the database.");
+    }
+
+    private void clearSecureHopperMarkIfLoaded(LockKey hopperKey) {
+        org.bukkit.World hopperWorld = Bukkit.getWorld(hopperKey.worldUuid());
+        if (hopperWorld == null || !hopperWorld.isChunkLoaded(hopperKey.x() >> 4, hopperKey.z() >> 4)) return;
+        Block hopperBlock = hopperWorld.getBlockAt(hopperKey.x(), hopperKey.y(), hopperKey.z());
+        if (hopperBlock.getState() instanceof TileState tile) {
+            tile.getPersistentDataContainer().remove(plugin.keySecureHopperBlock());
+            tile.update(true, false);
+        }
+    }
+
+    private boolean isSnapshotInsideAreas(UndoSnapshot snapshot) {
+        if (!plugin.areas().isEnabled()) return true;
+        for (UndoSnapshot.LockRow lockRow : snapshot.locks()) {
+            LockKey key = lockRow.key();
+            org.bukkit.World world = Bukkit.getWorld(key.worldUuid());
+            if (world == null) return false;
+            if (!plugin.areas().isLockPlacementAllowed(world.getBlockAt(key.x(), key.y(), key.z()))) return false;
+        }
+        for (UndoSnapshot.SecureHopperRow hopperRow : snapshot.secureHoppers()) {
+            LockKey key = hopperRow.hopperKey();
+            org.bukkit.World world = Bukkit.getWorld(key.worldUuid());
+            if (world == null) return false;
+            if (!plugin.areas().isInside(world.getName(), key.x(), key.z())) return false;
+        }
+        return true;
+    }
+
+    @Override
     public Collection<LockEntry> getAllCachedLocks() {
         return cacheManager.lockValues();
     }
@@ -248,6 +354,7 @@ public final class SqlLockService implements LockService {
     @Override
     public boolean lock(Player owner, Block block) {
         if (!LockUtil.isLockable(block)) return false;
+        if (!plugin.areas().isLockPlacementAllowed(block)) return false;
         LockKey key = LockUtil.canonicalKey(block);
         String id   = key.asId();
 
@@ -465,6 +572,7 @@ public final class SqlLockService implements LockService {
                     + actor.getName() + " has no permission for this snapshot.");
             return false;
         }
+        if (!isSnapshotInsideAreas(peek)) return false;
 
         var snapOpt = plugin.undos().consume(actor.getUniqueId());
         if (snapOpt.isEmpty()) return false;
@@ -887,6 +995,8 @@ public final class SqlLockService implements LockService {
     public boolean bindSecureHopper(Player placer, Block hopperBlock, Block boundContainer) {
         if (hopperBlock == null || hopperBlock.getType() != Material.HOPPER) return false;
         if (!LockUtil.isLockable(boundContainer)) return false;
+        if (!plugin.areas().isLockPlacementAllowed(hopperBlock)
+                || !plugin.areas().isLockPlacementAllowed(boundContainer)) return false;
         LockEntry lock = getLock(boundContainer).orElse(null);
         if (lock == null || !lock.owner().equals(placer.getUniqueId())) return false;
 
@@ -1028,8 +1138,18 @@ public final class SqlLockService implements LockService {
     }
 
     @Override
+    public void addAlwaysDeliveredNotification(UUID ownerUuid, String message) {
+        settingsRepo.addAlwaysDeliveredNotification(ownerUuid, message);
+    }
+
+    @Override
     public List<Notification> fetchAndClearNotifications(UUID playerUuid) {
         return settingsRepo.fetchAndClearNotifications(playerUuid);
+    }
+
+    @Override
+    public List<Notification> fetchAndClearAlwaysDeliveredNotifications(UUID playerUuid) {
+        return settingsRepo.fetchAndClearAlwaysDeliveredNotifications(playerUuid);
     }
 
     @Override

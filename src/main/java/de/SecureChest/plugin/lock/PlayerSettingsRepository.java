@@ -92,8 +92,9 @@ public final class PlayerSettingsRepository {
                 }
 
                 try (PreparedStatement ps = c.prepareStatement(
-                        "DELETE FROM notifications WHERE owner_uuid=? AND id NOT IN"
-                        + " (SELECT id FROM notifications WHERE owner_uuid=? ORDER BY id DESC LIMIT ?)")) {
+                        "DELETE FROM notifications WHERE owner_uuid=? AND always_deliver=0 AND id NOT IN"
+                        + " (SELECT id FROM notifications WHERE owner_uuid=? AND always_deliver=0"
+                        + " ORDER BY id DESC LIMIT ?)")) {
                     ps.setString(1, ownerStr); ps.setString(2, ownerStr); ps.setInt(3, maxPerPlayer);
                     ps.executeUpdate();
                 }
@@ -104,13 +105,38 @@ public final class PlayerSettingsRepository {
         });
     }
 
+    public void addAlwaysDeliveredNotification(UUID ownerUuid, String message) {
+        long now = Instant.now().toEpochMilli();
+        final String ownerStr = ownerUuid.toString();
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "INSERT INTO notifications(owner_uuid,message,created_at,always_deliver) VALUES(?,?,?,1)")) {
+                ps.setString(1, ownerStr); ps.setString(2, message); ps.setLong(3, now);
+                ps.executeUpdate();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB addAlwaysDeliveredNotification failed for " + ownerStr, ex);
+            }
+        });
+    }
+
     public List<Notification> fetchAndClearNotifications(UUID playerUuid) {
+        return fetchAndClear(playerUuid, false);
+    }
+
+    public List<Notification> fetchAndClearAlwaysDeliveredNotifications(UUID playerUuid) {
+        return fetchAndClear(playerUuid, true);
+    }
+
+    private List<Notification> fetchAndClear(UUID playerUuid, boolean onlyAlwaysDelivered) {
         List<Notification> out = new ArrayList<>();
         final String uuidStr = playerUuid.toString();
+        final String filter = onlyAlwaysDelivered ? " AND always_deliver=1" : "";
 
         try (Connection c = db.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement(
-                    "SELECT id,message,created_at FROM notifications WHERE owner_uuid=? ORDER BY id ASC")) {
+                    "SELECT id,message,created_at FROM notifications WHERE owner_uuid=?" + filter + " ORDER BY id ASC")) {
                 ps.setString(1, uuidStr);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
@@ -120,8 +146,9 @@ public final class PlayerSettingsRepository {
             }
             if (!out.isEmpty()) {
                 try (PreparedStatement ps = c.prepareStatement(
-                        "DELETE FROM notifications WHERE owner_uuid=?")) {
+                        "DELETE FROM notifications WHERE owner_uuid=? AND id<=?" + filter)) {
                     ps.setString(1, uuidStr);
+                    ps.setLong(2, out.get(out.size() - 1).id());
                     ps.executeUpdate();
                 }
             }

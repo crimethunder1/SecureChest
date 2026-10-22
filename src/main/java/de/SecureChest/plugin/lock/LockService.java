@@ -80,6 +80,8 @@ public interface LockService {
 
     void forceRemoveHopperAt(LockKey key);
 
+    LockRemovalBatch removeOutsideArea(Collection<LockEntry> locks, Collection<SecureHopperEntry> secureHoppers);
+
     Collection<SecureHopperEntry> getAllCachedHoppers();
 
     void logUnauthorizedBreak(Player actor, Block target);
@@ -88,7 +90,9 @@ public interface LockService {
     void logInspectToggle(Player actor, boolean newState);
 
     void addNotification(UUID ownerUuid, String message);
+    void addAlwaysDeliveredNotification(UUID ownerUuid, String message);
     List<Notification> fetchAndClearNotifications(UUID playerUuid);
+    List<Notification> fetchAndClearAlwaysDeliveredNotifications(UUID playerUuid);
 
     ItemStack createLogsBook(int maxEntries);
 

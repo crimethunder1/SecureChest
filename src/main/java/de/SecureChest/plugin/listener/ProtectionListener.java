@@ -143,7 +143,14 @@ public final class ProtectionListener implements Listener {
 
         event.setCancelled(true);
         if (!consumeActionCooldown(player.getUniqueId())) return true;
+        if (rejectIfOutsideArea(player, block)) return true;
         lockBlockDirectly(player, block);
+        return true;
+    }
+
+    private boolean rejectIfOutsideArea(Player player, Block block) {
+        if (plugin.areas().isLockPlacementAllowed(block)) return false;
+        sendFailFeedback(player, plugin.msg().get("wirkungsbereich-hier-nicht-aktiv"));
         return true;
     }
 
@@ -185,6 +192,7 @@ public final class ProtectionListener implements Listener {
     }
 
     private void processLockRequest(Player player, Block block) {
+        if (rejectIfOutsideArea(player, block)) return;
         boolean isQuickLockEnabled = plugin.locks().getQuickLock(player.getUniqueId());
         if (isQuickLockEnabled || player.isSneaking()) {
             lockBlockDirectly(player, block);
@@ -307,6 +315,12 @@ public final class ProtectionListener implements Listener {
         BlockFace facingDirection = hopperData.getFacing();
         Block targetBlock = placedBlock.getRelative(facingDirection);
 
+        if (!plugin.areas().isLockPlacementAllowed(placedBlock) || !plugin.areas().isLockPlacementAllowed(targetBlock)) {
+            event.setCancelled(true);
+            sendFailFeedback(event.getPlayer(), plugin.msg().get("wirkungsbereich-hier-nicht-aktiv"));
+            return;
+        }
+
         if (!LockUtil.isLockable(targetBlock) || !plugin.locks().isLocked(targetBlock)) {
             event.setCancelled(true);
             sendFailFeedback(event.getPlayer(), plugin.msg().get("hopper-kein-lock"));
@@ -369,6 +383,7 @@ public final class ProtectionListener implements Listener {
         boolean requiresKey = plugin.cfg().autoLockRequireKey();
         if (requiresKey && !playerHasChestKeyInInventory(event.getPlayer())) return;
 
+        if (!plugin.areas().isLockPlacementAllowed(placedBlock)) return;
         if (plugin.locks().isLocked(placedBlock)) return;
         if (LockUtil.findDoubleChestPartner(placedBlock) == null && wouldMergeWithLockedChest(placedBlock)) return;
 

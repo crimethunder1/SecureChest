@@ -33,6 +33,10 @@ public final class LogRepository {
     public static final String ACTION_HOPPER_REMOVE         = "HOPPER_REMOVE";
     public static final String ACTION_UNDO_RESTORE          = "UNDO_RESTORE";
     public static final String ACTION_INSPECT_TOGGLE        = "INSPECT_TOGGLE";
+    public static final String ACTION_LOCK_REMOVE_AREA      = "LOCK_REMOVE_AREA";
+
+    public static final String SYSTEM_ACTOR_UUID = "00000000-0000-0000-0000-000000000000";
+    public static final String SYSTEM_ACTOR_NAME = "ChestSecure";
 
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
@@ -67,6 +71,40 @@ public final class LogRepository {
 
     public void insertLogAtActor(String action, Player actor, String extra) {
         insertLog(action, actor, actor.getLocation().getBlock(), extra);
+    }
+
+    public void insertSystemLogs(String action, Map<LockKey, String> extrasByKey) {
+        if (extrasByKey.isEmpty()) return;
+        long now = Instant.now().toEpochMilli();
+        final Map<LockKey, String> entries = new LinkedHashMap<>(extrasByKey);
+        final Map<LockKey, String> worldNames = new HashMap<>();
+        for (LockKey key : entries.keySet()) {
+            World w = Bukkit.getWorld(key.worldUuid());
+            worldNames.put(key, w != null ? w.getName() : "unknown");
+        }
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO logs(created_at,action,actor_uuid,actor_name,world_name,world_uuid,x,y,z,extra)"
+                        + " VALUES(?,?,?,?,?,?,?,?,?,?)")) {
+                    for (Map.Entry<LockKey, String> entry : entries.entrySet()) {
+                        LockKey key = entry.getKey();
+                        ps.setLong(1, now);                ps.setString(2, action);
+                        ps.setString(3, SYSTEM_ACTOR_UUID); ps.setString(4, SYSTEM_ACTOR_NAME);
+                        ps.setString(5, worldNames.get(key)); ps.setString(6, key.worldUuid().toString());
+                        ps.setInt(7, key.x());             ps.setInt(8, key.y());  ps.setInt(9, key.z());
+                        ps.setString(10, entry.getValue());
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+                c.commit();
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.SEVERE, "DB system log insert failed", ex);
+            }
+        });
     }
 
     private void persistLog(long now, String action,

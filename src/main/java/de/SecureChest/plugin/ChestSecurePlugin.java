@@ -1,5 +1,8 @@
 package de.SecureChest.plugin;
 
+import de.SecureChest.plugin.area.AreaService;
+import de.SecureChest.plugin.area.AreaStore;
+import de.SecureChest.plugin.area.BukkitAreaEnvironment;
 import de.SecureChest.plugin.command.ChestSecureCommand;
 import de.SecureChest.plugin.db.DatabaseManager;
 import de.SecureChest.plugin.gui.GuiManager;
@@ -47,6 +50,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private PluginConfig pluginConfig;
     private MessageService messageService;
     private Worlds worlds;
+    private AreaService areaService;
 
     private final Map<UUID, PendingChatAction> pendingChatActions = new ConcurrentHashMap<>();
 
@@ -81,6 +85,9 @@ public final class ChestSecurePlugin extends JavaPlugin {
 
         SqlLockService sqlLockService = new SqlLockService(this, database, () -> signManager.spawnAllSigns());
         this.lockService = sqlLockService;
+
+        AreaStore areaStore = new AreaStore(getDataFolder().toPath().resolve(AreaStore.FILE_NAME), getLogger());
+        this.areaService = new AreaService(areaStore, lockService, new BukkitAreaEnvironment(this), getLogger());
 
         this.recipes = new RecipeRegistry(this);
         this.recipes.registerAll();
@@ -136,5 +143,6 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public PluginConfig cfg()                  { return pluginConfig; }
     public MessageService msg()                { return messageService; }
     public Worlds worlds()                     { return worlds; }
+    public AreaService areas()                 { return areaService; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChatActions; }
 }

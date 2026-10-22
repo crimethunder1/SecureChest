@@ -41,6 +41,7 @@ class LogRepositoryActionConstantsTest {
         assertEquals("HOPPER_REMOVE",         LogRepository.ACTION_HOPPER_REMOVE);
         assertEquals("UNDO_RESTORE",          LogRepository.ACTION_UNDO_RESTORE);
         assertEquals("INSPECT_TOGGLE",        LogRepository.ACTION_INSPECT_TOGGLE);
+        assertEquals("LOCK_REMOVE_AREA",      LogRepository.ACTION_LOCK_REMOVE_AREA);
     }
 
     @Test

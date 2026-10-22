@@ -4,6 +4,9 @@ import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.MessageService;
 import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.PluginConfig;
+import de.SecureChest.plugin.area.AreaService;
+import de.SecureChest.plugin.area.AreaStore;
+import de.SecureChest.plugin.area.RecordingAreaEnvironment;
 import de.SecureChest.plugin.db.DatabaseManager;
 import de.SecureChest.plugin.sign.SignManager;
 import de.SecureChest.plugin.util.Worlds;
@@ -12,8 +15,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.mockito.MockedStatic;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.SQLException;
+import java.util.Comparator;
 import java.util.UUID;
+import java.util.stream.Stream;
 import java.util.logging.Logger;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -29,10 +38,14 @@ final class LockServiceTestFixture implements AutoCloseable {
     final ChestSecurePlugin plugin;
     final PluginConfig config;
     final SqlLockService service;
+    final Path areaFolder;
+    final RecordingAreaEnvironment areaEnvironment;
+    final AreaService areas;
 
     LockServiceTestFixture() throws SQLException {
         bukkit = mockStatic(Bukkit.class);
         bukkit.when(Bukkit::getScheduler).thenReturn(mock(BukkitScheduler.class));
+        bukkit.when(() -> Bukkit.getWorld(world.world().getUID())).thenReturn(world.world());
 
         plugin = mock(ChestSecurePlugin.class);
         config = mock(PluginConfig.class);
@@ -54,6 +67,20 @@ final class LockServiceTestFixture implements AutoCloseable {
 
         service = new SqlLockService(plugin, database, null);
         when(plugin.locks()).thenReturn(service);
+
+        areaFolder = createAreaFolder();
+        areaEnvironment = new RecordingAreaEnvironment().addWorld(world.world().getUID(), "world");
+        areas = new AreaService(new AreaStore(areaFolder.resolve(AreaStore.FILE_NAME), plugin.getLogger()),
+                service, areaEnvironment, plugin.getLogger());
+        when(plugin.areas()).thenReturn(areas);
+    }
+
+    private static Path createAreaFolder() {
+        try {
+            return Files.createTempDirectory("chestsecure-area-test");
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     Player player(String name, boolean admin) {
@@ -67,5 +94,12 @@ final class LockServiceTestFixture implements AutoCloseable {
     @Override
     public void close() {
         bukkit.close();
+        try (Stream<Path> paths = Files.walk(areaFolder)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 }
