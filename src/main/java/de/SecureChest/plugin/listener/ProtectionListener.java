@@ -370,11 +370,21 @@ public final class ProtectionListener implements Listener {
         if (requiresKey && !playerHasChestKeyInInventory(event.getPlayer())) return;
 
         if (plugin.locks().isLocked(placedBlock)) return;
+        if (LockUtil.findDoubleChestPartner(placedBlock) == null && wouldMergeWithLockedChest(placedBlock)) return;
 
         boolean autoLockSuccess = plugin.locks().lock(event.getPlayer(), placedBlock);
         if (autoLockSuccess) {
             sendSuccessFeedback(event.getPlayer(), plugin.msg().get("automatisch-gesperrt"));
         }
+    }
+
+    private boolean wouldMergeWithLockedChest(Block placedBlock) {
+        for (BlockFace face : LockUtil.lateralFaces()) {
+            Block neighbor = placedBlock.getRelative(face);
+            if (!LockUtil.wouldFormDoubleChestWith(placedBlock, neighbor, face)) continue;
+            if (plugin.locks().isLocked(neighbor)) return true;
+        }
+        return false;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -486,9 +496,9 @@ public final class ProtectionListener implements Listener {
 
     private void cleanupProtectedBlockIfNeeded(Block block) {
         if (block == null) return;
-        if (LockUtil.isLockable(block) && plugin.locks().isLocked(block)) {
-            LockKey key = LockUtil.canonicalKey(block);
-            plugin.locks().forceRemoveLockAt(key);
+        if (LockUtil.isLockable(block)) {
+            plugin.locks().getLock(block)
+                    .ifPresent(lockEntry -> plugin.locks().forceRemoveLockAt(lockEntry.key()));
         }
         if (block.getType() == Material.HOPPER && plugin.locks().isSecureHopper(block)) {
             plugin.locks().forceRemoveHopperAt(LockKey.fromLocation(block.getLocation()));
@@ -586,15 +596,15 @@ public final class ProtectionListener implements Listener {
         }
 
         if (sourceIsLocked) {
-            LockKey sourceLockKey = LockUtil.canonicalKey(sourceBlock);
-            if (!sourceLockKey.asId().equals(hopperEntry.boundLock().asId())) {
+            String sourceLockId = plugin.locks().getLock(sourceBlock).map(entry -> entry.key().asId()).orElse(null);
+            if (!hopperEntry.boundLock().asId().equals(sourceLockId)) {
                 event.setCancelled(true);
                 return;
             }
         }
         if (destinationIsLocked) {
-            LockKey destinationLockKey = LockUtil.canonicalKey(destinationBlock);
-            if (!destinationLockKey.asId().equals(hopperEntry.boundLock().asId())) {
+            String destinationLockId = plugin.locks().getLock(destinationBlock).map(entry -> entry.key().asId()).orElse(null);
+            if (!hopperEntry.boundLock().asId().equals(destinationLockId)) {
                 event.setCancelled(true);
             }
         }

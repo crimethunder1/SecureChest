@@ -8,6 +8,7 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -118,16 +119,27 @@ public final class SqlLockService implements LockService {
 
     @Override
     public boolean isLocked(Block block) {
-        if (!LockUtil.isLockable(block)) return false;
-        String id = LockUtil.canonicalKey(block).asId();
-        if (cacheManager.hasLock(id)) return true;
         return getLock(block).isPresent();
     }
 
     @Override
     public Optional<LockEntry> getLock(Block block) {
         if (!LockUtil.isLockable(block)) return Optional.empty();
-        return getLockFromId(LockUtil.canonicalKey(block).asId());
+        return resolveStoredLock(LockUtil.storedKeyCandidates(block), cacheManager::getLock, this::getLockFromId);
+    }
+
+    static Optional<LockEntry> resolveStoredLock(List<LockKey> candidates,
+                                                 Function<String, LockEntry> cachedLookup,
+                                                 Function<String, Optional<LockEntry>> fullLookup) {
+        for (LockKey candidate : candidates) {
+            LockEntry cached = cachedLookup.apply(candidate.asId());
+            if (cached != null) return Optional.of(cached);
+        }
+        for (LockKey candidate : candidates) {
+            Optional<LockEntry> loaded = fullLookup.apply(candidate.asId());
+            if (loaded.isPresent()) return loaded;
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -245,6 +257,8 @@ public final class SqlLockService implements LockService {
             return false;
         }
 
+        if (getLock(block).isPresent()) return false;
+
         long now = Instant.now().toEpochMilli();
         LockEntry entry = new LockEntry(key, block.getType(), owner.getUniqueId(), now);
 
@@ -277,7 +291,9 @@ public final class SqlLockService implements LockService {
     @Override
     public boolean unlock(Player caller, Block block) {
         if (!LockUtil.isLockable(block)) return true;
-        return unlockByKey(caller, LockUtil.canonicalKey(block));
+        LockEntry entry = getLock(block).orElse(null);
+        if (entry == null) return true;
+        return unlockByKey(caller, entry.key());
     }
 
     @Override
@@ -703,7 +719,9 @@ public final class SqlLockService implements LockService {
     @Override
     public boolean setTrust(Player owner, Block block, UUID target, AccessLevel level) {
         if (!LockUtil.isLockable(block)) return false;
-        return setTrustByKey(owner, LockUtil.canonicalKey(block), target, level);
+        LockEntry entry = getLock(block).orElse(null);
+        if (entry == null) return false;
+        return setTrustByKey(owner, entry.key(), target, level);
     }
 
     @Override
@@ -755,7 +773,9 @@ public final class SqlLockService implements LockService {
     @Override
     public boolean removeTrust(Player owner, Block block, UUID target) {
         if (!LockUtil.isLockable(block)) return false;
-        return removeTrustByKey(owner, LockUtil.canonicalKey(block), target);
+        LockEntry entry = getLock(block).orElse(null);
+        if (entry == null) return false;
+        return removeTrustByKey(owner, entry.key(), target);
     }
 
     @Override
@@ -877,7 +897,7 @@ public final class SqlLockService implements LockService {
         }
 
         LockKey hk  = LockKey.fromLocation(hopperBlock.getLocation());
-        LockKey bnd = LockUtil.canonicalKey(boundContainer);
+        LockKey bnd = lock.key();
         long now    = Instant.now().toEpochMilli();
 
         SecureHopperEntry candidate = new SecureHopperEntry(hk, placer.getUniqueId(), bnd);

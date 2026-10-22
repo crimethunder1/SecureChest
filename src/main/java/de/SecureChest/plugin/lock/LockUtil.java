@@ -8,6 +8,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Chest;
 
+import java.util.List;
 import java.util.Objects;
 
 public final class LockUtil {
@@ -30,16 +31,11 @@ public final class LockUtil {
 
     public static Block canonicalBlock(Block b) {
         Objects.requireNonNull(b, "block");
-        Material type = b.getType();
-        if (type == Material.CHEST || type == Material.TRAPPED_CHEST) {
-            Block partner = findConnectedChest(b);
-            if (partner != null) {
-                Location ownLocation = b.getLocation();
-                Location partnerLocation = partner.getLocation();
-                return isLessOrEqual(ownLocation, partnerLocation) ? b : partner;
-            }
-        }
-        return b;
+        Block partner = findDoubleChestPartner(b);
+        if (partner == null) return b;
+        Location ownLocation = b.getLocation();
+        Location partnerLocation = partner.getLocation();
+        return isLessOrEqual(ownLocation, partnerLocation) ? b : partner;
     }
 
     public static LockKey canonicalKey(Block b) {
@@ -47,30 +43,38 @@ public final class LockUtil {
         return LockKey.fromLocation(canon.getLocation());
     }
 
-    private static Block findConnectedChest(Block block) {
+    public static List<LockKey> storedKeyCandidates(Block block) {
+        Objects.requireNonNull(block, "block");
+        LockKey own = LockKey.fromLocation(block.getLocation());
+        Block partner = findDoubleChestPartner(block);
+        if (partner == null) return List.of(own);
+
+        LockKey partnerKey = LockKey.fromLocation(partner.getLocation());
+        boolean ownIsCanonical = isLessOrEqual(block.getLocation(), partner.getLocation());
+        return ownIsCanonical ? List.of(own, partnerKey) : List.of(partnerKey, own);
+    }
+
+    public static Block findDoubleChestPartner(Block block) {
         Material type = block.getType();
         if (type != Material.CHEST && type != Material.TRAPPED_CHEST) return null;
 
         BlockData blockData = block.getBlockData();
         if (!(blockData instanceof Chest ownChestData)) return null;
-        if (ownChestData.getType() == Chest.Type.SINGLE) return null;
 
-        BlockFace ownFacing = ownChestData.getFacing();
         Chest.Type ownConnection = ownChestData.getType();
+        BlockFace ownFacing = ownChestData.getFacing();
+        BlockFace partnerFace = partnerFace(ownFacing, ownConnection);
+        if (partnerFace == null) return null;
 
-        for (BlockFace face : LATERAL_FACES) {
-            Block neighbor = block.getRelative(face);
-            if (neighbor.getType() != type) continue;
+        Block neighbor = block.getRelative(partnerFace);
+        if (neighbor.getType() != type) return null;
 
-            BlockData neighborData = neighbor.getBlockData();
-            if (!(neighborData instanceof Chest neighborChestData)) continue;
-            if (neighborChestData.getFacing() != ownFacing) continue;
-            if (neighborChestData.getType() == Chest.Type.SINGLE) continue;
-            if (neighborChestData.getType() == ownConnection) continue;
+        BlockData neighborData = neighbor.getBlockData();
+        if (!(neighborData instanceof Chest neighborChestData)) return null;
+        if (neighborChestData.getFacing() != ownFacing) return null;
+        if (neighborChestData.getType() == ownConnection) return null;
 
-            return neighbor;
-        }
-        return null;
+        return neighbor;
     }
 
     public static boolean wouldFormDoubleChestWith(Block placedBlock, Block neighborBlock, BlockFace face) {
@@ -98,7 +102,37 @@ public final class LockUtil {
         boolean vanillaWillMerge = placedConnection == Chest.Type.SINGLE
                 && neighborConnection == Chest.Type.SINGLE;
 
-        return alreadyMerged || vanillaWillMerge;
+        boolean placedAlreadyPointsToSingleNeighbor = placedConnection != Chest.Type.SINGLE
+                && neighborConnection == Chest.Type.SINGLE
+                && face == partnerFace(placedFacing, placedConnection);
+
+        return alreadyMerged || vanillaWillMerge || placedAlreadyPointsToSingleNeighbor;
+    }
+
+    private static BlockFace partnerFace(BlockFace facing, Chest.Type connection) {
+        if (connection == Chest.Type.LEFT) return rotateClockwise(facing);
+        if (connection == Chest.Type.RIGHT) return rotateCounterClockwise(facing);
+        return null;
+    }
+
+    private static BlockFace rotateClockwise(BlockFace face) {
+        return switch (face) {
+            case NORTH -> BlockFace.EAST;
+            case EAST -> BlockFace.SOUTH;
+            case SOUTH -> BlockFace.WEST;
+            case WEST -> BlockFace.NORTH;
+            default -> null;
+        };
+    }
+
+    private static BlockFace rotateCounterClockwise(BlockFace face) {
+        return switch (face) {
+            case NORTH -> BlockFace.WEST;
+            case WEST -> BlockFace.SOUTH;
+            case SOUTH -> BlockFace.EAST;
+            case EAST -> BlockFace.NORTH;
+            default -> null;
+        };
     }
 
     private static boolean isConnectionAxis(BlockFace chestFacing, BlockFace candidateFace) {
