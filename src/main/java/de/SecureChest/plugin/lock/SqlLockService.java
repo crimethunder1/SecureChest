@@ -21,6 +21,8 @@ import org.bukkit.persistence.PersistentDataType;
 
 public final class SqlLockService implements LockService {
 
+    private static final long SYNCHRONOUS_FALLBACK_WARNING_INTERVAL_MILLIS = 60_000L;
+
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
 
@@ -28,15 +30,20 @@ public final class SqlLockService implements LockService {
     private final Map<UUID, Boolean>             quickLockCache   = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean>             quickRemoveCache = new ConcurrentHashMap<>();
 
+    private volatile boolean cacheFullyLoaded;
+
     private final Runnable                 postWarmCallback;
     private final LogRepository            logRepo;
     private final PlayerSettingsRepository settingsRepo;
+    private final ThrottledWarning         synchronousFallbackWarning;
 
     public SqlLockService(ChestSecurePlugin plugin, DatabaseManager db, Runnable postWarmCallback) {
         this.plugin       = plugin;
         this.db           = db;
         this.logRepo      = new LogRepository(plugin, db);
         this.settingsRepo = new PlayerSettingsRepository(plugin, db);
+        this.synchronousFallbackWarning = new ThrottledWarning(plugin.getLogger(),
+                SYNCHRONOUS_FALLBACK_WARNING_INTERVAL_MILLIS, System::currentTimeMillis);
 
         this.postWarmCallback = postWarmCallback;
         warmCachesAsync();
@@ -47,6 +54,7 @@ public final class SqlLockService implements LockService {
             try {
                 loadAllLocks();
                 loadAllSecureHoppers();
+                cacheFullyLoaded = true;
                 Runnable cb = postWarmCallback;
                 if (cb != null) {
                     Bukkit.getScheduler().runTask(plugin, cb);
@@ -146,15 +154,12 @@ public final class SqlLockService implements LockService {
     public Optional<LockEntry> getLockFromId(String lockId) {
         LockEntry cached = cacheManager.getLock(lockId);
         if (cached != null) return Optional.of(cached);
+        if (cacheFullyLoaded) return Optional.empty();
 
         LockKey key;
         try { key = LockKey.fromId(lockId); } catch (Exception ex) { return Optional.empty(); }
 
-        if (Bukkit.isPrimaryThread()) {
-            plugin.getLogger().warning("[SecureChest] getLockFromId(\"" + lockId
-                    + "\") hits the synchronous DB fallback on the main thread! "
-                    + "Make sure the cache warmup finishes before player events.");
-        }
+        warnSynchronousFallback("getLockFromId", lockId);
 
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -185,6 +190,13 @@ public final class SqlLockService implements LockService {
             plugin.getLogger().log(Level.SEVERE, "DB getLock failed", ex);
             return Optional.empty();
         }
+    }
+
+    private void warnSynchronousFallback(String methodName, String id) {
+        if (!Bukkit.isPrimaryThread()) return;
+        synchronousFallbackWarning.warn("[SecureChest] " + methodName + "(\"" + id
+                + "\") hits the synchronous DB fallback on the main thread! "
+                + "Make sure the cache warmup finishes before player events.");
     }
 
     @Override
@@ -956,6 +968,7 @@ public final class SqlLockService implements LockService {
         if (hopperBlock == null || hopperBlock.getType() != Material.HOPPER) return false;
         String id = LockKey.fromLocation(hopperBlock.getLocation()).asId();
         if (cacheManager.hasHopper(id)) return true;
+        if (cacheFullyLoaded) return false;
         if (hopperBlock.getState() instanceof TileState tile) {
             Byte mark = tile.getPersistentDataContainer().get(plugin.keySecureHopperBlock(), PersistentDataType.BYTE);
             if (mark != null && mark == (byte) 1) return getSecureHopper(hopperBlock).isPresent();
@@ -971,6 +984,9 @@ public final class SqlLockService implements LockService {
 
         SecureHopperEntry cached = cacheManager.getHopper(id);
         if (cached != null) return Optional.of(cached);
+        if (cacheFullyLoaded) return Optional.empty();
+
+        warnSynchronousFallback("getSecureHopper", id);
 
         try (Connection c = db.getConnection();
              PreparedStatement ps = c.prepareStatement(
