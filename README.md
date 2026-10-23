@@ -101,11 +101,12 @@ chest_key:
 
 * `/chestsecure` or `/cs` opens the main menu. Players only.
 * `/cs reload` reloads `config.yml` with the language setting, the language files in the folder `lang` and the world list. Recipes, `recipes.yml` and `areas.yml` are not reloaded.
+* `/cs givekey [player] [amount]` gives Chest Keys to an online player. Admins only (`chestsecure.admin`). The amount is a whole number from 1 to 64, the default is one key for the sender. From the console a player is required. Keys that do not fit into the inventory are dropped at the player's position.
 
 ## Permissions
 
 * `chestsecure.use` (default: true) opens the main menu with `/cs`.
-* `chestsecure.admin` (default: op) breaks and opens locked blocks, opens the admin panel and runs `/cs reload`. In the admin panel it also gives access to the protection area and the recipe editor.
+* `chestsecure.admin` (default: op) breaks and opens locked blocks, opens the admin panel and runs `/cs reload` and `/cs givekey`. In the admin panel it also gives access to the protection area and the recipe editor.
 * `chestsecure.admin.teleport` (default: op) teleports to log positions in the admin log view. Also needs `admin.logs.teleport_enabled: true`.
 
 ## Configuration

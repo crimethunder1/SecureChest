@@ -8,7 +8,7 @@ description: "ChestSecure - Lock & protect containers with keys (Paper 26.2)."
 commands:
   chestsecure:
     description: "Open ChestSecure GUI. Use /cs reload to reload config."
-    usage: "/cs [reload]"
+    usage: "/cs [reload|givekey [Spieler] [Anzahl]]"
     aliases: [cs]
 
 permissions:
