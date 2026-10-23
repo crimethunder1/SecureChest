@@ -3,6 +3,7 @@ package de.SecureChest.plugin.gui;
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.LogRecord;
+import de.SecureChest.plugin.lock.LogRepository;
 import de.SecureChest.plugin.ui.UiStateStore;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -141,18 +142,40 @@ final class AdminScreen {
 
     private ItemStack buildLogListEntry(LogRecord r) {
         Material icon = switch (r.action()) {
-            case "UNAUTHORIZED_BREAK" -> Material.RED_CONCRETE;
-            case "ADMIN_BREAK"        -> Material.ORANGE_CONCRETE;
-            case "LOCK"               -> Material.LIME_CONCRETE;
-            case "UNLOCK"             -> Material.YELLOW_CONCRETE;
-            default                   -> Material.PAPER;
+            case LogRepository.ACTION_UNAUTHORIZED_BREAK    -> Material.RED_CONCRETE;
+            case LogRepository.ACTION_ADMIN_BREAK           -> Material.ORANGE_CONCRETE;
+            case LogRepository.ACTION_LOCK_CREATE           -> Material.LIME_CONCRETE;
+            case LogRepository.ACTION_LOCK_REMOVE           -> Material.YELLOW_CONCRETE;
+            case LogRepository.ACTION_LOCK_REMOVE_ADMIN     -> Material.ORANGE_TERRACOTTA;
+            case LogRepository.ACTION_LOCK_REMOVE_AREA      -> Material.YELLOW_GLAZED_TERRACOTTA;
+            case LogRepository.ACTION_LOCK_TRANSFER         -> Material.LIGHT_BLUE_CONCRETE;
+            case LogRepository.ACTION_LOCK_UNLOCK_ALL_SELF  -> Material.YELLOW_CONCRETE_POWDER;
+            case LogRepository.ACTION_LOCK_UNLOCK_ALL_ADMIN -> Material.ORANGE_CONCRETE_POWDER;
+            case LogRepository.ACTION_TRUST_SET             -> Material.LIME_WOOL;
+            case LogRepository.ACTION_TRUST_REMOVE          -> Material.YELLOW_WOOL;
+            case LogRepository.ACTION_HOPPER_BIND           -> Material.LIME_TERRACOTTA;
+            case LogRepository.ACTION_HOPPER_REMOVE         -> Material.YELLOW_TERRACOTTA;
+            case LogRepository.ACTION_UNDO_RESTORE          -> Material.CYAN_CONCRETE;
+            case LogRepository.ACTION_INSPECT_TOGGLE        -> Material.LIGHT_GRAY_CONCRETE;
+            default                                         -> Material.PAPER;
         };
         String label = switch (r.action()) {
-            case "UNAUTHORIZED_BREAK" -> text("gui-logs-entry-action-unauthorized-break");
-            case "ADMIN_BREAK"        -> text("gui-logs-entry-action-admin-break");
-            case "LOCK"               -> text("gui-logs-entry-action-lock");
-            case "UNLOCK"             -> text("gui-logs-entry-action-unlock");
-            default                   -> text("gui-logs-entry-action-other", r.action());
+            case LogRepository.ACTION_UNAUTHORIZED_BREAK    -> text("gui-logs-entry-action-unauthorized-break");
+            case LogRepository.ACTION_ADMIN_BREAK           -> text("gui-logs-entry-action-admin-break");
+            case LogRepository.ACTION_LOCK_CREATE           -> text("gui-logs-entry-action-lock-create");
+            case LogRepository.ACTION_LOCK_REMOVE           -> text("gui-logs-entry-action-lock-remove");
+            case LogRepository.ACTION_LOCK_REMOVE_ADMIN     -> text("gui-logs-entry-action-lock-remove-admin");
+            case LogRepository.ACTION_LOCK_REMOVE_AREA      -> text("gui-logs-entry-action-lock-remove-area");
+            case LogRepository.ACTION_LOCK_TRANSFER         -> text("gui-logs-entry-action-lock-transfer");
+            case LogRepository.ACTION_LOCK_UNLOCK_ALL_SELF  -> text("gui-logs-entry-action-lock-unlock-all-self");
+            case LogRepository.ACTION_LOCK_UNLOCK_ALL_ADMIN -> text("gui-logs-entry-action-lock-unlock-all-admin");
+            case LogRepository.ACTION_TRUST_SET             -> text("gui-logs-entry-action-trust-set");
+            case LogRepository.ACTION_TRUST_REMOVE          -> text("gui-logs-entry-action-trust-remove");
+            case LogRepository.ACTION_HOPPER_BIND           -> text("gui-logs-entry-action-hopper-bind");
+            case LogRepository.ACTION_HOPPER_REMOVE         -> text("gui-logs-entry-action-hopper-remove");
+            case LogRepository.ACTION_UNDO_RESTORE          -> text("gui-logs-entry-action-undo-restore");
+            case LogRepository.ACTION_INSPECT_TOGGLE        -> text("gui-logs-entry-action-inspect-toggle");
+            default                                         -> text("gui-logs-entry-action-other", r.action());
         };
 
         String relTime = buildRelativeTimeLabel(r.createdAt());
