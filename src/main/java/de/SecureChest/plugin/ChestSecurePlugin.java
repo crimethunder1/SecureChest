@@ -14,6 +14,8 @@ import de.SecureChest.plugin.lock.LockService;
 import de.SecureChest.plugin.lock.SqlLockService;
 import de.SecureChest.plugin.ping.PingManager;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
+import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
+import de.SecureChest.plugin.settings.SettingsStore;
 import de.SecureChest.plugin.sign.SignManager;
 import de.SecureChest.plugin.ui.ConfirmManager;
 import de.SecureChest.plugin.ui.UiStateStore;
@@ -51,6 +53,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private MessageService messageService;
     private Worlds worlds;
     private AreaService areaService;
+    private OwnerNameDisplaySetting ownerNameDisplay;
 
     private final Map<UUID, PendingChatAction> pendingChatActions = new ConcurrentHashMap<>();
 
@@ -81,6 +84,9 @@ public final class ChestSecurePlugin extends JavaPlugin {
             return;
         }
 
+        SettingsStore settingsStore = new SettingsStore(
+                getDataFolder().toPath().resolve(SettingsStore.FILE_NAME), getLogger());
+        this.ownerNameDisplay = new OwnerNameDisplaySetting(settingsStore, () -> cfg().signsEnabled(), getLogger());
         this.signManager = new SignManager(this);
 
         SqlLockService sqlLockService = new SqlLockService(this, database, () -> signManager.spawnAllSigns());
@@ -145,5 +151,6 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public MessageService msg()                { return messageService; }
     public Worlds worlds()                     { return worlds; }
     public AreaService areas()                 { return areaService; }
+    public OwnerNameDisplaySetting ownerNameDisplay() { return ownerNameDisplay; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChatActions; }
 }

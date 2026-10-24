@@ -38,7 +38,7 @@ public final class SignManager implements Listener {
     }
 
     public boolean isEnabled() {
-        return plugin.cfg().signsEnabled();
+        return plugin.ownerNameDisplay().isEnabled();
     }
 
     public void spawnSign(LockKey key, String ownerName) {
@@ -71,6 +71,15 @@ public final class SignManager implements Listener {
         if (eid == null) return;
         Entity e = Bukkit.getEntity(eid);
         if (e != null && e.isValid()) e.remove();
+    }
+
+    public void removeAllSigns() {
+        int removed = 0;
+        for (String lockId : java.util.List.copyOf(signEntities.keySet())) {
+            removeSign(lockId);
+            removed++;
+        }
+        plugin.getLogger().info("SignManager: " + removed + " signs removed.");
     }
 
     public void spawnAllSigns() {

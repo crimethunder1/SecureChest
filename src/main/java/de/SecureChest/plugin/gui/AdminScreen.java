@@ -47,6 +47,7 @@ final class AdminScreen {
         holder.setInventory(inv);
 
         boolean inspectOn = plugin.ui().inspect(player.getUniqueId());
+        boolean ownerNameDisplayOn = plugin.ownerNameDisplay().isEnabled();
 
         inv.setItem(19, h.buildButton(Material.NETHER_STAR, text("gui-admin-key-name"),
                 lines("gui-admin-key-lore"), "give_admin_key", ""));
@@ -71,6 +72,10 @@ final class AdminScreen {
                 "open_areas", ""));
         inv.setItem(37, h.buildButton(Material.CRAFTING_TABLE, text("gui-admin-recipes-name"),
                 lines("gui-admin-recipes-lore"), "open_recipes", ""));
+        inv.setItem(40, h.buildToggleButton(text("gui-admin-owner-name-display-label"), ownerNameDisplayOn,
+                "toggle_owner_name_display",
+                ownerNameDisplayOn ? text("gui-admin-owner-name-display-on")
+                                   : text("gui-admin-owner-name-display-off")));
         inv.setItem(49, h.buildButton(Material.ARROW, text("gui-back-name"),
                 lines("gui-back-main-lore"), "back_main", ""));
 

@@ -9,6 +9,7 @@ import de.SecureChest.plugin.recipe.RecipeDefinition;
 import de.SecureChest.plugin.recipe.RecipeKind;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
 import de.SecureChest.plugin.recipe.RecipeValidator;
+import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.util.Items;
 import net.kyori.adventure.text.Component;
@@ -96,6 +97,7 @@ public final class ScreenActionRecorder {
         AreaService areaService = mock(AreaService.class);
         when(areaService.areas()).thenReturn(areas);
         when(plugin.areas()).thenReturn(areaService);
+        when(plugin.ownerNameDisplay()).thenReturn(mock(OwnerNameDisplaySetting.class));
         UiStateStore uiStateStore = new UiStateStore();
         when(plugin.ui()).thenReturn(uiStateStore);
         return plugin;

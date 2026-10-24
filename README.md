@@ -14,8 +14,8 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 * Put the JAR into the `plugins` folder and start the server.
 * ChestSecure creates `plugins/ChestSecure` with `config.yml`, the folder `lang` with `en.yml` and `de.yml`, and the database `chestsecure.db`.
 * Set the worlds in `config.yml` under `worlds.enabled`. The defaults are `world`, `world_nether` and `world_the_end`. Players can only lock blocks in listed worlds. An empty list (`enabled: []`) enables all worlds.
-* When needed, ChestSecure also creates `areas.yml` and `recipes.yml` in the plugin folder. This only happens after a change in the admin panel.
-* Apart from creating it on the first start, ChestSecure never writes `config.yml`. Changes from the admin panel are stored in `areas.yml` and `recipes.yml`.
+* When needed, ChestSecure also creates `areas.yml`, `recipes.yml` and `settings.yml` in the plugin folder. This only happens after a change in the admin panel.
+* Apart from creating it on the first start, ChestSecure never writes `config.yml`. Changes from the admin panel are stored in `areas.yml`, `recipes.yml` and `settings.yml`.
 
 ## Usage
 
@@ -25,12 +25,12 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 * Quick Remove is a setting in `/cs`. When it is on, a right click with the Chest Key removes a lock at once.
 * The management menu shows the position and trusted players. From there you can ping the storage, transfer ownership, remove the lock and add trusted players, either from online players nearby or by typing a name in chat.
 * Trust levels: a Viewer can open the container and look at the contents but cannot move items. A Stocker can take and put items. Only the owner and admins can break a locked block.
-* A text display with the owner name appears at each locked block.
+* A text display with the owner name appears at each locked block. Admins can turn the owner name display on and off for all locks in the admin panel.
 * Secure Hopper: place it facing a container you locked. It binds to that container. Normal hoppers and hopper minecarts cannot move items into or out of locked containers. Only the owner can open a Secure Hopper, and admins can open it with the Admin Key. The owner and admins can break it. Breaking it drops the Secure Hopper item.
 * Undo: removing a lock, removing all your locks and transferring a lock can be undone in the main menu `/cs` for 20 seconds. Up to 5 steps are kept.
 * Locked blocks and Secure Hoppers are not destroyed by explosions, do not burn, cannot be moved by pistons and cannot be changed by entities. Players cannot place a chest next to a locked chest of another player to form a double chest.
 * When another player tries to break a locked block, the owner gets a chat notification. Offline owners see it at their next join.
-* Admins with `chestsecure.admin` can break any locked block and open locked blocks while holding the Admin Key. The admin panel in `/cs` gives the Admin Key, a log book, a server report, a log browser, an inspect mode, a global unlock for one player, the Protection area (area limits for locking, see the section Protection area) and the Recipe editor.
+* Admins with `chestsecure.admin` can break any locked block and open locked blocks while holding the Admin Key. The admin panel in `/cs` gives the Admin Key, a log book, a server report, a log browser, an inspect mode, a global unlock for one player, the Protection area (area limits for locking, see the section Protection area), the Recipe editor and a switch for the owner name display.
 
 ## Protection area
 
@@ -113,7 +113,7 @@ chest_key:
 
 * `language: en` sets the language for the whole server. The values are `en` and `de`, the default is `en`.
 * `sounds.enabled: true` and `particles.enabled: true` play feedback on lock actions.
-* `signs.enabled: true` shows the owner text display at locked blocks.
+* `signs.enabled: true` shows the owner text display at locked blocks. Admins can turn the owner name display on and off for all locks in the admin panel. The setting is stored in `settings.yml` and takes priority over `signs.enabled` in `config.yml`. `/cs reload` does not reload `settings.yml`.
 * `ui.confirm_timeout_seconds: 15` is the time a confirmation stays valid.
 * `ui.undo_seconds: 20` and `ui.max_undo_history: 5` control undo.
 * `ui.trust_nearby_radius: 32.0` is the radius for the nearby players list.

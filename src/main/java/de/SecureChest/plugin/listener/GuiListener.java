@@ -14,6 +14,7 @@ import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.recipe.RecipeChangeResult;
 import de.SecureChest.plugin.recipe.RecipeEditorModel;
 import de.SecureChest.plugin.recipe.RecipeKind;
+import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
 import java.util.ArrayList;
@@ -52,7 +53,8 @@ public final class GuiListener implements Listener {
             "logs_set_actor", "log_entry",
             "open_areas", "areas_page", "area_toggle", "area_create", "area_entry",
             "open_recipes", "back_recipes", "recipe_entry", "recipe_cell", "recipe_toggle",
-            "recipe_save", "recipe_reset"
+            "recipe_save", "recipe_reset",
+            "toggle_owner_name_display"
     );
 
     private final ChestSecurePlugin plugin;
@@ -347,6 +349,8 @@ public final class GuiListener implements Listener {
                 plugin.gui().openAdmin(player);
             }
 
+            case "toggle_owner_name_display" -> toggleOwnerNameDisplay(player);
+
             case "global_unlock" -> {
                 player.closeInventory();
                 plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.GlobalUnlock());
@@ -585,6 +589,26 @@ public final class GuiListener implements Listener {
                     : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
         }
         routeToDestination(player, confirmRequest.returnTo());
+    }
+
+    void toggleOwnerNameDisplay(Player player) {
+        if (!requireAdmin(player)) return;
+        OwnerNameDisplaySetting.ChangeResult result =
+                plugin.ownerNameDisplay().set(!plugin.ownerNameDisplay().isEnabled());
+        if (result.enabled()) {
+            plugin.signs().spawnAllSigns();
+        } else {
+            plugin.signs().removeAllSigns();
+        }
+        player.sendMessage(Component.text(plugin.msg().get(result.enabled()
+                ? "namensanzeige-eingeschaltet"
+                : "namensanzeige-ausgeschaltet"), NamedTextColor.GREEN));
+        if (!result.isSaved()) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("namensanzeige-speichern-fehlgeschlagen", result.saveError()),
+                    NamedTextColor.RED));
+        }
+        plugin.gui().openAdmin(player);
     }
 
     private boolean applyConfirmedAreaChange(Player player, AreaChange change) {

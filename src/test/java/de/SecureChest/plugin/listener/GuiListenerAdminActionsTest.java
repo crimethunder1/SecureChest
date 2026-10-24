@@ -102,6 +102,8 @@ class GuiListenerAdminActionsTest {
 
         assertTrue(actions.contains("open_areas"), "Admin-Panel sollte den Wirkungsbereich-Button haben: " + actions);
         assertTrue(actions.contains("open_recipes"), "Admin-Panel sollte den Rezepte-Button haben: " + actions);
+        assertTrue(actions.contains("toggle_owner_name_display"),
+                "Admin-Panel sollte den Schalter fuer die Besitzernamen haben: " + actions);
         for (String action : actions) {
             if (action.equals("back_main")) continue;
             assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
@@ -133,6 +135,12 @@ class GuiListenerAdminActionsTest {
             assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
                     "Action der Rezept-Screens fehlt in ADMIN_ONLY_ACTIONS: " + action);
         }
+    }
+
+    @Test
+    @DisplayName("Schalter fuer die Besitzernamen ist Admin-only")
+    void besitzernamenSchalter_enthalten() {
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("toggle_owner_name_display"));
     }
 
     @Test
