@@ -125,6 +125,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (pingManager != null) pingManager.stopAll();
         if (database != null) database.close();
         pendingChatActions.clear();
         if (uiStateStore != null) uiStateStore.clearRecipeEditors();

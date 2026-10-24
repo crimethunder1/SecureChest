@@ -46,6 +46,9 @@ class PluginConfigShippedDefaultsTest {
             Map.entry("maxHoppersPerPlayer",         "limits.max_hoppers_per_player"),
             Map.entry("lockActionCooldownMs",        "cooldowns.lock_action_ms"),
             Map.entry("breakNotificationCooldownMs", "cooldowns.break_notification_ms"),
+            Map.entry("pingTimeoutSeconds",          "ping.timeout_seconds"),
+            Map.entry("pingArrivedSeconds",          "ping.arrived_seconds"),
+            Map.entry("pingHighlightEnabled",        "ping.highlight_enabled"),
             Map.entry("enabledWorlds",               "worlds.enabled"),
             Map.entry("language",                    "language"));
 

@@ -37,6 +37,14 @@ notifications:
   enabled: true
   max_per_player: 20
 
+ping:
+  # Time limit for a chest ping in seconds (0 = no limit)
+  timeout_seconds: 300
+  # Seconds the ping keeps running after arrival so the glow shows the container (0 = end at once)
+  arrived_seconds: 15
+  # Let the pinged container glow for the pinging player only (false = action bar only)
+  highlight_enabled: true
+
 limits:
   # Maximale Anzahl Locks pro Spieler (0 = kein Limit, aber DoS-Risiko)
   max_locks_per_player: 1000

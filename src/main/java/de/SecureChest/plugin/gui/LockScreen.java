@@ -152,9 +152,7 @@ final class LockScreen {
                         lockLoc.getBlockX(), lockLoc.getBlockY(), lockLoc.getBlockZ(),
                         DATE_FMT.format(Instant.ofEpochMilli(lockEntry.createdAt())))));
 
-        inv.setItem(13, h.buildButton(Material.RECOVERY_COMPASS, text("gui-lock-manage-ping-name"),
-                lines("gui-lock-manage-ping-lore"),
-                "ping_lock", lockId));
+        inv.setItem(13, buildPingButton(player, lockEntry, lockId));
 
         if (canManage) {
             inv.setItem(16, h.buildButton(Material.BARRIER, text("gui-lock-manage-remove-name"),
@@ -194,6 +192,14 @@ final class LockScreen {
         h.fillEmptySlots(inv, Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
         h.playClickSound(player);
+    }
+
+    ItemStack buildPingButton(Player player, LockEntry lockEntry, String lockId) {
+        boolean pingActive = plugin.ping().isPinging(player.getUniqueId(), lockEntry.key());
+        return h.buildButton(Material.RECOVERY_COMPASS,
+                text(pingActive ? "gui-lock-manage-ping-stop-name" : "gui-lock-manage-ping-name"),
+                lines(pingActive ? "gui-lock-manage-ping-stop-lore" : "gui-lock-manage-ping-lore"),
+                "ping_lock", lockId);
     }
 
     void openTrustNearby(Player player, String lockId) {

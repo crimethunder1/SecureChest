@@ -25,6 +25,7 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 * Quick Lock is a setting in `/cs`. When it is on, a right click with an empty hand locks a block at once if a Chest Key is in your inventory. A right click with the Chest Key then also locks without the confirmation menu.
 * Quick Remove is a setting in `/cs`. When it is on, a right click with the Chest Key removes a lock at once.
 * The management menu shows the position and trusted players. From there you can ping the storage, transfer ownership, remove the lock and add trusted players, either from online players nearby or by typing a name in chat.
+* Ping: the action bar shows a direction arrow relative to your view and the distance in blocks. If the storage is at least 2 blocks higher or lower, a height hint is added. While the ping runs, the locked container glows for you only. The ping ends a short while after you arrive, after a time limit, or when you click the button again, which then reads "Stop ping".
 * Trust levels: a Viewer can open the container and look at the contents but cannot move items. A Stocker can take and put items. Only the owner and admins can break a locked block.
 * A text display with the owner name appears at each locked block. Admins can turn the owner name display on and off for all locks in the admin panel.
 * Secure Hopper: right click a hopper that faces a container you locked with your Chest Key to turn it into a Secure Hopper bound to that container. The confirmation menu, sneaking and Quick Lock work as for locking. Sneak and right click your Secure Hopper with your Chest Key to turn it back into a normal hopper. Normal hoppers and hopper minecarts cannot move items into or out of locked containers. Only the owner can open a Secure Hopper, and admins can open it with the Admin Key. The owner and admins can break it. Breaking it drops a normal hopper. Secure Hopper items that were crafted earlier can still be placed facing a container you locked.
@@ -109,6 +110,7 @@ chest_key:
 * `ui.trust_nearby_radius: 32.0` is the radius for the nearby players list.
 * `auto_lock.enabled: false` locks blocks when they are placed. `auto_lock.require_key: true` needs a Chest Key in the inventory, `auto_lock.sneak_only: false` limits it to sneaking players.
 * `notifications.enabled: true` and `notifications.max_per_player: 20` control break attempt notifications.
+* `ping.timeout_seconds: 300` ends a ping after this time, 0 means no limit. `ping.arrived_seconds: 15` keeps the ping running for this time after you arrive, 0 ends it at once. `ping.highlight_enabled: true` lets the pinged container glow for the pinging player, `false` shows only the action bar.
 * `limits.max_locks_per_player: 1000` and `limits.max_hoppers_per_player: 50`. A value of 0 means no limit.
 * `cooldowns.lock_action_ms: 1000` and `cooldowns.break_notification_ms: 30000`.
 * `admin.logs.book_entries: 200` and `admin.logs.teleport_enabled: false`.

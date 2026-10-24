@@ -34,6 +34,9 @@ public final class PluginConfig {
     private int     maxHoppersPerPlayer;
     private long    lockActionCooldownMs;
     private long    breakNotificationCooldownMs;
+    private int     pingTimeoutSeconds;
+    private int     pingArrivedSeconds;
+    private boolean pingHighlightEnabled;
     private List<String> enabledWorlds;
     private String  language;
 
@@ -72,7 +75,10 @@ public final class PluginConfig {
         maxHoppersPerPlayer        = cfg.getInt    ("limits.max_hoppers_per_player",       50);
         lockActionCooldownMs        = cfg.getLong   ("cooldowns.lock_action_ms",             1000L);
         breakNotificationCooldownMs = cfg.getLong   ("cooldowns.break_notification_ms",     30000L);
-        enabledWorlds              = cfg.isList("worlds.enabled")
+        pingTimeoutSeconds         = readNonNegativeInt(cfg, "ping.timeout_seconds",          300);
+        pingArrivedSeconds         = readNonNegativeInt(cfg, "ping.arrived_seconds",           15);
+        pingHighlightEnabled       = cfg.getBoolean("ping.highlight_enabled",             true);
+        enabledWorlds             = cfg.isList("worlds.enabled")
                 ? cfg.getStringList("worlds.enabled")
                 : DEFAULT_ENABLED_WORLDS;
         language                   = resolveLanguage(cfg.getString("language"));
@@ -85,6 +91,14 @@ public final class PluginConfig {
         logger().warning("Unsupported language '" + configuredLanguage + "' in config.yml, using "
                 + DEFAULT_LANGUAGE + ". Supported values: " + String.join(", ", SUPPORTED_LANGUAGES) + ".");
         return DEFAULT_LANGUAGE;
+    }
+
+    private int readNonNegativeInt(FileConfiguration cfg, String path, int defaultValue) {
+        if (!cfg.contains(path)) return defaultValue;
+        if (cfg.isInt(path) && cfg.getInt(path) >= 0) return cfg.getInt(path);
+        logger().warning("Invalid value '" + cfg.get(path) + "' for " + path + " in config.yml, using "
+                + defaultValue + ". Expected a whole number of 0 or more.");
+        return defaultValue;
     }
 
     private Logger logger() {
@@ -114,6 +128,10 @@ public final class PluginConfig {
 
     public long    lockActionCooldownMs()        { return lockActionCooldownMs; }
     public long    breakNotificationCooldownMs() { return breakNotificationCooldownMs; }
+
+    public int     pingTimeoutSeconds()       { return pingTimeoutSeconds; }
+    public int     pingArrivedSeconds()       { return pingArrivedSeconds; }
+    public boolean pingHighlightEnabled()     { return pingHighlightEnabled; }
 
     public List<String> enabledWorlds()       { return enabledWorlds; }
 

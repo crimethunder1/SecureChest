@@ -9,6 +9,8 @@ import de.SecureChest.plugin.area.AreaChangePreview;
 import de.SecureChest.plugin.area.AreaChangeResult;
 import de.SecureChest.plugin.area.AreaValidationError;
 import de.SecureChest.plugin.gui.ChestSecureHolder;
+import de.SecureChest.plugin.lock.LockEntry;
+import de.SecureChest.plugin.lock.LockKey;
 import de.SecureChest.plugin.lock.LockStats;
 import de.SecureChest.plugin.lock.LockUtil;
 import de.SecureChest.plugin.lock.LogRecord;
@@ -194,29 +196,7 @@ public final class GuiListener implements Listener {
 
             case "manage_lock", "back_lock_manage" -> plugin.gui().openLockManage(player, actionContext);
 
-            case "ping_lock" -> {
-                var lockEntry = plugin.locks().getLockFromId(actionContext).orElse(null);
-                if (lockEntry == null) {
-                    player.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
-                    plugin.gui().openLocksList(player, 0);
-                    return;
-                }
-                World targetWorld = Bukkit.getWorld(lockEntry.key().worldUuid());
-                if (targetWorld == null) {
-                    player.sendMessage(Component.text(
-                            plugin.msg().get("gui-ping-world-not-loaded"), NamedTextColor.RED));
-                    plugin.gui().openLockManage(player, actionContext);
-                    return;
-                }
-                Location pingLocation = new Location(targetWorld,
-                        lockEntry.key().x() + 0.5,
-                        lockEntry.key().y() + 0.5,
-                        lockEntry.key().z() + 0.5);
-                plugin.ping().startPing(player, pingLocation);
-                player.sendMessage(Component.text(
-                        plugin.msg().get("gui-ping-started"), NamedTextColor.AQUA));
-                player.closeInventory();
-            }
+            case "ping_lock" -> pingLock(player, actionContext);
 
             case "confirm_unlock_one" -> {
                 int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
@@ -392,7 +372,6 @@ public final class GuiListener implements Listener {
                     return;
                 }
                 LogRecord logRecord = logRecordOptional.get();
-                World targetWorld = Bukkit.getWorld(logRecord.worldUuid());
 
                 if (event.getClick() == ClickType.SHIFT_LEFT
                         || event.getClick() == ClickType.SHIFT_RIGHT) {
@@ -423,21 +402,7 @@ public final class GuiListener implements Listener {
                     return;
                 }
 
-                if (targetWorld != null) {
-                    Location targetLocation = new Location(targetWorld,
-                            logRecord.x() + 0.5,
-                            logRecord.y() + 0.5,
-                            logRecord.z() + 0.5);
-                    plugin.ping().startPing(player, targetLocation);
-                    player.sendMessage(Component.text(
-                            plugin.msg().get("gui-ping-started-log"),
-                            NamedTextColor.AQUA));
-                    player.closeInventory();
-                    return;
-                }
-                player.sendMessage(Component.text(
-                        plugin.msg().get("gui-log-world-not-loaded"), NamedTextColor.RED));
-                plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
+                pingLogEntry(player, logRecord);
             }
 
             case "open_areas"  -> plugin.gui().openAreas(player, 0);
@@ -591,6 +556,55 @@ public final class GuiListener implements Listener {
                     : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
         }
         routeToDestination(player, confirmRequest.returnTo());
+    }
+
+    void pingLock(Player player, String lockId) {
+        LockEntry lockEntry = plugin.locks().getLockFromId(lockId).orElse(null);
+        if (lockEntry == null) {
+            player.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
+            plugin.gui().openLocksList(player, 0);
+            return;
+        }
+        if (plugin.ping().isPinging(player.getUniqueId(), lockEntry.key())) {
+            plugin.ping().stopPing(player);
+            player.sendMessage(Component.text(plugin.msg().get("ping-stopped"), NamedTextColor.AQUA));
+            plugin.gui().openLockManage(player, lockId);
+            return;
+        }
+        World targetWorld = Bukkit.getWorld(lockEntry.key().worldUuid());
+        if (targetWorld == null) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("gui-ping-world-not-loaded"), NamedTextColor.RED));
+            plugin.gui().openLockManage(player, lockId);
+            return;
+        }
+        plugin.ping().startPing(player, lockEntry.key());
+        player.sendMessage(Component.text(
+                plugin.msg().get("gui-ping-started"), NamedTextColor.AQUA));
+        player.closeInventory();
+    }
+
+    void pingLogEntry(Player player, LogRecord logRecord) {
+        if (logRecord.worldUuid() != null) {
+            LockKey target = new LockKey(logRecord.worldUuid(), logRecord.x(), logRecord.y(), logRecord.z());
+            if (plugin.ping().isPinging(player.getUniqueId(), target)) {
+                plugin.ping().stopPing(player);
+                player.sendMessage(Component.text(plugin.msg().get("ping-stopped"), NamedTextColor.AQUA));
+                plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
+                return;
+            }
+            if (Bukkit.getWorld(logRecord.worldUuid()) != null) {
+                plugin.ping().startPing(player, target);
+                player.sendMessage(Component.text(
+                        plugin.msg().get("gui-ping-started-log"),
+                        NamedTextColor.AQUA));
+                player.closeInventory();
+                return;
+            }
+        }
+        player.sendMessage(Component.text(
+                plugin.msg().get("gui-log-world-not-loaded"), NamedTextColor.RED));
+        plugin.gui().openLogs(player, plugin.ui().logs(player.getUniqueId()).page);
     }
 
     void startChestKeyAmountInput(Player player) {

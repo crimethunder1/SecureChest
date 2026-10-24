@@ -1,92 +1,191 @@
 package de.SecureChest.plugin.ping;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
+import de.SecureChest.plugin.PluginConfig;
+import de.SecureChest.plugin.lock.LockKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 public final class PingManager {
 
-    private static final double ARRIVAL_RADIUS_BLOCKS             = 5.0;
-    private static final long   ACTION_BAR_UPDATE_INTERVAL_TICKS  = 10L;
-    private static final long   INITIAL_DELAY_TICKS               = 2L;
+    static final double ARRIVAL_RADIUS_BLOCKS             = 5.0;
+    static final long   ACTION_BAR_UPDATE_INTERVAL_TICKS  = 10L;
+    static final long   INITIAL_DELAY_TICKS               = 2L;
+    static final double TARGET_CENTER_OFFSET              = 0.5;
 
-    private record ActivePing(Location targetLocation, BukkitTask updateTask) {}
+    private static final class ActivePing {
+        private final UUID playerUuid;
+        private final LockKey target;
+        private final long startedAtMillis;
+        private final long timeoutMillis;
+        private final long arrivedLingerMillis;
+        private final PingHighlight highlight;
+        private long arrivedAtMillis = -1L;
+        private BukkitTask updateTask;
+
+        private ActivePing(UUID playerUuid, LockKey target, long startedAtMillis, long timeoutMillis,
+                           long arrivedLingerMillis, PingHighlight highlight) {
+            this.playerUuid = playerUuid;
+            this.target = target;
+            this.startedAtMillis = startedAtMillis;
+            this.timeoutMillis = timeoutMillis;
+            this.arrivedLingerMillis = arrivedLingerMillis;
+            this.highlight = highlight;
+        }
+
+        private boolean isTimedOut(long nowMillis) {
+            return timeoutMillis > 0 && nowMillis - startedAtMillis >= timeoutMillis;
+        }
+
+        private void markArrived(long nowMillis) {
+            if (arrivedAtMillis < 0) arrivedAtMillis = nowMillis;
+        }
+
+        private boolean isArrivalLingerOver(long nowMillis) {
+            return arrivedAtMillis >= 0 && nowMillis - arrivedAtMillis >= arrivedLingerMillis;
+        }
+
+        private void updateHighlight(World targetWorld, Player player) {
+            if (highlight != null) highlight.update(targetWorld, player);
+        }
+
+        private void removeHighlight() {
+            if (highlight != null) highlight.remove();
+        }
+    }
 
     private final Map<UUID, ActivePing> activePings = new ConcurrentHashMap<>();
     private final ChestSecurePlugin plugin;
+    private final LongSupplier clock;
 
     public PingManager(ChestSecurePlugin plugin) {
-        this.plugin = plugin;
+        this(plugin, System::currentTimeMillis);
     }
 
-    public void startPing(Player player, Location targetLocation) {
+    PingManager(ChestSecurePlugin plugin, LongSupplier clock) {
+        this.plugin = plugin;
+        this.clock = clock;
+    }
+
+    public void startPing(Player player, LockKey target) {
         stopPing(player);
 
-        UUID playerUuid = player.getUniqueId();
+        PluginConfig config = plugin.cfg();
+        ActivePing activePing = new ActivePing(player.getUniqueId(), target, clock.getAsLong(),
+                config.pingTimeoutSeconds() * 1000L,
+                config.pingArrivedSeconds() * 1000L,
+                config.pingHighlightEnabled() ? new PingHighlight(plugin, target) : null);
 
-        BukkitTask updateTask = new BukkitRunnable() {
+        activePing.updateTask = new BukkitRunnable() {
             @Override
             public void run() {
-                Player onlinePlayer = Bukkit.getPlayer(playerUuid);
-                if (onlinePlayer == null || !onlinePlayer.isOnline()) {
-                    cancel();
-                    activePings.remove(playerUuid);
-                    return;
-                }
-
-                if (targetLocation.getWorld() == null
-                        || !targetLocation.getWorld().equals(onlinePlayer.getWorld())) {
-                    onlinePlayer.sendActionBar(buildOtherWorldActionBarMessage());
-                    return;
-                }
-
-                double distanceToTarget = onlinePlayer.getLocation().distance(targetLocation);
-                if (distanceToTarget <= ARRIVAL_RADIUS_BLOCKS) {
-                    cancel();
-                    activePings.remove(playerUuid);
-                    onlinePlayer.sendActionBar(buildArrivalActionBarMessage());
-                    return;
-                }
-
-                String directionLabel = calculateDirectionLabel(
-                        onlinePlayer.getLocation(), targetLocation);
-                onlinePlayer.sendActionBar(
-                        buildNavigationActionBarMessage(directionLabel, (int) distanceToTarget));
+                updatePing(activePing);
             }
         }.runTaskTimer(plugin, INITIAL_DELAY_TICKS, ACTION_BAR_UPDATE_INTERVAL_TICKS);
 
-        activePings.put(playerUuid, new ActivePing(targetLocation, updateTask));
+        activePings.put(activePing.playerUuid, activePing);
     }
 
     public void stopPing(Player player) {
-        ActivePing activePing = activePings.remove(player.getUniqueId());
+        ActivePing activePing = activePings.get(player.getUniqueId());
         if (activePing != null) {
-            activePing.updateTask().cancel();
+            endPing(activePing);
         }
     }
 
-    public void onPlayerQuit(UUID playerUuid) {
-        ActivePing activePing = activePings.remove(playerUuid);
-        if (activePing != null) {
-            activePing.updateTask().cancel();
+    public boolean isPinging(UUID playerUuid, LockKey target) {
+        ActivePing activePing = activePings.get(playerUuid);
+        return activePing != null && activePing.target.equals(target);
+    }
+
+    public void stopAll() {
+        for (ActivePing activePing : List.copyOf(activePings.values())) {
+            endPing(activePing);
         }
     }
 
-    public boolean hasPing(UUID playerUuid) {
-        return activePings.containsKey(playerUuid);
+    int highlightDisplayCount(UUID playerUuid) {
+        ActivePing activePing = activePings.get(playerUuid);
+        return activePing == null || activePing.highlight == null ? 0 : activePing.highlight.displayCount();
     }
 
-    private Component buildNavigationActionBarMessage(String directionLabel, int distanceBlocks) {
-        return Component.text(plugin.msg().get("ping-navigation", directionLabel, distanceBlocks));
+    private void endPing(ActivePing activePing) {
+        activePings.remove(activePing.playerUuid, activePing);
+        if (activePing.updateTask != null) {
+            activePing.updateTask.cancel();
+        }
+        activePing.removeHighlight();
+    }
+
+    private void updatePing(ActivePing activePing) {
+        Player onlinePlayer = Bukkit.getPlayer(activePing.playerUuid);
+        if (onlinePlayer == null || !onlinePlayer.isOnline()) {
+            endPing(activePing);
+            return;
+        }
+
+        long nowMillis = clock.getAsLong();
+        if (activePing.isTimedOut(nowMillis)) {
+            endPing(activePing);
+            onlinePlayer.sendMessage(Component.text(plugin.msg().get("ping-timed-out"), NamedTextColor.YELLOW));
+            return;
+        }
+
+        World targetWorld = Bukkit.getWorld(activePing.target.worldUuid());
+        if (targetWorld == null) {
+            endPing(activePing);
+            onlinePlayer.sendMessage(Component.text(plugin.msg().get("ping-world-unloaded"), NamedTextColor.RED));
+            return;
+        }
+
+        if (!targetWorld.equals(onlinePlayer.getWorld())) {
+            activePing.removeHighlight();
+            onlinePlayer.sendActionBar(buildOtherWorldActionBarMessage());
+            return;
+        }
+
+        Location playerLocation = onlinePlayer.getLocation();
+        PingDirection direction = PingDirection.calculate(
+                playerLocation.getX(), playerLocation.getY(), playerLocation.getZ(), playerLocation.getYaw(),
+                activePing.target.x() + TARGET_CENTER_OFFSET,
+                activePing.target.y() + TARGET_CENTER_OFFSET,
+                activePing.target.z() + TARGET_CENTER_OFFSET);
+
+        if (direction.distance() <= ARRIVAL_RADIUS_BLOCKS) {
+            activePing.markArrived(nowMillis);
+            onlinePlayer.sendActionBar(buildArrivalActionBarMessage());
+        } else {
+            onlinePlayer.sendActionBar(buildNavigationActionBarMessage(direction));
+        }
+
+        if (activePing.isArrivalLingerOver(nowMillis)) {
+            endPing(activePing);
+            return;
+        }
+        activePing.updateHighlight(targetWorld, onlinePlayer);
+    }
+
+    private Component buildNavigationActionBarMessage(PingDirection direction) {
+        String directionLabel = plugin.msg().get(directionLabelKey(direction.sector()));
+        int distanceBlocks = direction.distanceBlocks();
+        int heightBlocks = Math.abs(direction.heightDifferenceBlocks());
+        return Component.text(switch (direction.heightHint()) {
+            case NONE  -> plugin.msg().get("ping-navigation-relative", directionLabel, distanceBlocks);
+            case ABOVE -> plugin.msg().get("ping-navigation-relative-above", directionLabel, distanceBlocks, heightBlocks);
+            case BELOW -> plugin.msg().get("ping-navigation-relative-below", directionLabel, distanceBlocks, heightBlocks);
+        });
     }
 
     private Component buildArrivalActionBarMessage() {
@@ -97,18 +196,16 @@ public final class PingManager {
         return Component.text(plugin.msg().get("ping-andere-welt"), NamedTextColor.YELLOW);
     }
 
-    private String calculateDirectionLabel(Location playerLocation, Location targetLocation) {
-        double deltaX = targetLocation.getX() - playerLocation.getX();
-        double deltaZ = targetLocation.getZ() - playerLocation.getZ();
-        double angleDegrees = Math.toDegrees(Math.atan2(deltaX, -deltaZ));
-        if (angleDegrees < 0) {
-            angleDegrees += 360.0;
-        }
-        String[] directionLabelKeys = {
-                "ping-direction-north", "ping-direction-north-east", "ping-direction-east",
-                "ping-direction-south-east", "ping-direction-south", "ping-direction-south-west",
-                "ping-direction-west", "ping-direction-north-west"};
-        int labelIndex = (int) Math.round(angleDegrees / 45.0) % 8;
-        return plugin.msg().get(directionLabelKeys[labelIndex]);
+    static String directionLabelKey(PingDirection.Sector sector) {
+        return switch (sector) {
+            case AHEAD        -> "ping-direction-ahead";
+            case AHEAD_RIGHT  -> "ping-direction-ahead-right";
+            case RIGHT        -> "ping-direction-right";
+            case BEHIND_RIGHT -> "ping-direction-behind-right";
+            case BEHIND       -> "ping-direction-behind";
+            case BEHIND_LEFT  -> "ping-direction-behind-left";
+            case LEFT         -> "ping-direction-left";
+            case AHEAD_LEFT   -> "ping-direction-ahead-left";
+        };
     }
 }
