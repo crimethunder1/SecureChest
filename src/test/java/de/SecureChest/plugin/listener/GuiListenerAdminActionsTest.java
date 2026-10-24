@@ -24,6 +24,7 @@ class GuiListenerAdminActionsTest {
         assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("give_admin_key"));
         assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("give_logs_book"));
         assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("give_admin_report"));
+        assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("give_chest_key"));
     }
 
     @Test
@@ -104,6 +105,7 @@ class GuiListenerAdminActionsTest {
         assertTrue(actions.contains("open_recipes"), "Admin-Panel sollte den Rezepte-Button haben: " + actions);
         assertTrue(actions.contains("toggle_owner_name_display"),
                 "Admin-Panel sollte den Schalter fuer die Besitzernamen haben: " + actions);
+        assertTrue(actions.contains("give_chest_key"), "Admin-Panel sollte den Chest-Key-Button haben: " + actions);
         for (String action : actions) {
             if (action.equals("back_main")) continue;
             assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),

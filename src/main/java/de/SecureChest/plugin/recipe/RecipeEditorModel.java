@@ -16,7 +16,6 @@ public final class RecipeEditorModel {
     public static final int GRID_SIZE = 3;
     public static final int CELL_COUNT = GRID_SIZE * GRID_SIZE;
     public static final String MATERIAL_SYMBOLS = "ABCDEFGHI";
-    public static final char CHEST_KEY_SYMBOL = 'K';
 
     private static final char EMPTY_SYMBOL = ' ';
     private static final Set<Material> AIR_MATERIALS = EnumSet.of(Material.AIR, Material.CAVE_AIR, Material.VOID_AIR);
@@ -90,13 +89,9 @@ public final class RecipeEditorModel {
         return cell(index) == null;
     }
 
-    public boolean isChestKey(int index) {
-        return RecipeValidator.CHEST_KEY_INGREDIENT.equals(cell(index));
-    }
-
     public Material material(int index) {
         String cell = cell(index);
-        if (cell == null || isChestKey(index)) return null;
+        if (cell == null) return null;
         return Material.getMaterial(cell);
     }
 
@@ -111,13 +106,6 @@ public final class RecipeEditorModel {
         cells[Objects.checkIndex(index, CELL_COUNT)] = null;
     }
 
-    public boolean placeChestKey(int index) {
-        Objects.checkIndex(index, CELL_COUNT);
-        if (kind != RecipeKind.SECURE_HOPPER) return false;
-        cells[index] = RecipeValidator.CHEST_KEY_INGREDIENT;
-        return true;
-    }
-
     public RecipeDefinition toDefinition() {
         Map<String, Character> symbolsByMaterial = new LinkedHashMap<>();
         Map<String, String> ingredients = new LinkedHashMap<>();
@@ -129,8 +117,6 @@ public final class RecipeEditorModel {
                 char symbol;
                 if (cell == null) {
                     symbol = EMPTY_SYMBOL;
-                } else if (cell.equals(RecipeValidator.CHEST_KEY_INGREDIENT)) {
-                    symbol = CHEST_KEY_SYMBOL;
                 } else {
                     Character assignedSymbol = symbolsByMaterial.get(cell);
                     if (assignedSymbol == null) {
@@ -149,9 +135,6 @@ public final class RecipeEditorModel {
 
     private String cellFor(String ingredient) {
         if (ingredient == null) return null;
-        if (ingredient.equalsIgnoreCase(RecipeValidator.CHEST_KEY_INGREDIENT)) {
-            return kind == RecipeKind.SECURE_HOPPER ? RecipeValidator.CHEST_KEY_INGREDIENT : null;
-        }
         Material material = Material.matchMaterial(ingredient);
         return material == null || isAir(material) ? null : material.name();
     }

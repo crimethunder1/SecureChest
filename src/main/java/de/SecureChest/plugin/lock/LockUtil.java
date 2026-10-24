@@ -7,9 +7,11 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Chest;
+import org.bukkit.block.data.type.Hopper;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 public final class LockUtil {
 
@@ -75,6 +77,19 @@ public final class LockUtil {
         if (neighborChestData.getType() == ownConnection) return null;
 
         return neighbor;
+    }
+
+    public static Block chestKeyHopperBindTarget(LockService locks, Block hopperBlock, UUID playerUuid) {
+        if (hopperBlock == null || hopperBlock.getType() != Material.HOPPER) return null;
+        if (locks.isLocked(hopperBlock) || locks.isSecureHopper(hopperBlock)) return null;
+        if (!(hopperBlock.getBlockData() instanceof Hopper hopperData)) return null;
+
+        Block targetBlock = hopperBlock.getRelative(hopperData.getFacing());
+        if (!isLockable(targetBlock)) return null;
+
+        LockEntry targetLock = locks.getLock(targetBlock).orElse(null);
+        if (targetLock == null || !targetLock.owner().equals(playerUuid)) return null;
+        return targetBlock;
     }
 
     public static boolean wouldFormDoubleChestWith(Block placedBlock, Block neighborBlock, BlockFace face) {

@@ -7,7 +7,8 @@ public sealed interface PendingChatAction
                 PendingChatAction.TransferLock,
                 PendingChatAction.AreaCreateName,
                 PendingChatAction.AreaCreateCoordinates,
-                PendingChatAction.AreaResizeCoordinates {
+                PendingChatAction.AreaResizeCoordinates,
+                PendingChatAction.ChestKeyAmount {
 
     record AddTrust(String lockId, String level) implements PendingChatAction {}
 
@@ -22,4 +23,6 @@ public sealed interface PendingChatAction
     record AreaCreateCoordinates(String name) implements PendingChatAction {}
 
     record AreaResizeCoordinates(String name) implements PendingChatAction {}
+
+    record ChestKeyAmount() implements PendingChatAction {}
 }

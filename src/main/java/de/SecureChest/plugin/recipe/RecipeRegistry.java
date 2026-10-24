@@ -6,7 +6,6 @@ import de.SecureChest.plugin.util.Items;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
 
 import java.io.IOException;
@@ -38,7 +37,6 @@ public final class RecipeRegistry {
     private final Map<RecipeKind, RecipeDefinition> currentDefinitions = new EnumMap<>(RecipeKind.class);
 
     private ShapedRecipe chestKeyRecipe;
-    private ShapedRecipe secureHopperRecipe;
 
     public RecipeRegistry(ChestSecurePlugin plugin) {
         this.plugin = plugin;
@@ -49,6 +47,11 @@ public final class RecipeRegistry {
     public void registerAll() {
         overrides.clear();
         overrides.putAll(store.load());
+        if (plugin.cfg().recipeSection(RecipeStore.REMOVED_SECURE_HOPPER_KEY) != null) {
+            logger().info("recipes." + RecipeStore.REMOVED_SECURE_HOPPER_KEY + " in " + CONFIG_FILE_NAME
+                    + " is no longer used, the Secure Hopper recipe was removed. "
+                    + RecipeStore.SECURE_HOPPER_REPLACEMENT_HINT);
+        }
         for (RecipeKind kind : RecipeKind.values()) {
             RecipeDefinition defaults = RecipeStore.readDefinition(plugin.cfg().recipeSection(kind.configKey()));
             if (defaults == null) {
@@ -139,10 +142,6 @@ public final class RecipeRegistry {
         return chestKeyRecipe;
     }
 
-    public ShapedRecipe secureHopperRecipe() {
-        return secureHopperRecipe;
-    }
-
     static Selection select(RecipeKind kind, RecipeDefinition override, RecipeDefinition defaults) {
         List<RecipeValidationError> overrideErrors = errorsOf(kind, override);
         if (override != null && overrideErrors.isEmpty()) {
@@ -224,20 +223,14 @@ public final class RecipeRegistry {
         Items items = plugin.items();
         ShapedRecipe recipe = new ShapedRecipe(recipeKey(kind), result(kind, items));
         recipe.shape(definition.shape().toArray(new String[0]));
-        definition.ingredients().forEach((symbol, material) -> {
-            if (material.equalsIgnoreCase(RecipeValidator.CHEST_KEY_INGREDIENT)) {
-                recipe.setIngredient(symbol.charAt(0), RecipeChoice.exactChoice(items.chestKey()));
-            } else {
-                recipe.setIngredient(symbol.charAt(0), Material.matchMaterial(material));
-            }
-        });
+        definition.ingredients().forEach(
+                (symbol, material) -> recipe.setIngredient(symbol.charAt(0), Material.matchMaterial(material)));
         return recipe;
     }
 
     private static ItemStack result(RecipeKind kind, Items items) {
         return switch (kind) {
             case CHEST_KEY -> items.chestKey();
-            case SECURE_HOPPER -> items.secureHopper();
         };
     }
 
@@ -248,14 +241,12 @@ public final class RecipeRegistry {
     private ShapedRecipe recipe(RecipeKind kind) {
         return switch (kind) {
             case CHEST_KEY -> chestKeyRecipe;
-            case SECURE_HOPPER -> secureHopperRecipe;
         };
     }
 
     private void setRecipe(RecipeKind kind, ShapedRecipe recipe) {
         switch (kind) {
             case CHEST_KEY -> chestKeyRecipe = recipe;
-            case SECURE_HOPPER -> secureHopperRecipe = recipe;
         }
     }
 

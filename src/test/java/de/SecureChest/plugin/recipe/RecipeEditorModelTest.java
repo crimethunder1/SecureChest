@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,15 +24,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class RecipeEditorModelTest {
 
     private static final Predicate<Material> EVERY_MATERIAL_IS_ITEM = material -> true;
-    private static final String KEY = RecipeValidator.CHEST_KEY_INGREDIENT;
 
-    private static RecipeDefinition shippedDefinition(RecipeKind kind) throws IOException {
+    private static YamlConfiguration shippedConfig() throws IOException {
         try (InputStream stream = RecipeEditorModelTest.class.getResourceAsStream("/config.yml")) {
             assertNotNull(stream, "config.yml fehlt im Klassenpfad");
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(
-                    new InputStreamReader(stream, StandardCharsets.UTF_8));
-            return RecipeStore.readDefinition(config.getConfigurationSection("recipes." + kind.configKey()));
+            return YamlConfiguration.loadConfiguration(new InputStreamReader(stream, StandardCharsets.UTF_8));
         }
+    }
+
+    private static RecipeDefinition shippedDefinition(RecipeKind kind) throws IOException {
+        return RecipeStore.readDefinition(shippedConfig().getConfigurationSection("recipes." + kind.configKey()));
     }
 
     private static List<String> cells(RecipeEditorModel model) {
@@ -96,7 +98,7 @@ class RecipeEditorModelTest {
     @Test
     @DisplayName("Auswahl: AIR, CAVE_AIR, VOID_AIR und null werden immer abgelehnt, auch wenn das Praedikat sie zulaesst")
     void auswahl_luft_immerAbgelehnt() {
-        RecipeEditorModel model = new RecipeEditorModel(RecipeKind.SECURE_HOPPER);
+        RecipeEditorModel model = new RecipeEditorModel(RecipeKind.CHEST_KEY);
 
         for (Material air : List.of(Material.AIR, Material.CAVE_AIR, Material.VOID_AIR)) {
             assertFalse(model.select(air, EVERY_MATERIAL_IS_ITEM), air.name());
@@ -128,27 +130,11 @@ class RecipeEditorModelTest {
     @Test
     @DisplayName("Zellen ausserhalb von 0 bis 8 werfen IndexOutOfBoundsException")
     void zellenIndex_geprueft() {
-        RecipeEditorModel model = new RecipeEditorModel(RecipeKind.SECURE_HOPPER);
+        RecipeEditorModel model = new RecipeEditorModel(RecipeKind.CHEST_KEY);
 
         assertThrows(IndexOutOfBoundsException.class, () -> model.cell(9));
         assertThrows(IndexOutOfBoundsException.class, () -> model.clearCell(-1));
         assertThrows(IndexOutOfBoundsException.class, () -> model.placeSelection(9));
-        assertThrows(IndexOutOfBoundsException.class, () -> model.placeChestKey(9));
-    }
-
-    @Test
-    @DisplayName("CHEST_KEY: im Secure Hopper erlaubt, im Chest Key abgelehnt")
-    void chestKey_nurBeimHopper() {
-        RecipeEditorModel hopper = new RecipeEditorModel(RecipeKind.SECURE_HOPPER);
-        RecipeEditorModel chestKey = new RecipeEditorModel(RecipeKind.CHEST_KEY);
-
-        assertTrue(hopper.placeChestKey(4));
-        assertTrue(hopper.isChestKey(4));
-        assertNull(hopper.material(4));
-        assertEquals(KEY, hopper.cell(4));
-
-        assertFalse(chestKey.placeChestKey(4));
-        assertTrue(chestKey.isEmpty(4));
     }
 
     @Test
@@ -179,47 +165,30 @@ class RecipeEditorModelTest {
     }
 
     @Test
-    @DisplayName("Ausgeliefertes Secure-Hopper-Rezept als Raster, mit CHEST_KEY in der Mitte")
-    void ausgeliefert_secureHopper_alsRaster() throws IOException {
-        RecipeEditorModel model = RecipeEditorModel.fromDefinition(RecipeKind.SECURE_HOPPER,
-                shippedDefinition(RecipeKind.SECURE_HOPPER));
-
-        assertEquals(Arrays.asList(
-                null, "IRON_BLOCK", null,
-                "HOPPER", KEY, "HOPPER",
-                null, "IRON_BLOCK", null), cells(model));
-        assertTrue(model.isChestKey(4));
-    }
-
-    @Test
-    @DisplayName("Ausgelieferte Rezepte: Umwandlung besteht den Validator und ergibt dieselbe Belegung")
+    @DisplayName("Ausgelieferte Rezepte: nur chest_key, Umwandlung besteht den Validator und ergibt dieselbe Belegung")
     void ausgeliefert_umwandlung_gueltig() throws IOException {
+        assertEquals(Set.of(RecipeKind.CHEST_KEY.configKey()),
+                shippedConfig().getConfigurationSection("recipes").getKeys(false));
+
         RecipeDefinition chestKey = RecipeEditorModel.fromDefinition(RecipeKind.CHEST_KEY,
                 shippedDefinition(RecipeKind.CHEST_KEY)).toDefinition();
-        RecipeDefinition hopper = RecipeEditorModel.fromDefinition(RecipeKind.SECURE_HOPPER,
-                shippedDefinition(RecipeKind.SECURE_HOPPER)).toDefinition();
 
         assertEquals(List.of(), RecipeValidator.validate(RecipeKind.CHEST_KEY, chestKey));
-        assertEquals(List.of(), RecipeValidator.validate(RecipeKind.SECURE_HOPPER, hopper));
         assertEquals(List.of("ABA", "BCB", "ABA"), chestKey.shape());
         assertEquals(ingredients("A", "NETHERITE_INGOT", "B", "DIAMOND", "C", "TRIPWIRE_HOOK"),
                 chestKey.ingredients());
-        assertEquals(List.of(" A ", "BKB", " A "), hopper.shape());
-        assertEquals(List.of("A", "B", "K"), List.copyOf(hopper.ingredients().keySet()));
-        assertEquals(ingredients("A", "IRON_BLOCK", "B", "HOPPER", "K", KEY), hopper.ingredients());
     }
 
     @Test
     @DisplayName("Rundlauf Raster zu Definition zu Raster ist verlustfrei")
     void rundlauf_verlustfrei() {
-        RecipeEditorModel original = modelWith(RecipeKind.SECURE_HOPPER,
+        RecipeEditorModel original = modelWith(RecipeKind.CHEST_KEY,
                 Material.STONE, null, Material.OAK_PLANKS,
-                null, null, Material.STONE,
+                null, Material.DIAMOND, Material.STONE,
                 Material.REDSTONE, Material.OAK_PLANKS, null);
-        original.placeChestKey(4);
         original.setEnabled(false);
 
-        RecipeEditorModel copy = RecipeEditorModel.fromDefinition(RecipeKind.SECURE_HOPPER, original.toDefinition());
+        RecipeEditorModel copy = RecipeEditorModel.fromDefinition(RecipeKind.CHEST_KEY, original.toDefinition());
 
         assertEquals(cells(original), cells(copy));
         assertEquals(original.enabled(), copy.enabled());
@@ -239,21 +208,19 @@ class RecipeEditorModelTest {
     }
 
     @Test
-    @DisplayName("Zeichenvergabe: Reihenfolge des ersten Auftretens Zeile fuer Zeile, CHEST_KEY immer K, deterministisch")
+    @DisplayName("Zeichenvergabe: Reihenfolge des ersten Auftretens Zeile fuer Zeile, deterministisch")
     void zeichenvergabe_deterministisch() {
-        RecipeEditorModel model = modelWith(RecipeKind.SECURE_HOPPER,
-                null, Material.GOLD_INGOT, null,
-                Material.IRON_INGOT, null, Material.GOLD_INGOT,
+        RecipeEditorModel model = modelWith(RecipeKind.CHEST_KEY,
+                Material.STONE, Material.GOLD_INGOT, null,
+                Material.IRON_INGOT, Material.STONE, Material.GOLD_INGOT,
                 null, Material.DIAMOND, null);
-        model.placeChestKey(0);
-        model.placeChestKey(4);
 
         RecipeDefinition first = model.toDefinition();
         RecipeDefinition second = model.toDefinition();
 
-        assertEquals(List.of("KA ", "BKA", " C "), first.shape());
-        assertEquals(List.of("K", "A", "B", "C"), List.copyOf(first.ingredients().keySet()));
-        assertEquals(ingredients("K", KEY, "A", "GOLD_INGOT", "B", "IRON_INGOT", "C", "DIAMOND"),
+        assertEquals(List.of("AB ", "CAB", " D "), first.shape());
+        assertEquals(List.of("A", "B", "C", "D"), List.copyOf(first.ingredients().keySet()));
+        assertEquals(ingredients("A", "STONE", "B", "GOLD_INGOT", "C", "IRON_INGOT", "D", "DIAMOND"),
                 first.ingredients());
         assertEquals(first, second);
         assertEquals(List.copyOf(first.ingredients().keySet()), List.copyOf(second.ingredients().keySet()));
@@ -277,12 +244,11 @@ class RecipeEditorModelTest {
     }
 
     @Test
-    @DisplayName("Zeichen sind nie Leerzeichen oder Punkt, nur A bis I und K, Materialnamen in Grossbuchstaben")
+    @DisplayName("Zeichen sind nie Leerzeichen oder Punkt, nur A bis I, Materialnamen in Grossbuchstaben")
     void zeichen_nieLeerzeichenOderPunkt() {
-        RecipeEditorModel model = modelWith(RecipeKind.SECURE_HOPPER,
+        RecipeEditorModel model = modelWith(RecipeKind.CHEST_KEY,
                 Material.STONE, Material.DIRT, Material.SAND, Material.GRAVEL, null,
                 Material.EMERALD, Material.GOLD_INGOT, Material.IRON_INGOT, Material.COAL);
-        model.placeChestKey(4);
 
         RecipeDefinition definition = model.toDefinition();
 
@@ -290,13 +256,12 @@ class RecipeEditorModelTest {
             assertEquals(1, symbol.length());
             assertNotEquals(" ", symbol);
             assertNotEquals(".", symbol);
-            assertTrue((RecipeEditorModel.MATERIAL_SYMBOLS + RecipeEditorModel.CHEST_KEY_SYMBOL).contains(symbol),
-                    symbol);
+            assertTrue(RecipeEditorModel.MATERIAL_SYMBOLS.contains(symbol), symbol);
         }
         for (String material : definition.ingredients().values()) {
             assertEquals(material.toUpperCase(), material);
         }
-        assertEquals(List.of(), RecipeValidator.validate(RecipeKind.SECURE_HOPPER, definition));
+        assertEquals(List.of(), RecipeValidator.validate(RecipeKind.CHEST_KEY, definition));
     }
 
     @Test
@@ -337,12 +302,13 @@ class RecipeEditorModelTest {
     }
 
     @Test
-    @DisplayName("Aufbau: CHEST_KEY bleibt im Hopper (ohne Ruecksicht auf Gross- und Kleinschreibung), im Chest Key wird es leer")
-    void aufbau_chestKey() {
-        RecipeDefinition definition = new RecipeDefinition(true, List.of("K", "K", "K"), ingredients("K", "chest_key"));
+    @DisplayName("Aufbau: CHEST_KEY ist ein unbekanntes Material und wird zu einer leeren Zelle")
+    void aufbau_chestKeyWirdLeer() {
+        for (String chestKey : List.of("CHEST_KEY", "chest_key")) {
+            RecipeDefinition definition = new RecipeDefinition(true, List.of("K", "K", "K"), ingredients("K", chestKey));
 
-        assertTrue(RecipeEditorModel.fromDefinition(RecipeKind.SECURE_HOPPER, definition).isChestKey(0));
-        assertTrue(RecipeEditorModel.fromDefinition(RecipeKind.CHEST_KEY, definition).isEmpty(0));
+            assertTrue(RecipeEditorModel.fromDefinition(RecipeKind.CHEST_KEY, definition).isEmpty(0), chestKey);
+        }
     }
 
     @Test

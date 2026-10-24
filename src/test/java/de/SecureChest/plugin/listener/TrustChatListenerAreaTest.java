@@ -15,11 +15,13 @@ import de.SecureChest.plugin.gui.GuiManager;
 import de.SecureChest.plugin.gui.ScreenActionRecorder;
 import de.SecureChest.plugin.ui.ConfirmManager;
 import de.SecureChest.plugin.ui.UiStateStore;
+import de.SecureChest.plugin.util.Items;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -78,6 +80,11 @@ class TrustChatListenerAreaTest {
         when(plugin.confirms()).thenReturn(confirms);
         UiStateStore uiStateStore = new UiStateStore();
         when(plugin.ui()).thenReturn(uiStateStore);
+        Items items = mock(Items.class);
+        ItemStack chestKey = mock(ItemStack.class);
+        when(chestKey.getMaxStackSize()).thenReturn(64);
+        when(items.chestKey()).thenReturn(chestKey);
+        when(plugin.items()).thenReturn(items);
 
         player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerUuid);

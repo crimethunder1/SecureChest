@@ -10,6 +10,7 @@ import de.SecureChest.plugin.area.AreaChangeResult;
 import de.SecureChest.plugin.area.AreaValidationError;
 import de.SecureChest.plugin.gui.ChestSecureHolder;
 import de.SecureChest.plugin.lock.LockStats;
+import de.SecureChest.plugin.lock.LockUtil;
 import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.recipe.RecipeChangeResult;
 import de.SecureChest.plugin.recipe.RecipeEditorModel;
@@ -47,7 +48,7 @@ public final class GuiListener implements Listener {
 
     static final Set<String> ADMIN_ONLY_ACTIONS = Set.of(
             "open_admin", "back_admin",
-            "give_admin_key", "give_logs_book", "give_admin_report",
+            "give_admin_key", "give_logs_book", "give_admin_report", "give_chest_key",
             "toggle_inspect", "global_unlock",
             "open_logs", "logs_page", "logs_cycle_action", "logs_cycle_time",
             "logs_set_actor", "log_entry",
@@ -116,8 +117,7 @@ public final class GuiListener implements Listener {
             case "open_locks", "back_locks" ->
                     plugin.gui().openLocksList(player, plugin.ui().locks(player.getUniqueId()).page);
             case "open_hoppers"      -> plugin.gui().openHoppersList(player, 0);
-            case "open_recipe_key"   -> plugin.gui().openRecipePreview(player, true);
-            case "open_recipe_hopper"-> plugin.gui().openRecipePreview(player, false);
+            case "open_recipe_key"   -> plugin.gui().openRecipePreview(player);
 
             case "toggle_quicklock" -> {
                 boolean newQuickLockState = !plugin.locks().getQuickLock(player.getUniqueId());
@@ -328,6 +328,8 @@ public final class GuiListener implements Listener {
                 player.sendMessage(Component.text(plugin.msg().get("admin-key-erhalten"), NamedTextColor.GREEN));
                 plugin.gui().openAdmin(player);
             }
+
+            case "give_chest_key" -> startChestKeyAmountInput(player);
 
             case "give_logs_book" -> {
                 int maxBookEntries = plugin.cfg().adminLogsBookEntries();
@@ -591,6 +593,13 @@ public final class GuiListener implements Listener {
         routeToDestination(player, confirmRequest.returnTo());
     }
 
+    void startChestKeyAmountInput(Player player) {
+        if (!requireAdmin(player)) return;
+        player.closeInventory();
+        plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.ChestKeyAmount());
+        plugin.gui().promptChestKeyAmount(player);
+    }
+
     void toggleOwnerNameDisplay(Player player) {
         if (!requireAdmin(player)) return;
         OwnerNameDisplaySetting.ChangeResult result =
@@ -649,13 +658,6 @@ public final class GuiListener implements Listener {
                 if (!model.placeSelection(index)) {
                     player.sendMessage(Component.text(
                             plugin.msg().get("rezept-keine-auswahl"), NamedTextColor.YELLOW));
-                    return;
-                }
-            }
-            case SHIFT_LEFT -> {
-                if (!model.placeChestKey(index)) {
-                    player.sendMessage(Component.text(
-                            plugin.msg().get("rezept-chest-key-nur-hopper"), NamedTextColor.YELLOW));
                     return;
                 }
             }
@@ -759,10 +761,27 @@ public final class GuiListener implements Listener {
             org.bukkit.World targetWorld = org.bukkit.Bukkit.getWorld(lockKey.worldUuid());
             if (targetWorld == null) return false;
             org.bukkit.block.Block targetBlock = targetWorld.getBlockAt(lockKey.x(), lockKey.y(), lockKey.z());
+            org.bukkit.block.Block hopperBindTarget =
+                    LockUtil.chestKeyHopperBindTarget(plugin.locks(), targetBlock, player.getUniqueId());
+            if (hopperBindTarget != null) return bindHopperFromConfirmation(player, targetBlock, hopperBindTarget);
             return plugin.locks().lock(player, targetBlock);
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private boolean bindHopperFromConfirmation(Player player, org.bukkit.block.Block hopperBlock,
+                                               org.bukkit.block.Block targetBlock) {
+        if (!plugin.areas().isLockPlacementAllowed(hopperBlock) || !plugin.areas().isLockPlacementAllowed(targetBlock)) {
+            player.sendMessage(Component.text(plugin.msg().get("wirkungsbereich-hier-nicht-aktiv"), NamedTextColor.RED));
+            return false;
+        }
+        if (!plugin.locks().bindSecureHopper(player, hopperBlock, targetBlock)) {
+            player.sendMessage(Component.text(plugin.msg().get("hopper-bind-fehlgeschlagen"), NamedTextColor.RED));
+            return false;
+        }
+        player.sendMessage(Component.text(plugin.msg().get("hopper-gebunden"), NamedTextColor.GREEN));
+        return true;
     }
 
     private boolean handleLogTeleport(Player player, String logIdString) {

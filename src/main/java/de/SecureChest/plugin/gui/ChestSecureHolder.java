@@ -15,7 +15,6 @@ public final class ChestSecureHolder implements InventoryHolder {
         TRUST_ROLE,
         HOPPERS_LIST,
         RECIPE_KEY,
-        RECIPE_HOPPER,
         ADMIN,
         LOGS_LIST,
         CONFIRM,

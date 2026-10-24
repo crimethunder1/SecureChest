@@ -87,6 +87,17 @@ class PluginConfigShippedDefaultsTest {
     }
 
     @Test
+    @DisplayName("Ausgelieferte config.yml enthaelt unter recipes nur noch chest_key")
+    void shippedConfigContainsOnlyChestKeyRecipe() throws IOException {
+        YamlConfiguration shipped =
+                YamlConfiguration.loadConfiguration(new StringReader(shippedConfigContent()));
+
+        assertEquals(Set.of("chest_key"), shipped.getConfigurationSection("recipes").getKeys(false));
+        assertFalse(shipped.contains("recipes.secure_hopper"),
+                "recipes.secure_hopper wurde entfernt und darf nicht mehr ausgeliefert werden");
+    }
+
+    @Test
     @DisplayName("Jeder Wert-Accessor ist entweder zugeordnet oder als Ausnahme dokumentiert")
     void everyValueAccessorIsRegistered() {
         Set<String> registered = new HashSet<>(YAML_PATH_BY_ACCESSOR.keySet());

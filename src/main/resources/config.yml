@@ -65,14 +65,3 @@ recipes:
       N: "NETHERITE_INGOT"
       D: "DIAMOND"
       H: "TRIPWIRE_HOOK"
-
-  secure_hopper:
-    enabled: true
-    shape:
-      - " I "
-      - "HKH"
-      - " I "
-    ingredients:
-      I: "IRON_BLOCK"
-      H: "HOPPER"
-      K: "CHEST_KEY"

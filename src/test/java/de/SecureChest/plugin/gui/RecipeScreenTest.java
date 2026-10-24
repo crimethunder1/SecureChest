@@ -46,6 +46,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -127,32 +128,38 @@ class RecipeScreenTest {
     }
 
     @Test
-    @DisplayName("Uebersicht: Status und Quelle je Rezept, Ergebnis-Item als Symbol, Klick oeffnet den Editor")
-    void uebersicht_statusUndQuelle() {
+    @DisplayName("Uebersicht: nur der Chest Key auf Slot 21 mit Status, Quelle und Ergebnis-Item, Klick oeffnet den Editor")
+    void uebersicht_nurChestKey() {
         ItemStack chestKeyItem = mock(ItemStack.class);
-        ItemStack hopperItem = mock(ItemStack.class);
+        ItemStack entry = mock(ItemStack.class);
         when(items.chestKey()).thenReturn(chestKeyItem);
-        when(items.secureHopper()).thenReturn(hopperItem);
+        when(helper.buildItemButton(eq(chestKeyItem), eq("gui-recipes-entry-name"), any(),
+                eq("recipe_entry"), eq("chest_key"))).thenReturn(entry);
         when(recipes.currentDefinition(RecipeKind.CHEST_KEY))
                 .thenReturn(new RecipeDefinition(false, List.of("D"), Map.of("D", "DIAMOND")));
         when(recipes.isOverridden(RecipeKind.CHEST_KEY)).thenReturn(true);
+        Inventory overview = mock(Inventory.class);
 
-        withInventories(() -> screen.openRecipes(player));
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(() -> Bukkit.createInventory(any(), anyInt(), any(Component.class))).thenReturn(overview);
+            screen.openRecipes(player);
+        }
 
+        assertArrayEquals(new int[] {21}, RecipeScreen.OVERVIEW_SLOTS);
+        verify(overview).setItem(21, entry);
+        verify(overview, never()).setItem(eq(23), any());
+        verify(helper, times(1)).buildItemButton(any(), any(), any(), eq("recipe_entry"), any());
+        verify(messages, times(1)).getList(eq("gui-recipes-entry-lore"), any(), any());
         verify(messages).getList("gui-recipes-entry-lore", "gui-recipes-state-disabled", "gui-recipes-source-override");
-        verify(messages).getList("gui-recipes-entry-lore", "gui-recipes-state-none", "gui-recipes-source-config");
-        verify(helper).buildItemButton(eq(chestKeyItem), eq("gui-recipes-entry-name"), any(),
-                eq("recipe_entry"), eq("chest_key"));
-        verify(helper).buildItemButton(eq(hopperItem), eq("gui-recipes-entry-name"), any(),
-                eq("recipe_entry"), eq("secure_hopper"));
         verify(messages).get("gui-recipes-entry-name", "Chest Key");
-        verify(messages).get("gui-recipes-entry-name", "Secure Hopper");
+        verify(messages, never()).get("gui-recipes-entry-name", "Secure Hopper");
+        verify(helper).buildButton(eq(Material.ARROW), eq("gui-back-name"), any(), eq("back_admin"), eq(""));
     }
 
     @Test
     @DisplayName("Uebersicht: aktives Rezept zeigt aktiv")
     void uebersicht_aktiv() {
-        when(recipes.currentDefinition(RecipeKind.SECURE_HOPPER))
+        when(recipes.currentDefinition(RecipeKind.CHEST_KEY))
                 .thenReturn(new RecipeDefinition(true, List.of("H"), Map.of("H", "HOPPER")));
 
         withInventories(() -> screen.openRecipes(player));
@@ -167,17 +174,16 @@ class RecipeScreenTest {
         RecipeDefinition defaults = new RecipeDefinition(false, List.of("E"), Map.of("E", "EMERALD"));
         when(recipes.currentDefinition(RecipeKind.CHEST_KEY)).thenReturn(current);
         when(recipes.defaultDefinition(RecipeKind.CHEST_KEY)).thenReturn(defaults);
-        when(recipes.defaultDefinition(RecipeKind.SECURE_HOPPER)).thenReturn(defaults);
 
         withInventories(() -> screen.openEditor(player, RecipeKind.CHEST_KEY));
         assertEquals("DIAMOND", ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY).cell(0));
 
-        withInventories(() -> screen.openEditor(player, RecipeKind.SECURE_HOPPER));
-        RecipeEditorModel fromDefaults = ui.recipeEditor(playerUuid, RecipeKind.SECURE_HOPPER);
+        when(recipes.currentDefinition(RecipeKind.CHEST_KEY)).thenReturn(null);
+        withInventories(() -> screen.openEditor(player, RecipeKind.CHEST_KEY));
+        RecipeEditorModel fromDefaults = ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY);
         assertEquals("EMERALD", fromDefaults.cell(0));
         assertFalse(fromDefaults.enabled());
 
-        when(recipes.currentDefinition(RecipeKind.CHEST_KEY)).thenReturn(null);
         when(recipes.defaultDefinition(RecipeKind.CHEST_KEY)).thenReturn(null);
         withInventories(() -> screen.openEditor(player, RecipeKind.CHEST_KEY));
         RecipeEditorModel empty = ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY);
@@ -203,38 +209,27 @@ class RecipeScreenTest {
     }
 
     @Test
-    @DisplayName("Editor: Zellen mit Material, Chest Key, Nicht-Item und leer, Hopper-Lore mit Umschalt+Linksklick")
+    @DisplayName("Editor: Zellen mit Material, Nicht-Item und leer, CHEST_KEY als Zutat wird ein leeres Feld")
     void editor_zellen() {
-        ItemStack chestKeyItem = mock(ItemStack.class);
-        when(items.chestKey()).thenReturn(chestKeyItem);
-        when(recipes.currentDefinition(RecipeKind.SECURE_HOPPER)).thenReturn(new RecipeDefinition(true,
+        when(recipes.currentDefinition(RecipeKind.CHEST_KEY)).thenReturn(new RecipeDefinition(true,
                 List.of("WIK", "   ", "   "), Map.of("W", "WATER", "I", "IRON_BLOCK", "K", "CHEST_KEY")));
 
-        withInventories(() -> screen.openEditor(player, RecipeKind.SECURE_HOPPER));
+        withInventories(() -> screen.openEditor(player, RecipeKind.CHEST_KEY));
 
         verify(helper).buildButton(eq(Material.BARRIER), eq("gui-recipe-edit-cell-not-item-name"), any(),
                 eq("recipe_cell"), eq("0"));
         verify(messages).get("gui-recipe-edit-cell-not-item-name", "WATER");
         verify(helper).buildButton(eq(Material.IRON_BLOCK), eq("gui-recipe-edit-cell-material-name"), any(),
                 eq("recipe_cell"), eq("1"));
-        verify(helper).buildItemButton(eq(chestKeyItem), eq("gui-recipe-edit-cell-chest-key-name"), any(),
-                eq("recipe_cell"), eq("2"));
+        verify(helper).buildButton(eq(Material.WHITE_STAINED_GLASS_PANE), eq("gui-recipe-edit-cell-empty-name"),
+                any(), eq("recipe_cell"), eq("2"));
         verify(helper).buildButton(eq(Material.WHITE_STAINED_GLASS_PANE), eq("gui-recipe-edit-cell-empty-name"),
                 any(), eq("recipe_cell"), eq("8"));
-        verify(messages, atLeastOnce()).getList("gui-recipe-edit-cell-hopper-lore");
-        verify(messages, never()).getList("gui-recipe-edit-cell-lore");
+        verify(helper, never()).buildItemButton(any(), any(), any(), eq("recipe_cell"), any());
+        verify(messages, atLeastOnce()).getList("gui-recipe-edit-cell-lore");
         verify(helper).buildInfoItem(eq(Material.STRUCTURE_VOID), eq("gui-recipe-edit-selection-none-name"), any());
         verify(helper).buildToggleButton("gui-recipe-edit-enabled-label", true, "recipe_toggle",
                 "gui-recipe-edit-enabled-on");
-    }
-
-    @Test
-    @DisplayName("Editor: Chest-Key-Rezept nutzt die Lore ohne Chest-Key-Hinweis")
-    void editor_chestKeyLore() {
-        withInventories(() -> screen.openEditor(player, RecipeKind.CHEST_KEY));
-
-        verify(messages, atLeastOnce()).getList("gui-recipe-edit-cell-lore");
-        verify(messages, never()).getList("gui-recipe-edit-cell-hopper-lore");
     }
 
     @Test
@@ -257,7 +252,7 @@ class RecipeScreenTest {
     }
 
     @Test
-    @DisplayName("Aktualisieren: anderes offenes Inventar oder fehlende Arbeitskopie aendern nichts")
+    @DisplayName("Aktualisieren: anderes offenes Inventar oder unbekannte Rezeptart wie secure_hopper aendern nichts")
     void aktualisieren_sonstNichts() {
         Inventory other = openTopInventory(new ChestSecureHolder(ChestSecureHolder.GuiId.RECIPES, ""));
         ui.setRecipeEditor(playerUuid, new RecipeEditorModel(RecipeKind.CHEST_KEY));
@@ -282,17 +277,17 @@ class RecipeScreenTest {
     @DisplayName("Zuruecksetzen: Dialog mit Rezeptname, Hinweis auf recipes.yml und Warnung, Rueckweg RECIPES")
     @SuppressWarnings("unchecked")
     void dialog_zuruecksetzen() {
-        screen.openResetConfirm(player, RecipeKind.SECURE_HOPPER);
+        screen.openResetConfirm(player, RecipeKind.CHEST_KEY);
 
         ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
         verify(manager).openConfirm(eq(player), eq("confirm-recipe-reset-title"), captor.capture());
         assertTrue(captor.getValue().containsAll(List.of("confirm-recipe-reset-question",
                 "confirm-recipe-reset-info", "confirm-recipe-reset-warning")));
-        verify(messages).get("confirm-recipe-reset-question", "Secure Hopper");
+        verify(messages).get("confirm-recipe-reset-question", "Chest Key");
 
         ConfirmRequest request = confirms.get(playerUuid).orElseThrow();
         assertEquals(ConfirmType.RECIPE_RESET, request.type());
-        assertEquals("secure_hopper", request.data());
+        assertEquals("chest_key", request.data());
         assertEquals(RecipeScreen.RETURN_DESTINATION, request.returnTo());
         assertEquals("RECIPES", request.returnTo());
         assertNull(request.areaChange());
@@ -315,12 +310,12 @@ class RecipeScreenTest {
     @Test
     @DisplayName("Speichern erfolgreich: Erfolgsmeldung, bei saveError zusaetzlich die Warnung")
     void speichern_erfolgreich_meldungen() {
-        screen.sendSaveResult(player, new RecipeChangeResult(RecipeKind.SECURE_HOPPER, true, List.of(), null));
-        screen.sendSaveResult(player, new RecipeChangeResult(RecipeKind.SECURE_HOPPER, true, List.of(), "disk full"));
+        screen.sendSaveResult(player, new RecipeChangeResult(RecipeKind.CHEST_KEY, true, List.of(), null));
+        screen.sendSaveResult(player, new RecipeChangeResult(RecipeKind.CHEST_KEY, true, List.of(), "disk full"));
 
         assertEquals(List.of("rezept-gespeichert", "rezept-gespeichert", "rezept-speichern-fehlgeschlagen"),
                 sentTexts());
-        verify(messages, atLeastOnce()).get("rezept-gespeichert", "Secure Hopper");
+        verify(messages, atLeastOnce()).get("rezept-gespeichert", "Chest Key");
         verify(messages).get("rezept-speichern-fehlgeschlagen", "disk full");
     }
 

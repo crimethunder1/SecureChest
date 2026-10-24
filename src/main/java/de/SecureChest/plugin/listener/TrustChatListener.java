@@ -12,6 +12,7 @@ import de.SecureChest.plugin.area.AreaValidationError;
 import de.SecureChest.plugin.lock.AccessLevel;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
+import de.SecureChest.plugin.util.ChestKeyAmountParser;
 import de.SecureChest.plugin.util.PlayerNameValidator;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import java.util.List;
@@ -25,6 +26,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.inventory.ItemStack;
 
 public final class TrustChatListener implements Listener {
 
@@ -178,6 +180,16 @@ public final class TrustChatListener implements Listener {
             return;
         }
 
+        if (action instanceof PendingChatAction.ChestKeyAmount) {
+            if (!p.hasPermission(Permissions.ADMIN)) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text(plugin.msg().get("trust-keine-berechtigung"), NamedTextColor.RED));
+                return;
+            }
+            handleChestKeyAmount(p, uuid, msg);
+            return;
+        }
+
         if (action instanceof PendingChatAction.TransferLock tl) {
             if (!PlayerNameValidator.isValid(msg)) {
                 plugin.pendingChat().remove(uuid);
@@ -294,6 +306,34 @@ public final class TrustChatListener implements Listener {
                     return;
                 }
                 plugin.gui().openAreaChangeConfirm(p, preview);
+            }
+        }
+    }
+
+    private void handleChestKeyAmount(Player p, UUID uuid, String msg) {
+        ItemStack keys = plugin.items().chestKey();
+        int upperLimit = ChestKeyAmountParser.upperLimit(keys.getMaxStackSize());
+        switch (ChestKeyAmountParser.parse(msg, upperLimit)) {
+            case ChestKeyAmountParser.Rejected rejected -> {
+                p.sendMessage(Component.text(
+                        plugin.msg().get("chest-key-anzahl-ungueltig", rejected.detail(), upperLimit),
+                        NamedTextColor.RED));
+                plugin.gui().promptChestKeyAmount(p);
+            }
+            case ChestKeyAmountParser.Amount amount -> {
+                plugin.pendingChat().remove(uuid);
+                keys.setAmount(amount.value());
+                int droppedAmount = 0;
+                for (ItemStack leftover : p.getInventory().addItem(keys).values()) {
+                    p.getWorld().dropItemNaturally(p.getLocation(), leftover);
+                    droppedAmount += leftover.getAmount();
+                }
+                if (droppedAmount > 0) {
+                    p.sendMessage(Component.text(
+                            plugin.msg().get("chest-key-fallen-gelassen", droppedAmount), NamedTextColor.YELLOW));
+                }
+                p.sendMessage(Component.text(
+                        plugin.msg().get("chest-key-erhalten", amount.value()), NamedTextColor.GREEN));
             }
         }
     }

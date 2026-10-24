@@ -13,7 +13,6 @@ import de.SecureChest.plugin.recipe.RecipeEditorModel;
 import de.SecureChest.plugin.recipe.RecipeKind;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
 import de.SecureChest.plugin.recipe.RecipeValidationError;
-import de.SecureChest.plugin.recipe.RecipeValidator;
 import de.SecureChest.plugin.ui.ConfirmManager;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
@@ -126,7 +125,7 @@ class GuiListenerRecipeTest {
 
     private void storeResetConfirmation(long expiresAt) {
         confirms.set(playerUuid, new ConfirmRequest(ConfirmType.RECIPE_RESET,
-                RecipeKind.SECURE_HOPPER.configKey(), "RECIPES", expiresAt));
+                RecipeKind.CHEST_KEY.configKey(), "RECIPES", expiresAt));
     }
 
     private long inOneMinute() {
@@ -150,9 +149,9 @@ class GuiListenerRecipeTest {
     @Test
     @DisplayName("Unteres Inventar: Rechtsklick waehlt ebenfalls aus")
     void unteresInventar_rechtsklick_setztAuswahl() {
-        RecipeEditorModel model = storeWorkingCopy(RecipeKind.SECURE_HOPPER);
+        RecipeEditorModel model = storeWorkingCopy(RecipeKind.CHEST_KEY);
 
-        listener.onInventoryClick(bottomClick(editorHolder(RecipeKind.SECURE_HOPPER), ClickType.RIGHT,
+        listener.onInventoryClick(bottomClick(editorHolder(RecipeKind.CHEST_KEY), ClickType.RIGHT,
                 Material.GOLD_BLOCK));
 
         assertEquals(Material.GOLD_BLOCK, model.selection());
@@ -292,22 +291,21 @@ class GuiListenerRecipeTest {
     @Test
     @DisplayName("Quit-Aufraeumen verwirft die Arbeitskopie")
     void cleanup_verwirftArbeitskopie() {
-        storeWorkingCopy(RecipeKind.SECURE_HOPPER);
+        storeWorkingCopy(RecipeKind.CHEST_KEY);
 
         ui.cleanup(playerUuid);
 
-        assertNull(ui.recipeEditor(playerUuid, RecipeKind.SECURE_HOPPER));
+        assertNull(ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY));
     }
 
     @Test
-    @DisplayName("Arbeitskopie gehoert zu genau einem Rezept")
-    void arbeitskopie_proRezept() {
-        storeWorkingCopy(RecipeKind.SECURE_HOPPER);
+    @DisplayName("Arbeitskopie des Chest Keys wird beim Verwerfen aller Arbeitskopien entfernt")
+    void arbeitskopie_verwerfenAller() {
+        storeWorkingCopy(RecipeKind.CHEST_KEY);
 
-        assertNull(ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY));
-        assertNotNull(ui.recipeEditor(playerUuid, RecipeKind.SECURE_HOPPER));
+        assertNotNull(ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY));
         ui.clearRecipeEditors();
-        assertNull(ui.recipeEditor(playerUuid, RecipeKind.SECURE_HOPPER));
+        assertNull(ui.recipeEditor(playerUuid, RecipeKind.CHEST_KEY));
     }
 
     @Test
@@ -339,30 +337,30 @@ class GuiListenerRecipeTest {
     }
 
     @Test
-    @DisplayName("Zelle: Umschalt+Linksklick setzt CHEST_KEY nur im Secure Hopper, sonst Hinweis")
-    void zelle_chestKey() {
-        RecipeEditorModel hopper = storeWorkingCopy(RecipeKind.SECURE_HOPPER);
-        listener.editRecipeCell(player, RecipeKind.SECURE_HOPPER, 4, ClickType.SHIFT_LEFT);
-        assertTrue(hopper.isChestKey(4));
+    @DisplayName("Zelle: Umschalt+Linksklick setzt keinen Chest Key mehr, aendert nichts und meldet nichts")
+    void zelle_umschaltLinksklick_nichts() {
+        RecipeEditorModel model = storeWorkingCopy(RecipeKind.CHEST_KEY);
+        model.select(Material.DIAMOND, material -> true);
 
-        RecipeEditorModel chestKey = storeWorkingCopy(RecipeKind.CHEST_KEY);
         listener.editRecipeCell(player, RecipeKind.CHEST_KEY, 4, ClickType.SHIFT_LEFT);
-        assertTrue(chestKey.isEmpty(4));
-        assertEquals(List.of("rezept-chest-key-nur-hopper"), sentTexts());
+
+        assertTrue(model.isEmpty(4));
+        verify(player, never()).sendMessage(any(Component.class));
+        verify(gui, never()).refreshRecipeEditor(any());
     }
 
     @Test
     @DisplayName("Zelle: andere Klickarten und ungueltige Indizes aendern nichts")
     void zelle_andereKlicks_nichts() {
-        RecipeEditorModel model = storeWorkingCopy(RecipeKind.SECURE_HOPPER);
+        RecipeEditorModel model = storeWorkingCopy(RecipeKind.CHEST_KEY);
         model.select(Material.DIAMOND, material -> true);
 
-        listener.editRecipeCell(player, RecipeKind.SECURE_HOPPER, 4, ClickType.SHIFT_RIGHT);
-        listener.editRecipeCell(player, RecipeKind.SECURE_HOPPER, 4, ClickType.NUMBER_KEY);
-        listener.editRecipeCell(player, RecipeKind.SECURE_HOPPER, 9, ClickType.LEFT);
-        listener.editRecipeCell(player, RecipeKind.SECURE_HOPPER, -1, ClickType.LEFT);
+        listener.editRecipeCell(player, RecipeKind.CHEST_KEY, 4, ClickType.SHIFT_RIGHT);
+        listener.editRecipeCell(player, RecipeKind.CHEST_KEY, 4, ClickType.NUMBER_KEY);
+        listener.editRecipeCell(player, RecipeKind.CHEST_KEY, 9, ClickType.LEFT);
+        listener.editRecipeCell(player, RecipeKind.CHEST_KEY, -1, ClickType.LEFT);
 
-        assertEquals(new RecipeEditorModel(RecipeKind.SECURE_HOPPER).toDefinition(), model.toDefinition());
+        assertEquals(new RecipeEditorModel(RecipeKind.CHEST_KEY).toDefinition(), model.toDefinition());
         verify(gui, never()).refreshRecipeEditor(any());
     }
 
@@ -378,26 +376,26 @@ class GuiListenerRecipeTest {
     @Test
     @DisplayName("Speichern ruft apply mit der Definition aus dem Raster auf")
     void speichern_ruftApplyMitDefinition() {
-        RecipeEditorModel model = storeWorkingCopy(RecipeKind.SECURE_HOPPER);
+        RecipeEditorModel model = storeWorkingCopy(RecipeKind.CHEST_KEY);
         model.select(Material.DIAMOND, material -> true);
         model.placeSelection(0);
         model.select(Material.STICK, material -> true);
         model.placeSelection(4);
-        model.placeChestKey(8);
+        model.select(Material.GOLD_INGOT, material -> true);
+        model.placeSelection(8);
         model.setEnabled(false);
-        when(recipes.apply(eq(RecipeKind.SECURE_HOPPER), any()))
-                .thenReturn(new RecipeChangeResult(RecipeKind.SECURE_HOPPER, true, List.of(), null));
+        when(recipes.apply(eq(RecipeKind.CHEST_KEY), any()))
+                .thenReturn(new RecipeChangeResult(RecipeKind.CHEST_KEY, true, List.of(), null));
 
-        listener.saveRecipe(player, RecipeKind.SECURE_HOPPER);
+        listener.saveRecipe(player, RecipeKind.CHEST_KEY);
 
         ArgumentCaptor<RecipeDefinition> captor = ArgumentCaptor.forClass(RecipeDefinition.class);
-        verify(recipes).apply(eq(RecipeKind.SECURE_HOPPER), captor.capture());
+        verify(recipes).apply(eq(RecipeKind.CHEST_KEY), captor.capture());
         RecipeDefinition definition = captor.getValue();
         assertFalse(definition.enabled());
-        assertEquals(List.of("A  ", " B ", "  K"), definition.shape());
-        assertEquals(List.of("A", "B", "K"), List.copyOf(definition.ingredients().keySet()));
-        assertEquals(Map.of("A", "DIAMOND", "B", "STICK", "K", RecipeValidator.CHEST_KEY_INGREDIENT),
-                definition.ingredients());
+        assertEquals(List.of("A  ", " B ", "  C"), definition.shape());
+        assertEquals(List.of("A", "B", "C"), List.copyOf(definition.ingredients().keySet()));
+        assertEquals(Map.of("A", "DIAMOND", "B", "STICK", "C", "GOLD_INGOT"), definition.ingredients());
     }
 
     @Test
@@ -460,24 +458,24 @@ class GuiListenerRecipeTest {
     @Test
     @DisplayName("Zuruecksetzen mit Ueberschreibung: immer der Bestaetigungsdialog, noch nichts angewendet")
     void zuruecksetzen_ueberschrieben_dialog() {
-        when(recipes.isOverridden(RecipeKind.SECURE_HOPPER)).thenReturn(true);
+        when(recipes.isOverridden(RecipeKind.CHEST_KEY)).thenReturn(true);
 
-        listener.requestRecipeReset(player, RecipeKind.SECURE_HOPPER);
+        listener.requestRecipeReset(player, RecipeKind.CHEST_KEY);
 
-        verify(gui).openRecipeResetConfirm(player, RecipeKind.SECURE_HOPPER);
+        verify(gui).openRecipeResetConfirm(player, RecipeKind.CHEST_KEY);
         verify(recipes, never()).resetToDefault(any());
     }
 
     @Test
     @DisplayName("Dialog Ja: resetToDefault, Ergebnis gemeldet, Uebersicht, keine allgemeine Erledigt-Meldung")
     void dialog_ja_wendetAn() {
-        RecipeChangeResult result = new RecipeChangeResult(RecipeKind.SECURE_HOPPER, true, List.of(), null);
-        when(recipes.resetToDefault(RecipeKind.SECURE_HOPPER)).thenReturn(result);
+        RecipeChangeResult result = new RecipeChangeResult(RecipeKind.CHEST_KEY, true, List.of(), null);
+        when(recipes.resetToDefault(RecipeKind.CHEST_KEY)).thenReturn(result);
         storeResetConfirmation(inOneMinute());
 
         listener.handleConfirmAction(player, true);
 
-        verify(recipes).resetToDefault(RecipeKind.SECURE_HOPPER);
+        verify(recipes).resetToDefault(RecipeKind.CHEST_KEY);
         verify(gui).sendRecipeResetResult(player, result);
         verify(gui).openRecipes(player);
         verify(player, never()).sendMessage(any(Component.class));

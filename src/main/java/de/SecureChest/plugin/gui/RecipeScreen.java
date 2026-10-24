@@ -24,7 +24,7 @@ import org.bukkit.inventory.ItemStack;
 final class RecipeScreen {
 
     static final String RETURN_DESTINATION = "RECIPES";
-    static final int[] OVERVIEW_SLOTS = {21, 23};
+    static final int[] OVERVIEW_SLOTS = {21};
     static final int[] GRID_SLOTS = {10, 11, 12, 19, 20, 21, 28, 29, 30};
     static final int RESULT_SLOT = 23;
     static final int SELECTION_SLOT = 25;
@@ -149,7 +149,6 @@ final class RecipeScreen {
             case INGREDIENT_SYMBOL_NOT_IN_SHAPE   -> "rezept-fehler-zeichen-nicht-in-shape";
             case INGREDIENT_MATERIAL_INVALID      -> "rezept-fehler-material-ungueltig";
             case INGREDIENT_MATERIAL_AIR          -> "rezept-fehler-material-luft";
-            case INGREDIENT_CHEST_KEY_NOT_ALLOWED -> "rezept-fehler-chest-key-nicht-erlaubt";
             case REGISTRATION_FAILED              -> "rezept-fehler-registrierung";
         };
     }
@@ -198,13 +197,8 @@ final class RecipeScreen {
     }
 
     private ItemStack buildCell(RecipeEditorModel model, int index) {
-        List<String> lore = lines(model.kind() == RecipeKind.SECURE_HOPPER
-                ? "gui-recipe-edit-cell-hopper-lore" : "gui-recipe-edit-cell-lore");
+        List<String> lore = lines("gui-recipe-edit-cell-lore");
         String context = String.valueOf(index);
-        if (model.isChestKey(index)) {
-            return h.buildItemButton(plugin.items().chestKey(), text("gui-recipe-edit-cell-chest-key-name"),
-                    lore, "recipe_cell", context);
-        }
         Material material = model.material(index);
         if (material == null) {
             return h.buildButton(Material.WHITE_STAINED_GLASS_PANE, text("gui-recipe-edit-cell-empty-name"),
@@ -230,8 +224,7 @@ final class RecipeScreen {
 
     private ItemStack resultItem(RecipeKind kind) {
         return switch (kind) {
-            case CHEST_KEY     -> plugin.items().chestKey();
-            case SECURE_HOPPER -> plugin.items().secureHopper();
+            case CHEST_KEY -> plugin.items().chestKey();
         };
     }
 

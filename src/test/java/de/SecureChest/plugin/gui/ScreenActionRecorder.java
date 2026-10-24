@@ -8,7 +8,6 @@ import de.SecureChest.plugin.area.AreaService;
 import de.SecureChest.plugin.recipe.RecipeDefinition;
 import de.SecureChest.plugin.recipe.RecipeKind;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
-import de.SecureChest.plugin.recipe.RecipeValidator;
 import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.util.Items;
@@ -75,9 +74,9 @@ public final class ScreenActionRecorder {
         Set<String> actions = new TreeSet<>();
         ChestSecurePlugin plugin = pluginWithAreas(List.of());
         RecipeRegistry recipes = mock(RecipeRegistry.class);
-        when(recipes.currentDefinition(RecipeKind.SECURE_HOPPER)).thenReturn(new RecipeDefinition(true,
-                List.of(" I ", "HKH", " I "),
-                Map.of("I", "IRON_BLOCK", "H", "HOPPER", "K", RecipeValidator.CHEST_KEY_INGREDIENT)));
+        when(recipes.currentDefinition(RecipeKind.CHEST_KEY)).thenReturn(new RecipeDefinition(true,
+                List.of("NDN", "DHD", "NDN"),
+                Map.of("N", "NETHERITE_INGOT", "D", "DIAMOND", "H", "TRIPWIRE_HOOK")));
         when(plugin.recipes()).thenReturn(recipes);
         when(plugin.items()).thenReturn(mock(Items.class));
         RecipeScreen screen = new RecipeScreen(plugin, recordingHelper(actions), mock(GuiManager.class),

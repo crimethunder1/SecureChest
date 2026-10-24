@@ -12,8 +12,6 @@ import java.util.stream.Collectors;
 
 public final class RecipeValidator {
 
-    public static final String CHEST_KEY_INGREDIENT = "CHEST_KEY";
-
     private static final int ROW_COUNT = 3;
     private static final int MAX_ROW_LENGTH = 3;
     private static final char EMPTY_SLOT = ' ';
@@ -27,7 +25,7 @@ public final class RecipeValidator {
         String shapeSymbols = String.join("", definition.shape());
         for (Map.Entry<String, String> ingredient : definition.ingredients().entrySet()) {
             validateSymbol(ingredient.getKey(), shapeSymbols, errors);
-            validateMaterial(kind, ingredient.getKey(), ingredient.getValue(), errors);
+            validateMaterial(ingredient.getKey(), ingredient.getValue(), errors);
         }
         return List.copyOf(errors);
     }
@@ -69,17 +67,7 @@ public final class RecipeValidator {
         }
     }
 
-    private static void validateMaterial(RecipeKind kind, String symbol, String material,
-                                         List<RecipeValidationError> errors) {
-        if (material.equalsIgnoreCase(CHEST_KEY_INGREDIENT)) {
-            if (kind != RecipeKind.SECURE_HOPPER) {
-                errors.add(new RecipeValidationError(Code.INGREDIENT_CHEST_KEY_NOT_ALLOWED,
-                        "ingredients." + symbol + " has invalid material '" + material + "', "
-                        + CHEST_KEY_INGREDIENT + " is only allowed in the "
-                        + RecipeKind.SECURE_HOPPER.configKey() + " recipe"));
-            }
-            return;
-        }
+    private static void validateMaterial(String symbol, String material, List<RecipeValidationError> errors) {
         Material matched = Material.matchMaterial(material);
         if (matched == null) {
             errors.add(new RecipeValidationError(Code.INGREDIENT_MATERIAL_INVALID,

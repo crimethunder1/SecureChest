@@ -5,6 +5,7 @@ import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.lock.LogRepository;
 import de.SecureChest.plugin.ui.UiStateStore;
+import de.SecureChest.plugin.util.ChestKeyAmountParser;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -76,12 +77,20 @@ final class AdminScreen {
                 "toggle_owner_name_display",
                 ownerNameDisplayOn ? text("gui-admin-owner-name-display-on")
                                    : text("gui-admin-owner-name-display-off")));
+        inv.setItem(43, h.buildButton(Material.TRIPWIRE_HOOK, text("gui-admin-chest-key-name"),
+                lines("gui-admin-chest-key-lore"), "give_chest_key", ""));
         inv.setItem(49, h.buildButton(Material.ARROW, text("gui-back-name"),
                 lines("gui-back-main-lore"), "back_main", ""));
 
         h.fillEmptySlots(inv, Material.GRAY_STAINED_GLASS_PANE);
         player.openInventory(inv);
         h.playClickSound(player);
+    }
+
+    void promptChestKeyAmount(Player player) {
+        int upperLimit = ChestKeyAmountParser.upperLimit(plugin.items().chestKey().getMaxStackSize());
+        player.sendMessage(Component.text(
+                text("chat-prompt-chest-key-amount", upperLimit), NamedTextColor.YELLOW));
     }
 
     void openLogs(Player player, int page) {

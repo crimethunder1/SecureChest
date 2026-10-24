@@ -56,24 +56,6 @@ class RecipeValidatorTest {
     }
 
     @Test
-    @DisplayName("Ausgeliefertes Secure-Hopper-Rezept mit CHEST_KEY und Leerfeldern ist gueltig")
-    void shippedSecureHopperRecipeIsValid() throws IOException {
-        RecipeDefinition shipped = shippedDefinition(RecipeKind.SECURE_HOPPER);
-
-        assertNotNull(shipped);
-        assertEquals(List.of(" I ", "HKH", " I "), shipped.shape());
-        assertEquals("CHEST_KEY", shipped.ingredients().get("K"));
-        assertEquals(List.of(), RecipeValidator.validate(RecipeKind.SECURE_HOPPER, shipped));
-    }
-
-    @Test
-    @DisplayName("Ausgeliefertes Secure-Hopper-Rezept ist als Chest-Key-Rezept ungueltig (CHEST_KEY)")
-    void shippedSecureHopperRecipeIsInvalidAsChestKeyRecipe() throws IOException {
-        assertEquals(List.of(Code.INGREDIENT_CHEST_KEY_NOT_ALLOWED),
-                codes(RecipeKind.CHEST_KEY, shippedDefinition(RecipeKind.SECURE_HOPPER)));
-    }
-
-    @Test
     @DisplayName("Zu wenige Zeilen: Fehler mit bisherigem Text")
     void tooFewRowsAreRejected() {
         List<RecipeValidationError> errors = RecipeValidator.validate(RecipeKind.CHEST_KEY,
@@ -194,7 +176,7 @@ class RecipeValidatorTest {
     @Test
     @DisplayName("Leerzeichen als Zutaten-Schluessel wird abgelehnt, auch wenn es in der Shape vorkommt")
     void spaceAsIngredientSymbolIsRejected() {
-        assertEquals(List.of(Code.INGREDIENT_SYMBOL_SPACE), codes(RecipeKind.SECURE_HOPPER,
+        assertEquals(List.of(Code.INGREDIENT_SYMBOL_SPACE), codes(RecipeKind.CHEST_KEY,
                 definition(List.of(" I ", "HKH", " I "), ingredients(" ", "STONE", "I", "IRON_BLOCK"))));
     }
 
@@ -247,23 +229,22 @@ class RecipeValidatorTest {
     }
 
     @Test
-    @DisplayName("CHEST_KEY ist im Chest-Key-Rezept nicht erlaubt")
-    void chestKeyIsRejectedInChestKeyRecipe() {
+    @DisplayName("CHEST_KEY als Zutat ist ein unbekanntes Material")
+    void chestKeyIngredientIsRejectedAsInvalidMaterial() {
         List<RecipeValidationError> errors = RecipeValidator.validate(RecipeKind.CHEST_KEY,
                 definition(FULL_SHAPE, ingredients("H", "CHEST_KEY")));
 
-        assertEquals(List.of(new RecipeValidationError(Code.INGREDIENT_CHEST_KEY_NOT_ALLOWED,
-                "ingredients.H has invalid material 'CHEST_KEY', CHEST_KEY is only allowed in the secure_hopper recipe")),
-                errors);
+        assertEquals(List.of(new RecipeValidationError(Code.INGREDIENT_MATERIAL_INVALID,
+                "ingredients.H has invalid material 'CHEST_KEY'")), errors);
     }
 
     @Test
-    @DisplayName("CHEST_KEY wird ohne Ruecksicht auf Gross- und Kleinschreibung erkannt")
-    void chestKeyIsCaseInsensitive() {
-        assertEquals(List.of(), RecipeValidator.validate(RecipeKind.SECURE_HOPPER,
-                definition(List.of(" I ", "HKH", " I "), ingredients("K", "chest_key"))));
-        assertEquals(List.of(Code.INGREDIENT_CHEST_KEY_NOT_ALLOWED),
-                codes(RecipeKind.CHEST_KEY, definition(FULL_SHAPE, ingredients("H", "Chest_Key"))));
+    @DisplayName("CHEST_KEY in anderer Schreibweise ist ebenfalls ein unbekanntes Material")
+    void chestKeyIngredientInOtherCaseIsRejectedAsInvalidMaterial() {
+        for (String chestKey : List.of("chest_key", "Chest_Key")) {
+            assertEquals(List.of(Code.INGREDIENT_MATERIAL_INVALID),
+                    codes(RecipeKind.CHEST_KEY, definition(FULL_SHAPE, ingredients("H", chestKey))), chestKey);
+        }
     }
 
     @Test

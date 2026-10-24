@@ -1,12 +1,13 @@
 # ChestSecure
 
-ChestSecure is a Paper plugin that lets players lock chests, trapped chests, barrels, hoppers and shulker boxes with a crafted Chest Key. Locked blocks can only be opened by the owner and trusted players, and only a Secure Hopper bound to the container can move items in or out.
+ChestSecure is a Paper plugin that lets players lock chests, trapped chests, barrels, hoppers and shulker boxes with a crafted Chest Key. Locked blocks can only be opened by the owner and trusted players, and only a Secure Hopper, a hopper the owner bound to the container with the Chest Key, can move items in or out.
 
 ## Requirements
 
 * Paper 26.2 (api version 26.2)
 * Java 25
 * For Minecraft 1.21 use version 1.6.0.
+* The Secure Hopper item and recipe were removed in 1.6.2. Existing Secure Hoppers keep working, crafted Secure Hopper items can still be placed. To make a new one, right click a hopper with your Chest Key that faces a container you locked.
 * No other plugins. Locks, trust lists, player settings and logs are stored in a local SQLite database.
 
 ## Installation
@@ -26,11 +27,11 @@ ChestSecure is a Paper plugin that lets players lock chests, trapped chests, bar
 * The management menu shows the position and trusted players. From there you can ping the storage, transfer ownership, remove the lock and add trusted players, either from online players nearby or by typing a name in chat.
 * Trust levels: a Viewer can open the container and look at the contents but cannot move items. A Stocker can take and put items. Only the owner and admins can break a locked block.
 * A text display with the owner name appears at each locked block. Admins can turn the owner name display on and off for all locks in the admin panel.
-* Secure Hopper: place it facing a container you locked. It binds to that container. Normal hoppers and hopper minecarts cannot move items into or out of locked containers. Only the owner can open a Secure Hopper, and admins can open it with the Admin Key. The owner and admins can break it. Breaking it drops the Secure Hopper item.
+* Secure Hopper: right click a hopper that faces a container you locked with your Chest Key to turn it into a Secure Hopper bound to that container. The confirmation menu, sneaking and Quick Lock work as for locking. Sneak and right click your Secure Hopper with your Chest Key to turn it back into a normal hopper. Normal hoppers and hopper minecarts cannot move items into or out of locked containers. Only the owner can open a Secure Hopper, and admins can open it with the Admin Key. The owner and admins can break it. Breaking it drops a normal hopper. Secure Hopper items that were crafted earlier can still be placed facing a container you locked.
 * Undo: removing a lock, removing all your locks and transferring a lock can be undone in the main menu `/cs` for 20 seconds. Up to 5 steps are kept.
 * Locked blocks and Secure Hoppers are not destroyed by explosions, do not burn, cannot be moved by pistons and cannot be changed by entities. Players cannot place a chest next to a locked chest of another player to form a double chest.
 * When another player tries to break a locked block, the owner gets a chat notification. Offline owners see it at their next join.
-* Admins with `chestsecure.admin` can break any locked block and open locked blocks while holding the Admin Key. The admin panel in `/cs` gives the Admin Key, a log book, a server report, a log browser, an inspect mode, a global unlock for one player, the Protection area (area limits for locking, see the section Protection area), the Recipe editor and a switch for the owner name display.
+* Admins with `chestsecure.admin` can break any locked block and open locked blocks while holding the Admin Key. The admin panel in `/cs` gives the Admin Key, a log book, a server report, a log browser, an inspect mode, a global unlock for one player, the Protection area (area limits for locking, see the section Protection area), the Recipe editor, a switch for the owner name display and a button that gives you Chest Keys, the amount is typed in chat, 1 to 64.
 
 ## Protection area
 
@@ -61,28 +62,18 @@ Chest Key:
 
 N = Netherite Ingot, D = Diamond, H = Tripwire Hook
 
-Secure Hopper:
-
-```
-[ ] [I] [ ]
-[H] [K] [H]
-[ ] [I] [ ]
-```
-
-I = Iron Block, H = Hopper, K = Chest Key, empty brackets mean an empty slot
-
 ## Recipe editor
 
-* Admins edit both recipes in the admin panel in `/cs` with the button "Recipes". The overview shows the Chest Key and the Secure Hopper with their status and whether the recipe comes from `config.yml` or `recipes.yml`. A click opens the editor.
+* Admins edit the recipe of the Chest Key in the admin panel in `/cs` with the button "Recipes". The overview shows the Chest Key with its status and whether the recipe comes from `config.yml` or `recipes.yml`. A click opens the editor.
 * The editor shows the recipe as a 3x3 grid. To choose a material, click an item in your own inventory. Only the material counts, the item is not changed.
-* A left click on a grid slot inserts the chosen material, a right click clears the slot. A shift left click inserts the Chest Key, only in the recipe of the Secure Hopper.
+* A left click on a grid slot inserts the chosen material, a right click clears the slot.
 * The switch "Recipe active" turns the recipe on or off.
 * "Save" applies the recipe at once for all players and stores it in `recipes.yml`. It stays after a restart. Closing the editor without saving discards the changes.
 * "Reset to default" removes the entry from `recipes.yml` after a confirmation. Then the recipe from `config.yml` applies again.
 * An entry in `recipes.yml` takes priority over the recipe in `config.yml`. If the entry is invalid, ChestSecure writes a warning to the log and uses the recipe from `config.yml`.
 * Invalid recipes, for example with an unknown material or with rows of different length, are not registered. The plugin still starts and writes a warning to the log.
 * Recipes are only read from the files at server start. `/cs reload` does not reload them, so the editor is the way to change recipes while the server is running.
-* `recipes.yml` has the same structure as the section `recipes` in `config.yml`, without the key `recipes`. The editor uses the letters `A` to `I` for materials and `K` for the Chest Key, for example:
+* `recipes.yml` has the same structure as the section `recipes` in `config.yml`, without the key `recipes`. The editor uses the letters `A` to `I` for materials, for example:
 
 ```
 chest_key:
@@ -100,13 +91,12 @@ chest_key:
 ## Commands
 
 * `/chestsecure` or `/cs` opens the main menu. Players only.
-* `/cs reload` reloads `config.yml` with the language setting, the language files in the folder `lang` and the world list. Recipes, `recipes.yml` and `areas.yml` are not reloaded.
-* `/cs givekey [player] [amount]` gives Chest Keys to an online player. Admins only (`chestsecure.admin`). The amount is a whole number from 1 to 64, the default is one key for the sender. From the console a player is required. Keys that do not fit into the inventory are dropped at the player's position.
+* `/cs reload` reloads `config.yml` with the language setting, the language files in the folder `lang` and the world list. Recipes, `recipes.yml`, `areas.yml` and `settings.yml` are not reloaded.
 
 ## Permissions
 
 * `chestsecure.use` (default: true) opens the main menu with `/cs`.
-* `chestsecure.admin` (default: op) breaks and opens locked blocks, opens the admin panel and runs `/cs reload` and `/cs givekey`. In the admin panel it also gives access to the protection area and the recipe editor.
+* `chestsecure.admin` (default: op) breaks and opens locked blocks, opens the admin panel and runs `/cs reload`. In the admin panel it also gives access to the protection area and the recipe editor.
 * `chestsecure.admin.teleport` (default: op) teleports to log positions in the admin log view. Also needs `admin.logs.teleport_enabled: true`.
 
 ## Configuration
@@ -122,7 +112,8 @@ chest_key:
 * `limits.max_locks_per_player: 1000` and `limits.max_hoppers_per_player: 50`. A value of 0 means no limit.
 * `cooldowns.lock_action_ms: 1000` and `cooldowns.break_notification_ms: 30000`.
 * `admin.logs.book_entries: 200` and `admin.logs.teleport_enabled: false`.
-* `recipes.chest_key` and `recipes.secure_hopper` set `enabled`, `shape` and `ingredients` for both recipes. An entry in `recipes.yml` from the recipe editor takes priority.
+* `recipes.chest_key` sets `enabled`, `shape` and `ingredients` for the recipe of the Chest Key. An entry in `recipes.yml` from the recipe editor takes priority.
+* A section `recipes.secure_hopper` in `config.yml` or an entry `secure_hopper` in `recipes.yml` from an earlier version is no longer used. ChestSecure writes a note to the log at the start, and the next save in the recipe editor leaves the entry out of `recipes.yml`.
 * An invalid recipe is not registered. The plugin still starts and writes a warning to the log.
 
 ## Language

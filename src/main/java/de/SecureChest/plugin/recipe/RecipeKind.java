@@ -2,8 +2,7 @@ package de.SecureChest.plugin.recipe;
 
 public enum RecipeKind {
 
-    CHEST_KEY("chest_key", "Chest Key"),
-    SECURE_HOPPER("secure_hopper", "Secure Hopper");
+    CHEST_KEY("chest_key", "Chest Key");
 
     private final String configKey;
     private final String displayName;

@@ -84,6 +84,7 @@ public final class ProtectionListener implements Listener {
         boolean isHoldingAdminKey  = plugin.items().isHoldingAdminKey(player);
 
         if (tryInspectMode(event, player, block, isHandEmpty)) return;
+        if (tryUnbindSecureHopper(event, player, block, isHoldingChestKey)) return;
         if (tryRejectChestKeyOnSecureHopper(event, player, block, isHoldingChestKey)) return;
         if (tryChestKeyAction(event, player, block, isHoldingChestKey, worldEnabled)) return;
         if (tryQuickLock(event, player, block, isHandEmpty, blockAlreadyLocked, worldEnabled)) return;
@@ -104,6 +105,20 @@ public final class ProtectionListener implements Listener {
         }
         event.setCancelled(true);
         displayInspectInfo(player, block);
+        return true;
+    }
+
+    private boolean tryUnbindSecureHopper(PlayerInteractEvent event, Player player, Block block,
+                                          boolean isHoldingChestKey) {
+        if (!isHoldingChestKey || !player.isSneaking() || !isHopperWithSecureProtection(block)) return false;
+        SecureHopperEntry secureHopperEntry = plugin.locks().getSecureHopper(block).orElse(null);
+        if (secureHopperEntry == null || !secureHopperEntry.owner().equals(player.getUniqueId())) return false;
+
+        event.setCancelled(true);
+        if (!consumeActionCooldown(player.getUniqueId())) return true;
+        plugin.locks().logSecureHopperRemove(player, block);
+        plugin.locks().removeSecureHopper(block);
+        sendSuccessFeedback(player, plugin.msg().get("hopper-entbunden"));
         return true;
     }
 
@@ -202,11 +217,28 @@ public final class ProtectionListener implements Listener {
     }
 
     private void lockBlockDirectly(Player player, Block block) {
+        Block hopperBindTarget = LockUtil.chestKeyHopperBindTarget(plugin.locks(), block, player.getUniqueId());
+        if (hopperBindTarget != null) {
+            bindHopperWithChestKey(player, block, hopperBindTarget);
+            return;
+        }
         boolean success = plugin.locks().lock(player, block);
         if (success) {
             sendSuccessFeedback(player, plugin.msg().get("block-gesperrt"));
         } else {
             sendFailFeedback(player, plugin.msg().get("block-bereits-gesperrt"));
+        }
+    }
+
+    private void bindHopperWithChestKey(Player player, Block hopperBlock, Block targetBlock) {
+        if (!plugin.areas().isLockPlacementAllowed(hopperBlock) || !plugin.areas().isLockPlacementAllowed(targetBlock)) {
+            sendFailFeedback(player, plugin.msg().get("wirkungsbereich-hier-nicht-aktiv"));
+            return;
+        }
+        if (plugin.locks().bindSecureHopper(player, hopperBlock, targetBlock)) {
+            sendSuccessFeedback(player, plugin.msg().get("hopper-gebunden"));
+        } else {
+            sendFailFeedback(player, plugin.msg().get("hopper-bind-fehlgeschlagen"));
         }
     }
 
@@ -221,12 +253,20 @@ public final class ProtectionListener implements Listener {
                 expiresAt
         ));
         String blockTypeName = block.getType().name().replace('_', ' ');
+        Block hopperBindTarget = LockUtil.chestKeyHopperBindTarget(plugin.locks(), block, player.getUniqueId());
         Bukkit.getScheduler().runTask(plugin, () -> {
             List<String> confirmLines = new ArrayList<>();
-            confirmLines.add(plugin.msg().get("confirm-lock-block-question", blockTypeName));
+            if (hopperBindTarget != null) {
+                confirmLines.add(plugin.msg().get("confirm-bind-hopper-question"));
+                confirmLines.add(plugin.msg().get("confirm-bind-hopper-target",
+                        hopperBindTarget.getX(), hopperBindTarget.getY(), hopperBindTarget.getZ()));
+            } else {
+                confirmLines.add(plugin.msg().get("confirm-lock-block-question", blockTypeName));
+            }
             confirmLines.add("");
             confirmLines.addAll(plugin.msg().getList("confirm-lock-block-tip"));
-            plugin.gui().openConfirm(player, plugin.msg().get("confirm-lock-block-title"), confirmLines);
+            String titleKey = hopperBindTarget != null ? "confirm-bind-hopper-title" : "confirm-lock-block-title";
+            plugin.gui().openConfirm(player, plugin.msg().get(titleKey), confirmLines);
         });
     }
 
@@ -463,7 +503,7 @@ public final class ProtectionListener implements Listener {
             plugin.locks().logSecureHopperRemove(event.getPlayer(), block);
             plugin.locks().removeSecureHopper(block);
             event.setDropItems(false);
-            block.getWorld().dropItemNaturally(block.getLocation(), plugin.items().secureHopper());
+            block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.HOPPER));
         }
 
         if (isLockedBlock) {

@@ -21,6 +21,10 @@ public final class RecipeStore {
 
     public static final String FILE_NAME = "recipes.yml";
 
+    static final String REMOVED_SECURE_HOPPER_KEY = "secure_hopper";
+    static final String SECURE_HOPPER_REPLACEMENT_HINT =
+            "Hold the Chest Key and right click a hopper that faces your locked container instead.";
+
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_SHAPE = "shape";
     private static final String KEY_INGREDIENTS = "ingredients";
@@ -58,6 +62,12 @@ public final class RecipeStore {
 
         Map<RecipeKind, RecipeDefinition> overrides = new EnumMap<>(RecipeKind.class);
         for (String key : yaml.getKeys(false)) {
+            if (key.equals(REMOVED_SECURE_HOPPER_KEY)) {
+                logger.info(REMOVED_SECURE_HOPPER_KEY + " in " + FILE_NAME
+                        + " is no longer used, the Secure Hopper recipe was removed. "
+                        + SECURE_HOPPER_REPLACEMENT_HINT);
+                continue;
+            }
             RecipeKind kind = RecipeKind.fromConfigKey(key);
             if (kind == null) {
                 logger.warning(FILE_NAME + ": entry '" + key + "' is not a known recipe and was skipped.");

@@ -56,22 +56,6 @@ public final class Items {
         return it;
     }
 
-    public ItemStack secureHopper() {
-        ItemStack it = new ItemStack(Material.HOPPER);
-        ItemMeta meta = it.getItemMeta();
-        meta.displayName(Component.text(plugin.msg().get("item-secure-hopper-name")));
-        meta.lore(List.of(
-                Component.text(plugin.msg().get("item-secure-hopper-lore-1")),
-                Component.text(plugin.msg().get("item-secure-hopper-lore-2")),
-                Component.text(plugin.msg().get("item-secure-hopper-lore-3"))
-        ));
-        mark(meta, Type.SECURE_HOPPER);
-        meta.addEnchant(Enchantment.UNBREAKING, 1, true);
-        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        it.setItemMeta(meta);
-        return it;
-    }
-
     public boolean is(ItemStack stack, Type type) {
         if (stack == null || stack.getType().isAir()) return false;
         if (!stack.hasItemMeta()) return false;

@@ -14,7 +14,6 @@ public record RecipeValidationError(Code code, String detail) {
         INGREDIENT_SYMBOL_NOT_IN_SHAPE,
         INGREDIENT_MATERIAL_INVALID,
         INGREDIENT_MATERIAL_AIR,
-        INGREDIENT_CHEST_KEY_NOT_ALLOWED,
         REGISTRATION_FAILED
     }
 

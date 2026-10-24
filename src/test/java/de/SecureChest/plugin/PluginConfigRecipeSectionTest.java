@@ -36,7 +36,7 @@ class PluginConfigRecipeSectionTest {
         PluginConfig config = withoutPlugin();
 
         Throwable failure =
-                assertThrows(Throwable.class, () -> config.recipeSection("secure_hopper"));
+                assertThrows(Throwable.class, () -> config.recipeSection("unknown_recipe"));
 
         assertFalse(failure instanceof NullPointerException,
                 "Erwartet wird ein aussagekraeftiger Fehler statt der rohen NPE");

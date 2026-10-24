@@ -82,7 +82,7 @@ class RecipeRegistrySelectionTest {
     @Test
     @DisplayName("Weder Ueberschreibung noch config.yml-Abschnitt: kein Rezept, keine Fehler")
     void nothingConfiguredGivesNoRecipe() {
-        RecipeRegistry.Selection selection = RecipeRegistry.select(RecipeKind.SECURE_HOPPER, null, null);
+        RecipeRegistry.Selection selection = RecipeRegistry.select(RecipeKind.CHEST_KEY, null, null);
 
         assertNull(selection.definition());
         assertEquals(List.of(), selection.overrideErrors());
@@ -114,17 +114,15 @@ class RecipeRegistrySelectionTest {
     }
 
     @Test
-    @DisplayName("CHEST_KEY in der Ueberschreibung des Chest-Key-Rezepts fuehrt zum Fallback")
+    @DisplayName("CHEST_KEY als Zutat in der Ueberschreibung ist ein unbekanntes Material und fuehrt zum Fallback")
     void chestKeyInChestKeyOverrideFallsBack() {
         RecipeDefinition withChestKey = new RecipeDefinition(true,
                 List.of("DDD", "DKD", "DDD"), Map.of("D", "DIAMOND", "K", "CHEST_KEY"));
 
-        RecipeRegistry.Selection chestKeySelection = RecipeRegistry.select(RecipeKind.CHEST_KEY, withChestKey, VALID_CONFIG);
-        RecipeRegistry.Selection hopperSelection = RecipeRegistry.select(RecipeKind.SECURE_HOPPER, withChestKey, null);
+        RecipeRegistry.Selection selection = RecipeRegistry.select(RecipeKind.CHEST_KEY, withChestKey, VALID_CONFIG);
 
-        assertSame(VALID_CONFIG, chestKeySelection.definition());
-        assertEquals(List.of(Code.INGREDIENT_CHEST_KEY_NOT_ALLOWED), codes(chestKeySelection.overrideErrors()));
-        assertSame(withChestKey, hopperSelection.definition());
-        assertTrue(hopperSelection.fromOverride());
+        assertSame(VALID_CONFIG, selection.definition());
+        assertFalse(selection.fromOverride());
+        assertEquals(List.of(Code.INGREDIENT_MATERIAL_INVALID), codes(selection.overrideErrors()));
     }
 }

@@ -58,8 +58,6 @@ final class MiscScreen {
 
         inv.setItem(28, h.buildButton(Material.TRIPWIRE_HOOK, text("gui-main-recipe-key-name"),
                 lines("gui-main-recipe-lore"), "open_recipe_key", ""));
-        inv.setItem(30, h.buildButton(Material.HOPPER, text("gui-main-recipe-hopper-name"),
-                lines("gui-main-recipe-lore"), "open_recipe_hopper", ""));
 
         int undoCount = plugin.undos().count(player.getUniqueId());
         if (undoCount > 0) {
@@ -176,10 +174,8 @@ final class MiscScreen {
         h.playClickSound(player);
     }
 
-    void openRecipePreview(Player player, boolean showKeyRecipe) {
-        ShapedRecipe recipe = showKeyRecipe
-                ? plugin.recipes().chestKeyRecipe()
-                : plugin.recipes().secureHopperRecipe();
+    void openRecipePreview(Player player) {
+        ShapedRecipe recipe = plugin.recipes().chestKeyRecipe();
         if (recipe == null) {
             player.sendMessage(Component.text(
                     plugin.msg().get("rezept-nicht-verfuegbar"), NamedTextColor.RED));
@@ -187,11 +183,8 @@ final class MiscScreen {
             return;
         }
 
-        ChestSecureHolder holder = new ChestSecureHolder(
-                showKeyRecipe ? ChestSecureHolder.GuiId.RECIPE_KEY
-                              : ChestSecureHolder.GuiId.RECIPE_HOPPER, "");
-        Inventory inv = Bukkit.createInventory(holder, 45,
-                Component.text(showKeyRecipe ? text("gui-recipe-key-title") : text("gui-recipe-hopper-title")));
+        ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.RECIPE_KEY, "");
+        Inventory inv = Bukkit.createInventory(holder, 45, Component.text(text("gui-recipe-key-title")));
         holder.setInventory(inv);
 
         int[] slots = {11, 12, 13, 20, 21, 22, 29, 30, 31};

@@ -73,6 +73,13 @@ public final class SignManager implements Listener {
         if (e != null && e.isValid()) e.remove();
     }
 
+    boolean hasLiveSign(String lockId) {
+        UUID entityId = signEntities.get(lockId);
+        if (entityId == null) return false;
+        Entity entity = Bukkit.getEntity(entityId);
+        return entity != null && entity.isValid();
+    }
+
     public void removeAllSigns() {
         int removed = 0;
         for (String lockId : java.util.List.copyOf(signEntities.keySet())) {
@@ -128,7 +135,9 @@ public final class SignManager implements Listener {
                     continue;
                 }
 
-                if (signEntities.containsKey(k.asId())) continue;
+                String lockId = k.asId();
+                if (hasLiveSign(lockId)) continue;
+                removeSign(lockId);
                 spawnSign(k, ownerName(entry.owner()));
             }
         });

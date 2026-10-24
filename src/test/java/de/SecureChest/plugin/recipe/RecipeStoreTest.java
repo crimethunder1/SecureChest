@@ -34,8 +34,20 @@ class RecipeStoreTest {
 
     private static final RecipeDefinition CHEST_KEY_DEFINITION = new RecipeDefinition(true,
             List.of("DDD", "DHD", "DDD"), orderedIngredients("H", "TRIPWIRE_HOOK", "D", "DIAMOND"));
-    private static final RecipeDefinition SECURE_HOPPER_DEFINITION = new RecipeDefinition(true,
-            List.of(" I ", "HKH", "   "), orderedIngredients("I", "IRON_BLOCK", "H", "HOPPER", "K", "CHEST_KEY"));
+    private static final RecipeDefinition CHEST_KEY_DEFINITION_WITH_SPACES = new RecipeDefinition(true,
+            List.of(" I ", "HDH", "   "), orderedIngredients("I", "IRON_BLOCK", "H", "TRIPWIRE_HOOK", "D", "DIAMOND"));
+    private static final String LEGACY_SECURE_HOPPER_ENTRY = String.join("\n",
+            "secure_hopper:",
+            "  enabled: true",
+            "  shape: [\" I \", \"HKH\", \" I \"]",
+            "  ingredients:",
+            "    I: \"IRON_BLOCK\"",
+            "    H: \"HOPPER\"",
+            "    K: \"CHEST_KEY\"",
+            "");
+    private static final String SECURE_HOPPER_INFO = "secure_hopper in recipes.yml is no longer used, "
+            + "the Secure Hopper recipe was removed. "
+            + "Hold the Chest Key and right click a hopper that faces your locked container instead.";
 
     private static Map<String, String> orderedIngredients(String... symbolsAndMaterials) {
         Map<String, String> ingredients = new LinkedHashMap<>();
@@ -59,10 +71,9 @@ class RecipeStoreTest {
         }
     }
 
-    private static Map<RecipeKind, RecipeDefinition> overrides(RecipeDefinition chestKey, RecipeDefinition secureHopper) {
+    private static Map<RecipeKind, RecipeDefinition> overrides(RecipeDefinition chestKey) {
         Map<RecipeKind, RecipeDefinition> overrides = new EnumMap<>(RecipeKind.class);
-        if (chestKey != null) overrides.put(RecipeKind.CHEST_KEY, chestKey);
-        if (secureHopper != null) overrides.put(RecipeKind.SECURE_HOPPER, secureHopper);
+        overrides.put(RecipeKind.CHEST_KEY, chestKey);
         return overrides;
     }
 
@@ -78,16 +89,15 @@ class RecipeStoreTest {
     }
 
     @Test
-    @DisplayName("Round-Trip: beide Rezepte kommen unveraendert zurueck, inklusive Leerzeichen und Zutaten-Reihenfolge")
+    @DisplayName("Round-Trip: das Rezept kommt unveraendert zurueck, inklusive Leerzeichen und Zutaten-Reihenfolge")
     void roundTrip() throws IOException {
-        store().save(overrides(CHEST_KEY_DEFINITION, SECURE_HOPPER_DEFINITION));
+        store().save(overrides(CHEST_KEY_DEFINITION_WITH_SPACES));
 
         Map<RecipeKind, RecipeDefinition> loaded = store().load();
 
-        assertEquals(Map.of(RecipeKind.CHEST_KEY, CHEST_KEY_DEFINITION,
-                RecipeKind.SECURE_HOPPER, SECURE_HOPPER_DEFINITION), loaded);
-        assertEquals(List.of("I", "H", "K"),
-                List.copyOf(loaded.get(RecipeKind.SECURE_HOPPER).ingredients().keySet()));
+        assertEquals(Map.of(RecipeKind.CHEST_KEY, CHEST_KEY_DEFINITION_WITH_SPACES), loaded);
+        assertEquals(List.of("I", "H", "D"),
+                List.copyOf(loaded.get(RecipeKind.CHEST_KEY).ingredients().keySet()));
         verify(logger, never()).warning(anyString());
     }
 
@@ -95,7 +105,7 @@ class RecipeStoreTest {
     @DisplayName("Round-Trip: abgeschaltetes Rezept und leere Zutaten bleiben erhalten")
     void roundTripDisabledWithoutIngredients() throws IOException {
         RecipeDefinition disabled = new RecipeDefinition(false, List.of("A", "A", "A"), Map.of());
-        store().save(overrides(disabled, null));
+        store().save(overrides(disabled));
 
         assertEquals(Map.of(RecipeKind.CHEST_KEY, disabled), store().load());
     }
@@ -103,7 +113,7 @@ class RecipeStoreTest {
     @Test
     @DisplayName("Gespeicherte Datei hat denselben Aufbau wie der Abschnitt recipes der config.yml")
     void savedFileHasConfigLayout() throws IOException {
-        store().save(overrides(CHEST_KEY_DEFINITION, null));
+        store().save(overrides(CHEST_KEY_DEFINITION));
 
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
                 new StringReader(Files.readString(file(), StandardCharsets.UTF_8)));
@@ -157,7 +167,7 @@ class RecipeStoreTest {
         assertTrue(store.isUnreadableAtLoad());
         verify(logger).warning(anyString());
         IOException refusedSave = assertThrows(IOException.class,
-                () -> store.save(overrides(CHEST_KEY_DEFINITION, null)));
+                () -> store.save(overrides(CHEST_KEY_DEFINITION)));
         assertTrue(refusedSave.getMessage().contains(RecipeStore.FILE_NAME));
         IOException refusedRemove = assertThrows(IOException.class, () -> store.remove(RecipeKind.CHEST_KEY));
         assertTrue(refusedRemove.getMessage().contains(RecipeStore.FILE_NAME));
@@ -196,7 +206,7 @@ class RecipeStoreTest {
         store.load();
 
         assertFalse(store.isUnreadableAtLoad());
-        store.save(overrides(CHEST_KEY_DEFINITION, null));
+        store.save(overrides(CHEST_KEY_DEFINITION));
         assertEquals(Map.of(RecipeKind.CHEST_KEY, CHEST_KEY_DEFINITION), store().load());
     }
 
@@ -210,7 +220,7 @@ class RecipeStoreTest {
                 "    G: \"GOLD_INGOT\"",
                 "Chest_Key:",
                 "  shape: [\"D\", \"D\", \"D\"]",
-                "secure_hopper:",
+                "chest_key:",
                 "  shape: [\"H\", \"H\", \"H\"]",
                 "  ingredients:",
                 "    H: \"HOPPER\"",
@@ -219,10 +229,59 @@ class RecipeStoreTest {
 
         Map<RecipeKind, RecipeDefinition> loaded = store.load();
 
-        assertEquals(Map.of(RecipeKind.SECURE_HOPPER,
+        assertEquals(Map.of(RecipeKind.CHEST_KEY,
                 new RecipeDefinition(true, List.of("H", "H", "H"), Map.of("H", "HOPPER"))), loaded);
         assertFalse(store.isUnreadableAtLoad());
         verify(logger, times(2)).warning(anyString());
+        verify(logger, never()).info(anyString());
+    }
+
+    @Test
+    @DisplayName("Altbestand: secure_hopper wird mit einer Info-Zeile statt Warnung uebersprungen, chest_key bleibt erhalten")
+    void loadSkipsLegacySecureHopperEntryWithInfo() throws IOException {
+        Files.writeString(file(), String.join("\n",
+                "chest_key:",
+                "  shape: [\"DDD\", \"DHD\", \"DDD\"]",
+                "  ingredients:",
+                "    H: \"TRIPWIRE_HOOK\"",
+                "    D: \"DIAMOND\"",
+                "") + LEGACY_SECURE_HOPPER_ENTRY);
+        RecipeStore store = store();
+
+        Map<RecipeKind, RecipeDefinition> loaded = store.load();
+
+        assertEquals(Map.of(RecipeKind.CHEST_KEY, CHEST_KEY_DEFINITION), loaded);
+        assertFalse(store.isUnreadableAtLoad());
+        verify(logger).info(SECURE_HOPPER_INFO);
+        verify(logger, times(1)).info(anyString());
+        verify(logger, never()).warning(anyString());
+    }
+
+    @Test
+    @DisplayName("Altbestand: auch ein nicht lesbarer secure_hopper-Eintrag erzeugt nur die Info-Zeile")
+    void loadSkipsUnreadableLegacySecureHopperEntryWithInfo() throws IOException {
+        Files.writeString(file(), "secure_hopper: \"kaputt\"\n");
+        RecipeStore store = store();
+
+        assertEquals(Map.of(), store.load());
+        assertFalse(store.isUnreadableAtLoad());
+        verify(logger).info(SECURE_HOPPER_INFO);
+        verify(logger, never()).warning(anyString());
+    }
+
+    @Test
+    @DisplayName("Altbestand: Speichern nach dem Laden laesst secure_hopper weg und behaelt chest_key")
+    void saveAfterLoadDropsLegacySecureHopperEntry() throws IOException {
+        Files.writeString(file(), LEGACY_SECURE_HOPPER_ENTRY);
+        RecipeStore store = store();
+        store.load();
+
+        store.save(overrides(CHEST_KEY_DEFINITION));
+
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
+                new StringReader(Files.readString(file(), StandardCharsets.UTF_8)));
+        assertEquals(List.of("chest_key"), List.copyOf(yaml.getKeys(false)));
+        assertEquals(Map.of(RecipeKind.CHEST_KEY, CHEST_KEY_DEFINITION), store().load());
     }
 
     @Test
@@ -236,16 +295,15 @@ class RecipeStoreTest {
                 "chest_key:\n  shape: [\"D\", \"D\", \"D\"]\n  ingredients:\n    D: 5",
                 "chest_key:\n  shape: [\"D\", \"D\", \"D\"]\n  ingredients:\n    D:\n      nested: \"DIAMOND\"",
                 "chest_key:\n  enabled: \"maybe\"\n  shape: [\"D\", \"D\", \"D\"]");
-        String validSecureHopper = "\nsecure_hopper:\n  shape: [\"H\", \"H\", \"H\"]\n  ingredients:\n    H: \"HOPPER\"\n";
 
         for (String entry : unreadableChestKeyEntries) {
-            Files.writeString(file(), entry + validSecureHopper);
+            Files.writeString(file(), entry + "\n");
             Logger entryLogger = mock(Logger.class);
             RecipeStore store = new RecipeStore(file(), entryLogger);
 
             Map<RecipeKind, RecipeDefinition> loaded = store.load();
 
-            assertEquals(List.of(RecipeKind.SECURE_HOPPER), List.copyOf(loaded.keySet()), entry);
+            assertEquals(Map.of(), loaded, entry);
             assertFalse(store.isUnreadableAtLoad(), entry);
             verify(entryLogger).warning(anyString());
         }
@@ -264,7 +322,7 @@ class RecipeStoreTest {
     @Test
     @DisplayName("Geladene Ueberschreibungen sind unveraenderlich")
     void loadedOverridesAreUnmodifiable() throws IOException {
-        store().save(overrides(CHEST_KEY_DEFINITION, null));
+        store().save(overrides(CHEST_KEY_DEFINITION));
 
         Map<RecipeKind, RecipeDefinition> loaded = store().load();
 
@@ -275,21 +333,20 @@ class RecipeStoreTest {
     @DisplayName("Atomares Schreiben: vorhandene Datei wird vollstaendig ersetzt, keine Temp-Datei bleibt liegen")
     void saveReplacesFileWithoutTemporaryLeftovers() throws IOException {
         RecipeStore store = store();
-        store.save(overrides(CHEST_KEY_DEFINITION, SECURE_HOPPER_DEFINITION));
+        store.save(overrides(CHEST_KEY_DEFINITION));
         RecipeDefinition replacement = new RecipeDefinition(true, List.of("G", "G", "G"), Map.of("G", "GOLD_BLOCK"));
-        store.save(overrides(replacement, null));
+        store.save(overrides(replacement));
 
         assertEquals(List.of(RecipeStore.FILE_NAME), folderEntries());
         assertEquals(Map.of(RecipeKind.CHEST_KEY, replacement), store().load());
         String written = Files.readString(file(), StandardCharsets.UTF_8);
-        assertFalse(written.contains("secure_hopper"));
         assertFalse(written.contains("TRIPWIRE_HOOK"));
     }
 
     @Test
     @DisplayName("Speichern ohne Ueberschreibungen schreibt eine leere Datei")
     void saveWithoutOverridesWritesEmptyFile() throws IOException {
-        store().save(overrides(CHEST_KEY_DEFINITION, null));
+        store().save(overrides(CHEST_KEY_DEFINITION));
 
         store().save(Map.of());
 
@@ -303,7 +360,7 @@ class RecipeStoreTest {
         Path nestedFile = folder.resolve("plugins").resolve("ChestSecure").resolve(RecipeStore.FILE_NAME);
         RecipeStore store = new RecipeStore(nestedFile, logger);
 
-        store.save(overrides(CHEST_KEY_DEFINITION, null));
+        store.save(overrides(CHEST_KEY_DEFINITION));
 
         assertTrue(Files.isRegularFile(nestedFile));
         assertEquals(Map.of(RecipeKind.CHEST_KEY, CHEST_KEY_DEFINITION), new RecipeStore(nestedFile, logger).load());
@@ -316,21 +373,29 @@ class RecipeStoreTest {
         Files.writeString(file().resolve("inhalt.txt"), "bleibt");
         RecipeStore store = store();
 
-        assertThrows(IOException.class, () -> store.save(overrides(CHEST_KEY_DEFINITION, null)));
+        assertThrows(IOException.class, () -> store.save(overrides(CHEST_KEY_DEFINITION)));
 
         assertEquals(List.of(RecipeStore.FILE_NAME), folderEntries());
         assertEquals("bleibt", Files.readString(file().resolve("inhalt.txt")));
     }
 
     @Test
-    @DisplayName("Entfernen: nur der eine Eintrag verschwindet, der andere bleibt, keine Temp-Datei")
+    @DisplayName("Entfernen: nur der eine Eintrag verschwindet, andere Eintraege bleiben, keine Temp-Datei")
     void removeDeletesOnlyOneEntry() throws IOException {
+        Files.writeString(file(), String.join("\n",
+                "chest_key:",
+                "  shape: [\"D\", \"D\", \"D\"]",
+                "golden_key:",
+                "  shape: [\"G\", \"G\", \"G\"]",
+                ""));
         RecipeStore store = store();
-        store.save(overrides(CHEST_KEY_DEFINITION, SECURE_HOPPER_DEFINITION));
+        store.load();
 
         store.remove(RecipeKind.CHEST_KEY);
 
-        assertEquals(Map.of(RecipeKind.SECURE_HOPPER, SECURE_HOPPER_DEFINITION), store().load());
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
+                new StringReader(Files.readString(file(), StandardCharsets.UTF_8)));
+        assertEquals(List.of("golden_key"), List.copyOf(yaml.getKeys(false)));
         assertEquals(List.of(RecipeStore.FILE_NAME), folderEntries());
     }
 
@@ -338,7 +403,7 @@ class RecipeStoreTest {
     @DisplayName("Entfernen des letzten Eintrags hinterlaesst eine leere, lesbare Datei")
     void removeLastEntryLeavesEmptyFile() throws IOException {
         RecipeStore store = store();
-        store.save(overrides(CHEST_KEY_DEFINITION, null));
+        store.save(overrides(CHEST_KEY_DEFINITION));
 
         store.remove(RecipeKind.CHEST_KEY);
 
@@ -363,7 +428,7 @@ class RecipeStoreTest {
     @Test
     @DisplayName("Entfernen ohne Datei legt keine Datei an")
     void removeWithoutFileCreatesNothing() throws IOException {
-        store().remove(RecipeKind.SECURE_HOPPER);
+        store().remove(RecipeKind.CHEST_KEY);
 
         assertTrue(folderEntries().isEmpty());
     }
@@ -386,7 +451,7 @@ class RecipeStoreTest {
     @DisplayName("Entfernen verweigert das Ueberschreiben, wenn die Datei inzwischen kaputt ist")
     void removeRefusesFileBrokenAfterLoad() throws IOException {
         RecipeStore store = store();
-        store.save(overrides(CHEST_KEY_DEFINITION, null));
+        store.save(overrides(CHEST_KEY_DEFINITION));
         String broken = "chest_key: [\n  : :\n";
         Files.writeString(file(), broken);
 

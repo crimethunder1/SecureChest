@@ -36,7 +36,7 @@ public final class GuiManager {
     public void openSettings(Player player)                             { misc.openSettings(player); }
     public void openStats(Player player)                                { misc.openStats(player); }
     public void openHoppersList(Player player, int page)                { misc.openHoppersList(player, page); }
-    public void openRecipePreview(Player player, boolean showKeyRecipe) { misc.openRecipePreview(player, showKeyRecipe); }
+    public void openRecipePreview(Player player)                        { misc.openRecipePreview(player); }
     public void openConfirm(Player player, String title, List<String> lines) { misc.openConfirm(player, title, lines); }
 
     public void openLocksList(Player player, int page)                  { locks.openLocksList(player, page); }
@@ -46,6 +46,7 @@ public final class GuiManager {
 
     public void openAdmin(Player player)                                { admin.openAdmin(player); }
     public void openLogs(Player player, int page)                       { admin.openLogs(player, page); }
+    public void promptChestKeyAmount(Player player)                     { admin.promptChestKeyAmount(player); }
 
     public void openAreas(Player player, int page)                      { areas.openAreas(player, page); }
     public void openAreaChangeConfirm(Player player, AreaChangePreview preview) { areas.openChangeConfirm(player, preview); }
