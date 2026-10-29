@@ -49,6 +49,8 @@ final class AdminScreen {
 
         boolean inspectOn = plugin.ui().inspect(player.getUniqueId());
         boolean ownerNameDisplayOn = plugin.ownerNameDisplay().isEnabled();
+        boolean hideWhenCoveredOn = plugin.ownerNameDisplay().isHideWhenCoveredEnabled();
+        boolean chestKeyConsumptionOn = plugin.chestKeyConsumption().isEnabled();
 
         inv.setItem(19, h.buildButton(Material.NETHER_STAR, text("gui-admin-key-name"),
                 lines("gui-admin-key-lore"), "give_admin_key", ""));
@@ -77,6 +79,14 @@ final class AdminScreen {
                 "toggle_owner_name_display",
                 ownerNameDisplayOn ? text("gui-admin-owner-name-display-on")
                                    : text("gui-admin-owner-name-display-off")));
+        inv.setItem(41, h.buildToggleButton(text("gui-admin-owner-name-hide-when-covered-label"), hideWhenCoveredOn,
+                "toggle_owner_name_hide_when_covered",
+                hideWhenCoveredOn ? text("gui-admin-owner-name-hide-when-covered-on")
+                                  : text("gui-admin-owner-name-hide-when-covered-off")));
+        inv.setItem(42, h.buildToggleButton(text("gui-admin-chest-key-consumption-label"), chestKeyConsumptionOn,
+                "toggle_chest_key_consumption",
+                chestKeyConsumptionOn ? text("gui-admin-chest-key-consumption-on")
+                                      : text("gui-admin-chest-key-consumption-off")));
         inv.setItem(43, h.buildButton(Material.TRIPWIRE_HOOK, text("gui-admin-chest-key-name"),
                 lines("gui-admin-chest-key-lore"), "give_chest_key", ""));
         inv.setItem(49, h.buildButton(Material.ARROW, text("gui-back-name"),
@@ -171,6 +181,9 @@ final class AdminScreen {
             case LogRepository.ACTION_HOPPER_REMOVE         -> Material.YELLOW_TERRACOTTA;
             case LogRepository.ACTION_UNDO_RESTORE          -> Material.CYAN_CONCRETE;
             case LogRepository.ACTION_INSPECT_TOGGLE        -> Material.LIGHT_GRAY_CONCRETE;
+            case LogRepository.ACTION_LOCK_TRANSFER_ADMIN   -> Material.BLUE_CONCRETE;
+            case LogRepository.ACTION_TRUST_SET_ADMIN       -> Material.GREEN_WOOL;
+            case LogRepository.ACTION_TRUST_REMOVE_ADMIN    -> Material.ORANGE_WOOL;
             default                                         -> Material.PAPER;
         };
         String label = switch (r.action()) {
@@ -189,7 +202,10 @@ final class AdminScreen {
             case LogRepository.ACTION_HOPPER_REMOVE         -> text("gui-logs-entry-action-hopper-remove");
             case LogRepository.ACTION_UNDO_RESTORE          -> text("gui-logs-entry-action-undo-restore");
             case LogRepository.ACTION_INSPECT_TOGGLE        -> text("gui-logs-entry-action-inspect-toggle");
-            default                                         -> text("gui-logs-entry-action-other", r.action());
+            case LogRepository.ACTION_LOCK_TRANSFER_ADMIN   -> text("gui-logs-entry-action-lock-transfer-admin");
+            case LogRepository.ACTION_TRUST_SET_ADMIN       -> text("gui-logs-entry-action-trust-set-admin");
+            case LogRepository.ACTION_TRUST_REMOVE_ADMIN    -> text("gui-logs-entry-action-trust-remove-admin");
+            default                                        -> text("gui-logs-entry-action-other", r.action());
         };
 
         String relTime = buildRelativeTimeLabel(r.createdAt());
@@ -202,7 +218,8 @@ final class AdminScreen {
         lore.addAll(lines("gui-logs-entry-details-lore", r.actorName(), label, absTime, relTime,
                 r.worldName(), r.x(), r.y(), r.z()));
         if (r.extra() != null && !r.extra().isBlank())
-            lore.add(text("gui-logs-entry-note", r.extra()));
+            lore.add(text("gui-logs-entry-note",
+                    LogNoteNames.withNames(r.extra(), uuid -> plugin.names().resolve(uuid))));
         lore.add(separator);
         lore.addAll(lines("gui-logs-entry-actions-lore"));
 

@@ -135,9 +135,11 @@ public final class DatabaseManager {
                 "CREATE TABLE IF NOT EXISTS player_settings (" +
                 " player_uuid TEXT PRIMARY KEY," +
                 " quick_lock INTEGER NOT NULL DEFAULT 0," +
-                " quick_remove INTEGER NOT NULL DEFAULT 0" +
+                " quick_remove INTEGER NOT NULL DEFAULT 0," +
+                " show_owner_name INTEGER NOT NULL DEFAULT 1" +
                 ");"
             );
+            addColumnIfMissing(c, "player_settings", "show_owner_name", "INTEGER NOT NULL DEFAULT 1");
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS notifications (" +
@@ -149,6 +151,14 @@ public final class DatabaseManager {
                 ");"
             );
             addColumnIfMissing(c, "notifications", "always_deliver", "INTEGER NOT NULL DEFAULT 0");
+
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS player_names (" +
+                " uuid TEXT PRIMARY KEY," +
+                " name TEXT NOT NULL," +
+                " last_seen INTEGER NOT NULL" +
+                ");"
+            );
 
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_locks_owner       ON locks(owner_uuid);");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_logs_created      ON logs(created_at);");

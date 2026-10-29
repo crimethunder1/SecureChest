@@ -9,6 +9,7 @@ import de.SecureChest.plugin.area.AreaChangePreview;
 import de.SecureChest.plugin.area.AreaChangeResult;
 import de.SecureChest.plugin.area.AreaValidationError;
 import de.SecureChest.plugin.gui.ChestSecureHolder;
+import de.SecureChest.plugin.lock.AccessLevel;
 import de.SecureChest.plugin.lock.LockEntry;
 import de.SecureChest.plugin.lock.LockKey;
 import de.SecureChest.plugin.lock.LockStats;
@@ -17,6 +18,7 @@ import de.SecureChest.plugin.lock.LogRecord;
 import de.SecureChest.plugin.recipe.RecipeChangeResult;
 import de.SecureChest.plugin.recipe.RecipeEditorModel;
 import de.SecureChest.plugin.recipe.RecipeKind;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
@@ -56,8 +58,10 @@ public final class GuiListener implements Listener {
             "logs_set_actor", "log_entry",
             "open_areas", "areas_page", "area_toggle", "area_create", "area_entry",
             "open_recipes", "back_recipes", "recipe_entry", "recipe_cell", "recipe_toggle",
-            "recipe_save", "recipe_reset",
-            "toggle_owner_name_display"
+            "recipe_save", "recipe_reset", "recipe_amount",
+            "toggle_owner_name_display", "toggle_owner_name_hide_when_covered", "toggle_chest_key_consumption",
+            "admin_lock_remove", "admin_lock_transfer", "admin_trust_add", "admin_trust_entry",
+            "admin_lock_close"
     );
 
     private final ChestSecurePlugin plugin;
@@ -131,6 +135,7 @@ public final class GuiListener implements Listener {
                 plugin.locks().setQuickRemove(player.getUniqueId(), newQuickRemoveState);
                 plugin.gui().openSettings(player);
             }
+            case "toggle_show_owner_name" -> toggleShowOwnerName(player);
 
             case "confirm_unlock_all_self" -> {
                 int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
@@ -271,25 +276,7 @@ public final class GuiListener implements Listener {
 
             case "back_trust_nearby" -> plugin.gui().openTrustNearby(player, actionContext);
 
-            case "set_trust_role" -> {
-                String[] contextParts = actionContext.split("\\|", 3);
-                if (contextParts.length != 3) return;
-                String trustLevel  = contextParts[0];
-                String lockId      = contextParts[1];
-                try {
-                    UUID targetPlayerUuid = UUID.fromString(contextParts[2]);
-                    var accessLevel = de.SecureChest.plugin.lock.AccessLevel.fromString(trustLevel);
-                    boolean actionSuccessful = accessLevel != null
-                            && plugin.locks().setTrustById(player, lockId, targetPlayerUuid, accessLevel);
-                    player.sendMessage(actionSuccessful
-                            ? Component.text(plugin.msg().get("gui-vertrauen-aktualisiert"), NamedTextColor.GREEN)
-                            : Component.text(plugin.msg().get("gui-transfer-fehlgeschlagen"),
-                            NamedTextColor.RED));
-                } catch (IllegalArgumentException ignored) {
-                    player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
-                }
-                plugin.gui().openLockManage(player, lockId);
-            }
+            case "set_trust_role" -> setTrustRole(player, actionContext);
 
             case "transfer_lock_name" -> {
                 player.closeInventory();
@@ -332,6 +319,8 @@ public final class GuiListener implements Listener {
             }
 
             case "toggle_owner_name_display" -> toggleOwnerNameDisplay(player);
+            case "toggle_owner_name_hide_when_covered" -> toggleOwnerNameHideWhenCovered(player);
+            case "toggle_chest_key_consumption" -> toggleChestKeyConsumption(player);
 
             case "global_unlock" -> {
                 player.closeInventory();
@@ -465,8 +454,15 @@ public final class GuiListener implements Listener {
                 model.toggleEnabled();
                 plugin.gui().refreshRecipeEditor(player);
             }
+            case "recipe_amount" -> changeRecipeAmount(player, editorKind(holder), event.getClick());
             case "recipe_save"   -> saveRecipe(player, editorKind(holder));
             case "recipe_reset"  -> requestRecipeReset(player, editorKind(holder));
+
+            case "admin_lock_remove"   -> requestAdminUnlock(player, actionContext);
+            case "admin_lock_transfer" -> startAdminTransferInput(player, actionContext);
+            case "admin_trust_add"     -> startAdminAddTrustInput(player, actionContext);
+            case "admin_trust_entry"   -> handleAdminTrustEntry(player, actionContext, event.getClick());
+            case "admin_lock_close"    -> player.closeInventory();
 
             case "confirm_yes" -> handleConfirmAction(player, true);
             case "confirm_no"  -> handleConfirmAction(player, false);
@@ -517,7 +513,8 @@ public final class GuiListener implements Listener {
 
         boolean actionSuccessful = switch (confirmRequest.type()) {
             case LOCK_BLOCK      -> handleLockBlockConfirmation(player, confirmRequest.data());
-            case UNLOCK_ONE      -> plugin.locks().unlockByIdWithUndo(player, confirmRequest.data());
+            case UNLOCK_ONE      -> !isForeignLock(player, confirmRequest.data())
+                    && plugin.locks().unlockByIdWithUndo(player, confirmRequest.data());
             case UNLOCK_ALL_SELF -> plugin.locks().unlockAllWithUndo(player, player.getUniqueId());
             case GLOBAL_UNLOCK   -> {
                 try {
@@ -530,7 +527,8 @@ public final class GuiListener implements Listener {
                 String[] parts = confirmRequest.data().split("\\|", 2);
                 if (parts.length != 2) yield false;
                 try {
-                    yield plugin.locks().removeTrustById(player, parts[0], UUID.fromString(parts[1]));
+                    yield !isForeignLock(player, parts[0])
+                            && plugin.locks().removeTrustById(player, parts[0], UUID.fromString(parts[1]));
                 } catch (IllegalArgumentException ignored) {
                     yield false;
                 }
@@ -539,7 +537,8 @@ public final class GuiListener implements Listener {
                 String[] parts = confirmRequest.data().split("\\|", 2);
                 if (parts.length != 2) yield false;
                 try {
-                    yield plugin.locks().transferLock(player, parts[0], UUID.fromString(parts[1]));
+                    yield !isForeignLock(player, parts[0])
+                            && plugin.locks().transferLock(player, parts[0], UUID.fromString(parts[1]));
                 } catch (IllegalArgumentException ignored) {
                     yield false;
                 }
@@ -548,6 +547,9 @@ public final class GuiListener implements Listener {
             case LOG_TELEPORT  -> handleLogTeleport(player, confirmRequest.data());
             case AREA_CHANGE   -> applyConfirmedAreaChange(player, confirmRequest.areaChange());
             case RECIPE_RESET  -> applyConfirmedRecipeReset(player, confirmRequest.data());
+            case ADMIN_UNLOCK        -> applyAdminUnlock(player, confirmRequest.data());
+            case ADMIN_TRANSFER_LOCK -> applyAdminTransfer(player, confirmRequest.data());
+            case ADMIN_REMOVE_TRUST  -> applyAdminRemoveTrust(player, confirmRequest.data());
         };
 
         if (confirmRequest.type() != ConfirmType.AREA_CHANGE && confirmRequest.type() != ConfirmType.RECIPE_RESET) {
@@ -556,6 +558,199 @@ public final class GuiListener implements Listener {
                     : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
         }
         routeToDestination(player, confirmRequest.returnTo());
+    }
+
+    void setTrustRole(Player player, String actionContext) {
+        String[] contextParts = actionContext.split("\\|", 3);
+        if (contextParts.length != 3) return;
+        String trustLevel  = contextParts[0];
+        String lockId      = contextParts[1];
+        try {
+            UUID targetPlayerUuid = UUID.fromString(contextParts[2]);
+            var accessLevel = de.SecureChest.plugin.lock.AccessLevel.fromString(trustLevel);
+            boolean actionSuccessful = accessLevel != null
+                    && !isForeignLock(player, lockId)
+                    && plugin.locks().setTrustById(player, lockId, targetPlayerUuid, accessLevel);
+            player.sendMessage(actionSuccessful
+                    ? Component.text(plugin.msg().get("gui-vertrauen-aktualisiert"), NamedTextColor.GREEN)
+                    : Component.text(plugin.msg().get("trust-vergeben-fehlgeschlagen"),
+                    NamedTextColor.RED));
+        } catch (IllegalArgumentException ignored) {
+            player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
+        }
+        plugin.gui().openLockManage(player, lockId);
+    }
+
+    private boolean isForeignLock(Player player, String lockId) {
+        return LockUtil.isForeignLock(plugin.locks(), lockId, player.getUniqueId());
+    }
+
+    void requestAdminUnlock(Player player, String lockId) {
+        if (!requireAdmin(player)) return;
+        LockEntry lockEntry = findLockOrClose(player, lockId);
+        if (lockEntry == null) return;
+        int trustCount = lockEntry.trusted().size();
+        plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                ConfirmType.ADMIN_UNLOCK, lockId, "ADMIN_LOCK_MANAGE|" + lockId, confirmExpiresAt()));
+        List<String> confirmLines = new ArrayList<>(List.of(
+                plugin.msg().get("confirm-admin-unlock-question", plugin.names().resolve(lockEntry.owner())),
+                "",
+                plugin.msg().get("confirm-admin-unlock-block", blockTypeName(lockEntry), locationText(lockEntry.key()))));
+        if (trustCount > 0) {
+            confirmLines.add(trustCount == 1
+                    ? plugin.msg().get("confirm-unlock-one-trust-single", trustCount)
+                    : plugin.msg().get("confirm-unlock-one-trust-multiple", trustCount));
+        }
+        confirmLines.add("");
+        confirmLines.add(plugin.msg().get("confirm-undo-available", plugin.cfg().undoSeconds()));
+        if (!lockEntry.owner().equals(player.getUniqueId())) {
+            confirmLines.add(plugin.msg().get("confirm-admin-owner-notified"));
+        }
+        plugin.gui().openConfirm(player, plugin.msg().get("confirm-admin-unlock-title"), confirmLines);
+    }
+
+    void startAdminTransferInput(Player player, String lockId) {
+        if (!requireAdmin(player)) return;
+        if (findLockOrClose(player, lockId) == null) return;
+        player.closeInventory();
+        plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.AdminTransferLock(lockId));
+        player.sendMessage(Component.text(plugin.msg().get("chat-prompt-transfer"), NamedTextColor.YELLOW));
+    }
+
+    void startAdminAddTrustInput(Player player, String actionContext) {
+        if (!requireAdmin(player)) return;
+        String[] contextParts = actionContext.split("\\|", 2);
+        AccessLevel level = contextParts.length == 2 ? AccessLevel.fromString(contextParts[0]) : null;
+        if (level == null) {
+            player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
+            return;
+        }
+        String lockId = contextParts[1];
+        if (findLockOrClose(player, lockId) == null) return;
+        player.closeInventory();
+        plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.AdminAddTrust(lockId, level.name()));
+        player.sendMessage(Component.text(
+                plugin.msg().get("chat-prompt-add-trust", accessLevelLabel(level)), NamedTextColor.YELLOW));
+    }
+
+    void handleAdminTrustEntry(Player player, String actionContext, ClickType click) {
+        if (!requireAdmin(player)) return;
+        String[] contextParts = actionContext.split("\\|", 2);
+        if (contextParts.length != 2) return;
+        String lockId = contextParts[0];
+        UUID targetUuid;
+        try {
+            targetUuid = UUID.fromString(contextParts[1]);
+        } catch (IllegalArgumentException ignored) {
+            player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
+            return;
+        }
+        LockEntry lockEntry = findLockOrClose(player, lockId);
+        if (lockEntry == null) return;
+
+        if (click.isRightClick()) {
+            plugin.confirms().set(player.getUniqueId(), new ConfirmRequest(
+                    ConfirmType.ADMIN_REMOVE_TRUST, lockId + "|" + targetUuid,
+                    "ADMIN_LOCK_MANAGE|" + lockId, confirmExpiresAt()));
+            plugin.gui().openConfirm(player, plugin.msg().get("confirm-admin-remove-trust-title"), List.of(
+                    plugin.msg().get("confirm-admin-remove-trust-question",
+                            plugin.names().resolve(targetUuid), plugin.names().resolve(lockEntry.owner())),
+                    "",
+                    plugin.msg().get("confirm-remove-trust-warning")));
+            return;
+        }
+        if (!click.isLeftClick()) return;
+
+        AccessLevel currentLevel = lockEntry.trusted().get(targetUuid);
+        boolean actionSuccessful = currentLevel != null
+                && plugin.locks().setTrustById(player, lockId, targetUuid, toggledAccessLevel(currentLevel));
+        player.sendMessage(actionSuccessful
+                ? Component.text(plugin.msg().get("gui-vertrauen-aktualisiert"), NamedTextColor.GREEN)
+                : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
+        plugin.gui().openAdminLockManage(player, lockId);
+    }
+
+    private boolean applyAdminUnlock(Player player, String lockId) {
+        if (!player.hasPermission(Permissions.ADMIN)) return false;
+        LockEntry lockEntry = plugin.locks().getLockFromId(lockId).orElse(null);
+        if (lockEntry == null) return false;
+        if (!plugin.locks().unlockByIdWithUndo(player, lockId)) return false;
+        notifyOwnerAboutAdminChange(player, lockEntry.owner(), plugin.msg().get("notification-admin-lock-removed",
+                blockTypeName(lockEntry), locationText(lockEntry.key())));
+        return true;
+    }
+
+    private boolean applyAdminTransfer(Player player, String data) {
+        if (!player.hasPermission(Permissions.ADMIN)) return false;
+        String[] parts = data.split("\\|", 2);
+        if (parts.length != 2) return false;
+        UUID newOwner;
+        try {
+            newOwner = UUID.fromString(parts[1]);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+        LockEntry lockEntry = plugin.locks().getLockFromId(parts[0]).orElse(null);
+        if (lockEntry == null || lockEntry.owner().equals(newOwner)) return false;
+        if (!plugin.locks().transferLock(player, parts[0], newOwner)) return false;
+        notifyOwnerAboutAdminChange(player, lockEntry.owner(), plugin.msg().get("notification-admin-lock-transferred",
+                blockTypeName(lockEntry), locationText(lockEntry.key()), plugin.names().resolve(newOwner)));
+        return true;
+    }
+
+    private boolean applyAdminRemoveTrust(Player player, String data) {
+        if (!player.hasPermission(Permissions.ADMIN)) return false;
+        String[] parts = data.split("\\|", 2);
+        if (parts.length != 2) return false;
+        try {
+            return plugin.locks().removeTrustById(player, parts[0], UUID.fromString(parts[1]));
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private void notifyOwnerAboutAdminChange(Player admin, UUID owner, String message) {
+        if (owner.equals(admin.getUniqueId())) return;
+        Player onlineOwner = Bukkit.getPlayer(owner);
+        if (onlineOwner != null && onlineOwner.isOnline()) {
+            onlineOwner.sendMessage(Component.text(message, NamedTextColor.RED));
+        } else {
+            plugin.locks().addAlwaysDeliveredNotification(owner, message);
+        }
+    }
+
+    private LockEntry findLockOrClose(Player player, String lockId) {
+        LockEntry lockEntry = plugin.locks().getLockFromId(lockId).orElse(null);
+        if (lockEntry == null) {
+            player.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
+            player.closeInventory();
+        }
+        return lockEntry;
+    }
+
+    private long confirmExpiresAt() {
+        return System.currentTimeMillis() + plugin.cfg().confirmTimeoutSeconds() * 1000L;
+    }
+
+    private static String blockTypeName(LockEntry lockEntry) {
+        return lockEntry.blockType().name().replace('_', ' ').toLowerCase();
+    }
+
+    private static String locationText(LockKey key) {
+        World world = Bukkit.getWorld(key.worldUuid());
+        String worldName = world != null ? world.getName() : key.worldUuid().toString();
+        return worldName + " " + key.x() + " " + key.y() + " " + key.z();
+    }
+
+    private static AccessLevel toggledAccessLevel(AccessLevel level) {
+        return level == AccessLevel.VIEW ? AccessLevel.STOCKER : AccessLevel.VIEW;
+    }
+
+    private String accessLevelLabel(AccessLevel level) {
+        return switch (level) {
+            case VIEW    -> plugin.msg().get("gui-role-viewer");
+            case STOCKER -> plugin.msg().get("gui-role-stocker");
+        };
     }
 
     void pingLock(Player player, String lockId) {
@@ -634,6 +829,43 @@ public final class GuiListener implements Listener {
         plugin.gui().openAdmin(player);
     }
 
+    void toggleOwnerNameHideWhenCovered(Player player) {
+        if (!requireAdmin(player)) return;
+        OwnerNameDisplaySetting.ChangeResult result = plugin.ownerNameDisplay()
+                .setHideWhenCovered(!plugin.ownerNameDisplay().isHideWhenCoveredEnabled());
+        plugin.signs().refreshAllGroups();
+        player.sendMessage(Component.text(plugin.msg().get(result.enabled()
+                ? "verdeckte-namen-verstecken-eingeschaltet"
+                : "verdeckte-namen-verstecken-ausgeschaltet"), NamedTextColor.GREEN));
+        if (!result.isSaved()) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("namensanzeige-speichern-fehlgeschlagen", result.saveError()),
+                    NamedTextColor.RED));
+        }
+        plugin.gui().openAdmin(player);
+    }
+
+    void toggleChestKeyConsumption(Player player) {
+        if (!requireAdmin(player)) return;
+        ChestKeyConsumptionSetting.ChangeResult result =
+                plugin.chestKeyConsumption().set(!plugin.chestKeyConsumption().isEnabled());
+        player.sendMessage(Component.text(plugin.msg().get(result.enabled()
+                ? "chest-key-verbrauch-eingeschaltet"
+                : "chest-key-verbrauch-ausgeschaltet"), NamedTextColor.GREEN));
+        if (!result.isSaved()) {
+            player.sendMessage(Component.text(
+                    plugin.msg().get("namensanzeige-speichern-fehlgeschlagen", result.saveError()),
+                    NamedTextColor.RED));
+        }
+        plugin.gui().openAdmin(player);
+    }
+
+    void toggleShowOwnerName(Player player) {
+        boolean newShowOwnerNameState = !plugin.locks().getShowOwnerName(player.getUniqueId());
+        plugin.locks().setShowOwnerName(player.getUniqueId(), newShowOwnerNameState);
+        plugin.gui().openSettings(player);
+    }
+
     private boolean applyConfirmedAreaChange(Player player, AreaChange change) {
         if (change == null || !player.hasPermission(Permissions.ADMIN)) return false;
         AreaChangeResult result = plugin.areas().apply(change);
@@ -680,6 +912,21 @@ public final class GuiListener implements Listener {
                 return;
             }
         }
+        plugin.gui().refreshRecipeEditor(player);
+    }
+
+    void changeRecipeAmount(Player player, RecipeKind kind, ClickType click) {
+        int change = switch (click) {
+            case LEFT        -> 1;
+            case RIGHT       -> -1;
+            case SHIFT_LEFT  -> RecipeEditorModel.LARGE_AMOUNT_STEP;
+            case SHIFT_RIGHT -> -RecipeEditorModel.LARGE_AMOUNT_STEP;
+            default          -> 0;
+        };
+        if (change == 0) return;
+        RecipeEditorModel model = recipeEditor(player, kind);
+        if (model == null) return;
+        model.changeAmount(change);
         plugin.gui().refreshRecipeEditor(player);
     }
 
@@ -756,6 +1003,15 @@ public final class GuiListener implements Listener {
             plugin.gui().openLockManage(player, lockId);
             return;
         }
+        if (destination.startsWith("ADMIN_LOCK_MANAGE|")) {
+            String lockId = destination.substring("ADMIN_LOCK_MANAGE|".length());
+            if (plugin.locks().getLockFromId(lockId).isPresent()) {
+                plugin.gui().openAdminLockManage(player, lockId);
+            } else {
+                player.closeInventory();
+            }
+            return;
+        }
         if (destination.equals("LOCKS")) {
             plugin.gui().openLocksList(player, plugin.ui().locks(player.getUniqueId()).page);
         }
@@ -778,10 +1034,20 @@ public final class GuiListener implements Listener {
             org.bukkit.block.Block hopperBindTarget =
                     LockUtil.chestKeyHopperBindTarget(plugin.locks(), targetBlock, player.getUniqueId());
             if (hopperBindTarget != null) return bindHopperFromConfirmation(player, targetBlock, hopperBindTarget);
-            return plugin.locks().lock(player, targetBlock);
+            ChestKeyPayment payment = takeChestKeyForConfirmation(player);
+            if (payment == null) return false;
+            return payment.spendOn(() -> plugin.locks().lock(player, targetBlock));
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private ChestKeyPayment takeChestKeyForConfirmation(Player player) {
+        ChestKeyPayment payment = ChestKeyPayment.take(plugin, player);
+        if (payment == null) {
+            player.sendMessage(Component.text(plugin.msg().get("sperren-key-erforderlich"), NamedTextColor.RED));
+        }
+        return payment;
     }
 
     private boolean bindHopperFromConfirmation(Player player, org.bukkit.block.Block hopperBlock,
@@ -790,7 +1056,9 @@ public final class GuiListener implements Listener {
             player.sendMessage(Component.text(plugin.msg().get("wirkungsbereich-hier-nicht-aktiv"), NamedTextColor.RED));
             return false;
         }
-        if (!plugin.locks().bindSecureHopper(player, hopperBlock, targetBlock)) {
+        ChestKeyPayment payment = takeChestKeyForConfirmation(player);
+        if (payment == null) return false;
+        if (!payment.spendOn(() -> plugin.locks().bindSecureHopper(player, hopperBlock, targetBlock))) {
             player.sendMessage(Component.text(plugin.msg().get("hopper-bind-fehlgeschlagen"), NamedTextColor.RED));
             return false;
         }

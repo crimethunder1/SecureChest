@@ -73,7 +73,7 @@ class GuiListenerOwnerNameDisplayTest {
 
     private OwnerNameDisplaySetting useSetting() {
         OwnerNameDisplaySetting setting = new OwnerNameDisplaySetting(
-                new SettingsStore(settingsFile(), logger), configValue::get, logger);
+                new SettingsStore(settingsFile(), logger), configValue::get, () -> true, logger);
         when(plugin.ownerNameDisplay()).thenReturn(setting);
         return setting;
     }

@@ -59,7 +59,7 @@ class MiscScreenRecipePreviewTest {
         recipes = mock(RecipeRegistry.class);
         when(plugin.recipes()).thenReturn(recipes);
         LockService locks = mock(LockService.class);
-        when(locks.getLockStats(playerUuid)).thenReturn(new LockStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L));
+        when(locks.getLockStats(playerUuid)).thenReturn(new LockStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L));
         when(plugin.locks()).thenReturn(locks);
         when(plugin.undos()).thenReturn(mock(UndoManager.class));
 

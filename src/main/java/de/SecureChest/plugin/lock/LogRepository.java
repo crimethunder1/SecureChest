@@ -34,6 +34,9 @@ public final class LogRepository {
     public static final String ACTION_UNDO_RESTORE          = "UNDO_RESTORE";
     public static final String ACTION_INSPECT_TOGGLE        = "INSPECT_TOGGLE";
     public static final String ACTION_LOCK_REMOVE_AREA      = "LOCK_REMOVE_AREA";
+    public static final String ACTION_LOCK_TRANSFER_ADMIN   = "LOCK_TRANSFER_ADMIN";
+    public static final String ACTION_TRUST_SET_ADMIN       = "TRUST_SET_ADMIN";
+    public static final String ACTION_TRUST_REMOVE_ADMIN    = "TRUST_REMOVE_ADMIN";
 
     public static final String SYSTEM_ACTOR_UUID = "00000000-0000-0000-0000-000000000000";
     public static final String SYSTEM_ACTOR_NAME = "ChestSecure";

@@ -10,8 +10,14 @@ public record UndoSnapshot(
         List<TrustRow> trusts,
         List<SecureHopperRow> secureHoppers,
         long createdAt,
-        long expiresAt
+        long expiresAt,
+        List<LockRow> locksAfterAction
 ) {
+
+    public UndoSnapshot(List<LockRow> locks, List<TrustRow> trusts, List<SecureHopperRow> secureHoppers,
+                        long createdAt, long expiresAt) {
+        this(locks, trusts, secureHoppers, createdAt, expiresAt, List.of());
+    }
 
     public record LockRow(
             LockKey key,

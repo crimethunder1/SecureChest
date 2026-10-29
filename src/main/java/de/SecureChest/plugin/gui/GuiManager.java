@@ -21,12 +21,14 @@ public final class GuiManager {
     private final AdminScreen admin;
     private final AreaScreen  areas;
     private final RecipeScreen recipes;
+    private final AdminLockScreen adminLocks;
 
     public GuiManager(ChestSecurePlugin plugin) {
         GuiHelper helper = new GuiHelper(plugin);
         this.misc  = new MiscScreen(plugin, helper, this);
         this.locks = new LockScreen(plugin, helper, this);
         this.admin = new AdminScreen(plugin, helper, this);
+        this.adminLocks = new AdminLockScreen(plugin, helper);
         this.areas = new AreaScreen(plugin, helper, this);
         this.recipes = new RecipeScreen(plugin, helper, this, Material::isItem);
     }
@@ -47,6 +49,7 @@ public final class GuiManager {
     public void openAdmin(Player player)                                { admin.openAdmin(player); }
     public void openLogs(Player player, int page)                       { admin.openLogs(player, page); }
     public void promptChestKeyAmount(Player player)                     { admin.promptChestKeyAmount(player); }
+    public void openAdminLockManage(Player player, String lockId)       { adminLocks.openLockManage(player, lockId); }
 
     public void openAreas(Player player, int page)                      { areas.openAreas(player, page); }
     public void openAreaChangeConfirm(Player player, AreaChangePreview preview) { areas.openChangeConfirm(player, preview); }

@@ -27,7 +27,16 @@ public final class RecipeValidator {
             validateSymbol(ingredient.getKey(), shapeSymbols, errors);
             validateMaterial(ingredient.getKey(), ingredient.getValue(), errors);
         }
+        validateAmount(definition.amount(), errors);
         return List.copyOf(errors);
+    }
+
+    private static void validateAmount(int amount, List<RecipeValidationError> errors) {
+        if (amount < RecipeDefinition.MINIMUM_AMOUNT || amount > RecipeDefinition.MAXIMUM_AMOUNT) {
+            errors.add(new RecipeValidationError(Code.AMOUNT_OUT_OF_RANGE,
+                    "amount must be a whole number from " + RecipeDefinition.MINIMUM_AMOUNT + " to "
+                    + RecipeDefinition.MAXIMUM_AMOUNT));
+        }
     }
 
     private static void validateShape(List<String> shape, List<RecipeValidationError> errors) {

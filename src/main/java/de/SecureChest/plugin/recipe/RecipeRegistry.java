@@ -221,11 +221,22 @@ public final class RecipeRegistry {
 
     private ShapedRecipe build(RecipeKind kind, RecipeDefinition definition) {
         Items items = plugin.items();
-        ShapedRecipe recipe = new ShapedRecipe(recipeKey(kind), result(kind, items));
+        ShapedRecipe recipe = new ShapedRecipe(recipeKey(kind),
+                resultWithAmount(kind, result(kind, items), definition.amount()));
         recipe.shape(definition.shape().toArray(new String[0]));
         definition.ingredients().forEach(
                 (symbol, material) -> recipe.setIngredient(symbol.charAt(0), Material.matchMaterial(material)));
         return recipe;
+    }
+
+    static ItemStack resultWithAmount(RecipeKind kind, ItemStack result, int amount) {
+        int maximumStackSize = result.getMaxStackSize();
+        if (amount > maximumStackSize) {
+            throw new IllegalArgumentException("amount " + amount + " is larger than the stack size "
+                    + maximumStackSize + " of the " + kind.displayName());
+        }
+        result.setAmount(amount);
+        return result;
     }
 
     private static ItemStack result(RecipeKind kind, Items items) {

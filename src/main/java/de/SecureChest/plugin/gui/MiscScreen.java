@@ -85,6 +85,7 @@ final class MiscScreen {
     void openSettings(Player player) {
         boolean qlOn  = plugin.locks().getQuickLock(player.getUniqueId());
         boolean qrOn  = plugin.locks().getQuickRemove(player.getUniqueId());
+        boolean showOwnerNameOn = plugin.locks().getShowOwnerName(player.getUniqueId());
 
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.SETTINGS, "");
         Inventory inv = Bukkit.createInventory(holder, 54, Component.text(text("gui-settings-title")));
@@ -93,6 +94,10 @@ final class MiscScreen {
         inv.setItem(20, h.buildToggleButton(text("gui-settings-quick-lock-label"), qlOn, "toggle_quicklock",
                 qlOn ? text("gui-settings-quick-lock-on")
                      : text("gui-settings-quick-lock-off")));
+        inv.setItem(22, h.buildToggleButton(text("gui-settings-show-owner-name-label"), showOwnerNameOn,
+                "toggle_show_owner_name",
+                showOwnerNameOn ? text("gui-settings-show-owner-name-on")
+                                : text("gui-settings-show-owner-name-off")));
         inv.setItem(24, h.buildToggleButton(text("gui-settings-quick-remove-label"), qrOn, "toggle_quickremove",
                 qrOn ? text("gui-settings-quick-remove-on")
                      : text("gui-settings-quick-remove-off")));
@@ -221,7 +226,7 @@ final class MiscScreen {
         LockStats s = plugin.locks().getLockStats(player.getUniqueId());
 
         ChestSecureHolder holder = new ChestSecureHolder(ChestSecureHolder.GuiId.STATS, "");
-        Inventory inv = Bukkit.createInventory(holder, 27,
+        Inventory inv = Bukkit.createInventory(holder, 36,
                 Component.text(text("gui-stats-title", player.getName())));
         holder.setInventory(inv);
 
@@ -242,12 +247,19 @@ final class MiscScreen {
         inv.setItem(11, h.buildInfoItem(Material.TRAPPED_CHEST,      text("gui-stats-trapped-chests", s.trappedChestCount()), List.of()));
         inv.setItem(12, h.buildInfoItem(Material.BARREL,             text("gui-stats-barrels",        s.barrelCount()),       List.of()));
         inv.setItem(13, h.buildInfoItem(Material.PURPLE_SHULKER_BOX, text("gui-stats-shulkers",       s.shulkerCount()),      List.of()));
-        inv.setItem(14, h.buildInfoItem(Material.FURNACE,            text("gui-stats-locked-hoppers", s.hopperCount()),
+        inv.setItem(14, h.buildInfoItem(Material.HOPPER,             text("gui-stats-locked-hoppers", s.hopperCount()),
                 lines("gui-stats-locked-hoppers-lore")));
         inv.setItem(15, h.buildInfoItem(Material.HOPPER,             text("gui-stats-secure-hoppers", s.totalSecureHoppers()),
                 lines("gui-stats-secure-hoppers-lore")));
+        inv.setItem(19, h.buildInfoItem(Material.FURNACE,            text("gui-stats-furnaces",       s.furnaceCount()),      List.of()));
+        inv.setItem(20, h.buildInfoItem(Material.BLAST_FURNACE,      text("gui-stats-blast-furnaces", s.blastFurnaceCount()), List.of()));
+        inv.setItem(21, h.buildInfoItem(Material.SMOKER,             text("gui-stats-smokers",        s.smokerCount()),       List.of()));
+        inv.setItem(22, h.buildInfoItem(Material.DROPPER,            text("gui-stats-droppers",       s.dropperCount()),      List.of()));
+        inv.setItem(23, h.buildInfoItem(Material.DISPENSER,          text("gui-stats-dispensers",     s.dispenserCount()),    List.of()));
+        inv.setItem(24, h.buildInfoItem(Material.BREWING_STAND,      text("gui-stats-brewing-stands", s.brewingStandCount()), List.of()));
+        inv.setItem(25, h.buildInfoItem(Material.CRAFTER,            text("gui-stats-crafters",       s.crafterCount()),      List.of()));
 
-        inv.setItem(22, h.buildButton(Material.ARROW, text("gui-back-name"),
+        inv.setItem(31, h.buildButton(Material.ARROW, text("gui-back-name"),
                 lines("gui-back-main-lore"), "back_main", ""));
         h.fillEmptySlots(inv, Material.LIGHT_BLUE_STAINED_GLASS_PANE);
         player.openInventory(inv);

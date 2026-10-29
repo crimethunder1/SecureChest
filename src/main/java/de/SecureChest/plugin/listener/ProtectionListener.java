@@ -12,8 +12,11 @@ import de.SecureChest.plugin.ui.ConfirmType;
 import de.SecureChest.plugin.util.Items;
 import de.SecureChest.plugin.util.Worlds;
 import com.destroystokyo.paper.event.block.BlockDestroyEvent;
+import com.destroystokyo.paper.event.player.PlayerRecipeBookClickEvent;
+import io.papermc.paper.event.entity.ItemTransportingEntityValidateTargetEvent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
@@ -32,24 +35,39 @@ import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.PortalCreateEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.FurnaceInventory;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.view.CrafterView;
 
 public final class ProtectionListener implements Listener {
 
+    static final long COOLDOWN_NOTICE_INTERVAL_MILLIS = 2000L;
+
     private final ChestSecurePlugin plugin;
+    private final LongSupplier      clock;
+    private final CooldownNotice    cooldownNotice;
+    private final CrafterSlotGuard  crafterSlotGuard = new CrafterSlotGuard();
 
     private final Map<UUID, Long>   lockActionCooldowns       = new ConcurrentHashMap<>();
     private final Map<String, Long> breakNotificationCooldowns = new ConcurrentHashMap<>();
 
     public ProtectionListener(ChestSecurePlugin plugin) {
-        this.plugin = plugin;
+        this(plugin, System::currentTimeMillis);
+    }
+
+    public ProtectionListener(ChestSecurePlugin plugin, LongSupplier clock) {
+        this.plugin         = plugin;
+        this.clock          = clock;
+        this.cooldownNotice = new CooldownNotice(COOLDOWN_NOTICE_INTERVAL_MILLIS, clock);
     }
 
     private Worlds worlds() {
@@ -58,6 +76,8 @@ public final class ProtectionListener implements Listener {
 
     public void evictPlayer(UUID playerUuid) {
         lockActionCooldowns.remove(playerUuid);
+        cooldownNotice.forget(playerUuid);
+        crafterSlotGuard.forget(playerUuid);
 
         String prefix = playerUuid.toString() + ":";
         breakNotificationCooldowns.keySet().removeIf(k -> k.startsWith(prefix));
@@ -88,6 +108,7 @@ public final class ProtectionListener implements Listener {
         if (tryRejectChestKeyOnSecureHopper(event, player, block, isHoldingChestKey)) return;
         if (tryChestKeyAction(event, player, block, isHoldingChestKey, worldEnabled)) return;
         if (tryQuickLock(event, player, block, isHandEmpty, blockAlreadyLocked, worldEnabled)) return;
+        if (tryAdminLockManage(event, player, block, isHoldingAdminKey)) return;
 
         if (rejectIfLockedAndNoAccess(event, player, block, isHoldingAdminKey)) return;
         rejectIfProtectedHopperAndNoAccess(event, player, block, isHoldingAdminKey);
@@ -115,7 +136,7 @@ public final class ProtectionListener implements Listener {
         if (secureHopperEntry == null || !secureHopperEntry.owner().equals(player.getUniqueId())) return false;
 
         event.setCancelled(true);
-        if (!consumeActionCooldown(player.getUniqueId())) return true;
+        if (!passChestKeyCooldown(event, player)) return true;
         plugin.locks().logSecureHopperRemove(player, block);
         plugin.locks().removeSecureHopper(block);
         sendSuccessFeedback(player, plugin.msg().get("hopper-entbunden"));
@@ -138,7 +159,7 @@ public final class ProtectionListener implements Listener {
             sendFailFeedback(player, plugin.msg().get("welt-nicht-aktiv"));
             return true;
         }
-        if (!consumeActionCooldown(player.getUniqueId())) return true;
+        if (!passChestKeyCooldown(event, player)) return true;
 
         if (!plugin.locks().isLocked(block)) {
             processLockRequest(player, block);
@@ -158,8 +179,23 @@ public final class ProtectionListener implements Listener {
         if (!plugin.areas().isLockPlacementAllowed(block)) return false;
 
         event.setCancelled(true);
-        if (!consumeActionCooldown(player.getUniqueId())) return true;
+        if (!passChestKeyCooldown(event, player)) return true;
         lockBlockDirectly(player, block);
+        return true;
+    }
+
+    private boolean tryAdminLockManage(PlayerInteractEvent event, Player player, Block block,
+                                       boolean isHoldingAdminKey) {
+        if (!isHoldingAdminKey || !player.isSneaking()) return false;
+        if (!player.hasPermission(Permissions.ADMIN)) return false;
+        if (isHopperWithSecureProtection(block)) return false;
+        Optional<LockEntry> lockEntryOptional = plugin.locks().getLock(block);
+        if (lockEntryOptional.isEmpty()) return false;
+
+        event.setCancelled(true);
+        if (!consumeActionCooldown(player.getUniqueId())) return true;
+        String lockId = lockEntryOptional.get().key().asId();
+        Bukkit.getScheduler().runTask(plugin, () -> plugin.gui().openAdminLockManage(player, lockId));
         return true;
     }
 
@@ -196,8 +232,16 @@ public final class ProtectionListener implements Listener {
         sendFailFeedback(player, plugin.msg().get("hopper-gehoert", resolvePlayerName(secureHopperEntry.owner())));
     }
 
+    private boolean passChestKeyCooldown(PlayerInteractEvent event, Player player) {
+        if (consumeActionCooldown(player.getUniqueId())) return true;
+        if (event.getHand() != EquipmentSlot.OFF_HAND && cooldownNotice.shouldNotify(player.getUniqueId())) {
+            player.sendMessage(Component.text(plugin.msg().get("aktion-zu-schnell"), NamedTextColor.YELLOW));
+        }
+        return false;
+    }
+
     private boolean consumeActionCooldown(UUID playerUuid) {
-        long currentTime    = System.currentTimeMillis();
+        long currentTime    = clock.getAsLong();
         Long lastActionTime = lockActionCooldowns.get(playerUuid);
         if (lastActionTime != null && (currentTime - lastActionTime) < plugin.cfg().lockActionCooldownMs()) {
             return false;
@@ -222,7 +266,12 @@ public final class ProtectionListener implements Listener {
             bindHopperWithChestKey(player, block, hopperBindTarget);
             return;
         }
-        boolean success = plugin.locks().lock(player, block);
+        ChestKeyPayment payment = ChestKeyPayment.take(plugin, player);
+        if (payment == null) {
+            sendFailFeedback(player, plugin.msg().get("sperren-key-erforderlich"));
+            return;
+        }
+        boolean success = payment.spendOn(() -> plugin.locks().lock(player, block));
         if (success) {
             sendSuccessFeedback(player, plugin.msg().get("block-gesperrt"));
         } else {
@@ -235,7 +284,12 @@ public final class ProtectionListener implements Listener {
             sendFailFeedback(player, plugin.msg().get("wirkungsbereich-hier-nicht-aktiv"));
             return;
         }
-        if (plugin.locks().bindSecureHopper(player, hopperBlock, targetBlock)) {
+        ChestKeyPayment payment = ChestKeyPayment.take(plugin, player);
+        if (payment == null) {
+            sendFailFeedback(player, plugin.msg().get("sperren-key-erforderlich"));
+            return;
+        }
+        if (payment.spendOn(() -> plugin.locks().bindSecureHopper(player, hopperBlock, targetBlock))) {
             sendSuccessFeedback(player, plugin.msg().get("hopper-gebunden"));
         } else {
             sendFailFeedback(player, plugin.msg().get("hopper-bind-fehlgeschlagen"));
@@ -277,11 +331,9 @@ public final class ProtectionListener implements Listener {
             return;
         }
         LockEntry lockEntry = lockEntryOptional.get();
-        boolean playerOwnsLock  = lockEntry.owner().equals(player.getUniqueId());
-        boolean playerIsAdmin   = player.hasPermission(Permissions.ADMIN);
-        boolean playerCanUnlock = playerOwnsLock || playerIsAdmin;
+        boolean playerOwnsLock = lockEntry.owner().equals(player.getUniqueId());
 
-        if (!playerCanUnlock) {
+        if (!playerOwnsLock) {
             sendFailFeedback(player, plugin.msg().get("block-gehoert", resolvePlayerName(lockEntry.owner())));
             return;
         }
@@ -338,6 +390,14 @@ public final class ProtectionListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onKeyPlace(BlockPlaceEvent event) {
+        ItemStack heldItem = event.getItemInHand();
+        if (plugin.items().is(heldItem, Items.Type.CHEST_KEY) || plugin.items().is(heldItem, Items.Type.ADMIN_KEY)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Block placedBlock = event.getBlockPlaced();
         if (!worlds().isEnabled(placedBlock.getWorld())) return;
@@ -386,8 +446,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onChestPlaceAdjacentToForeignLock(BlockPlaceEvent event) {
         Block placedBlock = event.getBlockPlaced();
-        Material placedType = placedBlock.getType();
-        if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) return;
+        if (!LockUtil.isChestFamily(placedBlock.getType())) return;
 
         Player placer = event.getPlayer();
         if (placer.hasPermission(Permissions.ADMIN)) return;
@@ -427,7 +486,13 @@ public final class ProtectionListener implements Listener {
         if (plugin.locks().isLocked(placedBlock)) return;
         if (LockUtil.findDoubleChestPartner(placedBlock) == null && wouldMergeWithLockedChest(placedBlock)) return;
 
-        boolean autoLockSuccess = plugin.locks().lock(event.getPlayer(), placedBlock);
+        Player player = event.getPlayer();
+        ChestKeyPayment payment = requiresKey ? ChestKeyPayment.take(plugin, player) : ChestKeyPayment.free();
+        if (payment == null) {
+            sendFailFeedback(player, plugin.msg().get("sperren-key-erforderlich"));
+            return;
+        }
+        boolean autoLockSuccess = payment.spendOn(() -> plugin.locks().lock(player, placedBlock));
         if (autoLockSuccess) {
             sendSuccessFeedback(event.getPlayer(), plugin.msg().get("automatisch-gesperrt"));
         }
@@ -591,6 +656,15 @@ public final class ProtectionListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onItemTransportingEntityValidateTarget(ItemTransportingEntityValidateTargetEvent event) {
+        if (!event.isAllowed()) return;
+        Block block = event.getBlock();
+        if (!worlds().isEnabled(block.getWorld())) return;
+        if (!LockUtil.isLockable(block) || !plugin.locks().isLocked(block)) return;
+        event.setAllowed(false);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent event) {
         if (!worlds().isEnabled(event.getBlock().getWorld())) return;
         for (Block block : event.getBlocks()) {
@@ -674,24 +748,52 @@ public final class ProtectionListener implements Listener {
         return world.getBlockAt(location);
     }
 
+    private Block lockedContainerBlock(Inventory topInventory) {
+        Block containerBlock = inventoryToBlock(topInventory);
+        if (containerBlock == null) return null;
+        if (!worlds().isEnabled(containerBlock.getWorld())) return null;
+        if (!LockUtil.isLockable(containerBlock)) return null;
+        if (!plugin.locks().isLocked(containerBlock)) return null;
+        return containerBlock;
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
 
-        Inventory topInventory = event.getView().getTopInventory();
-        Block containerBlock = inventoryToBlock(topInventory);
+        Block containerBlock = lockedContainerBlock(event.getView().getTopInventory());
         if (containerBlock == null) return;
-        if (!worlds().isEnabled(containerBlock.getWorld())) return;
-        if (!LockUtil.isLockable(containerBlock)) return;
-        if (!plugin.locks().isLocked(containerBlock)) return;
 
-        if (plugin.locks().getAccessLevel(player, containerBlock) == null) {
+        AccessLevel accessLevel = plugin.locks().getAccessLevel(player, containerBlock);
+        if (accessLevel == null) {
             event.setCancelled(true);
             String ownerName = plugin.locks().getLock(containerBlock)
                     .map(entry -> resolvePlayerName(entry.owner()))
                     .orElse("jemandem");
             sendFailFeedback(player, plugin.msg().get("block-gehoert", ownerName));
+            return;
         }
+        if (accessLevel == AccessLevel.VIEW && event.getView() instanceof CrafterView crafterView) {
+            crafterSlotGuard.remember(player.getUniqueId(), crafterView);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onInventoryClose(InventoryCloseEvent event) {
+        crafterSlotGuard.forget(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onRecipeBookClick(PlayerRecipeBookClickEvent event) {
+        Player player = event.getPlayer();
+        Inventory topInventory = player.getOpenInventory().getTopInventory();
+        if (!(topInventory instanceof FurnaceInventory)) return;
+        Block containerBlock = lockedContainerBlock(topInventory);
+        if (containerBlock == null) return;
+        if (plugin.locks().getAccessLevel(player, containerBlock) == AccessLevel.STOCKER) return;
+
+        event.setCancelled(true);
+        player.updateInventory();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -699,11 +801,8 @@ public final class ProtectionListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         Inventory topInventory = event.getView().getTopInventory();
-        Block containerBlock = inventoryToBlock(topInventory);
+        Block containerBlock = lockedContainerBlock(topInventory);
         if (containerBlock == null) return;
-        if (!worlds().isEnabled(containerBlock.getWorld())) return;
-        if (!LockUtil.isLockable(containerBlock)) return;
-        if (!plugin.locks().isLocked(containerBlock)) return;
 
         AccessLevel accessLevel = plugin.locks().getAccessLevel(player, containerBlock);
 
@@ -713,6 +812,10 @@ public final class ProtectionListener implements Listener {
             return;
         }
         if (accessLevel != AccessLevel.VIEW) return;
+
+        if (event.getView() instanceof CrafterView crafterView) {
+            crafterSlotGuard.restore(player.getUniqueId(), crafterView, event.getRawSlot());
+        }
 
         InventoryAction clickAction = event.getAction();
         boolean affectsTopInventory =
@@ -733,11 +836,8 @@ public final class ProtectionListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         Inventory topInventory = event.getView().getTopInventory();
-        Block containerBlock = inventoryToBlock(topInventory);
+        Block containerBlock = lockedContainerBlock(topInventory);
         if (containerBlock == null) return;
-        if (!worlds().isEnabled(containerBlock.getWorld())) return;
-        if (!LockUtil.isLockable(containerBlock)) return;
-        if (!plugin.locks().isLocked(containerBlock)) return;
 
         AccessLevel accessLevel = plugin.locks().getAccessLevel(player, containerBlock);
 
@@ -803,11 +903,7 @@ public final class ProtectionListener implements Listener {
     }
 
     private String resolvePlayerName(UUID playerUuid) {
-        Player onlinePlayer = Bukkit.getPlayer(playerUuid);
-        if (onlinePlayer != null) return onlinePlayer.getName();
-        org.bukkit.OfflinePlayer cachedPlayer = Bukkit.getOfflinePlayerIfCached(playerUuid.toString());
-        if (cachedPlayer != null && cachedPlayer.getName() != null) return cachedPlayer.getName();
-        return playerUuid.toString().substring(0, 8);
+        return plugin.names().resolve(playerUuid);
     }
 
     private void sendSuccessFeedback(Player player, String message) {

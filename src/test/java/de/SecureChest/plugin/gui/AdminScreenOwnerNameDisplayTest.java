@@ -3,6 +3,7 @@ package de.SecureChest.plugin.gui;
 import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.area.AreaService;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.UiStateStore;
 import net.kyori.adventure.text.Component;
@@ -56,6 +57,7 @@ class AdminScreenOwnerNameDisplayTest {
         when(plugin.areas()).thenReturn(areaService);
         ownerNameDisplay = mock(OwnerNameDisplaySetting.class);
         when(plugin.ownerNameDisplay()).thenReturn(ownerNameDisplay);
+        when(plugin.chestKeyConsumption()).thenReturn(mock(ChestKeyConsumptionSetting.class));
 
         helper = mock(GuiHelper.class);
         when(helper.buildToggleButton(any(), anyBoolean(), eq("toggle_owner_name_display"), any()))

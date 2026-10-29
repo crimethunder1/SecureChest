@@ -30,7 +30,7 @@ class OwnerNameDisplaySettingTest {
     }
 
     private OwnerNameDisplaySetting setting() {
-        return new OwnerNameDisplaySetting(new SettingsStore(file(), logger), configValue::get, logger);
+        return new OwnerNameDisplaySetting(new SettingsStore(file(), logger), configValue::get, () -> true, logger);
     }
 
     private void writeOverride(boolean value) throws IOException {

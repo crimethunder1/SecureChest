@@ -16,15 +16,19 @@ public final class SettingsStore {
     public static final String FILE_NAME = "settings.yml";
 
     static final String KEY_OWNER_NAME_DISPLAY = "owner_name_display";
+    static final String KEY_OWNER_NAME_HIDE_WHEN_COVERED = "owner_name_hide_when_covered";
+    static final String KEY_CHEST_KEY_CONSUMPTION = "chest_key_consumption";
 
-    public record Contents(Boolean ownerNameDisplay) {
+    public record Contents(Boolean ownerNameDisplay, Boolean ownerNameHideWhenCovered,
+                           Boolean chestKeyConsumption) {
 
-        public static final Contents EMPTY = new Contents(null);
+        public static final Contents EMPTY = new Contents(null, null, null);
     }
 
     private final Path file;
     private final Logger logger;
     private boolean unreadableAtLoad;
+    private Contents current;
 
     public SettingsStore(Path file, Logger logger) {
         this.file = file;
@@ -39,7 +43,17 @@ public final class SettingsStore {
         return unreadableAtLoad;
     }
 
+    public Contents current() {
+        if (current == null) load();
+        return current;
+    }
+
     public Contents load() {
+        current = read();
+        return current;
+    }
+
+    private Contents read() {
         unreadableAtLoad = false;
         if (!Files.exists(file)) return Contents.EMPTY;
 
@@ -54,8 +68,11 @@ public final class SettingsStore {
         }
 
         Boolean ownerNameDisplay = null;
+        Boolean ownerNameHideWhenCovered = null;
+        Boolean chestKeyConsumption = null;
         for (String key : yaml.getKeys(false)) {
-            if (!key.equals(KEY_OWNER_NAME_DISPLAY)) {
+            if (!key.equals(KEY_OWNER_NAME_DISPLAY) && !key.equals(KEY_OWNER_NAME_HIDE_WHEN_COVERED)
+                    && !key.equals(KEY_CHEST_KEY_CONSUMPTION)) {
                 logger.warning(FILE_NAME + ": entry '" + key + "' is not a known setting and was skipped.");
                 continue;
             }
@@ -64,12 +81,17 @@ public final class SettingsStore {
                         + "' is not true or false and was skipped. The value from config.yml is used.");
                 continue;
             }
-            ownerNameDisplay = value;
+            switch (key) {
+                case KEY_OWNER_NAME_DISPLAY -> ownerNameDisplay = value;
+                case KEY_OWNER_NAME_HIDE_WHEN_COVERED -> ownerNameHideWhenCovered = value;
+                default -> chestKeyConsumption = value;
+            }
         }
-        return new Contents(ownerNameDisplay);
+        return new Contents(ownerNameDisplay, ownerNameHideWhenCovered, chestKeyConsumption);
     }
 
     public void save(Contents contents) throws IOException {
+        current = contents;
         if (unreadableAtLoad) {
             throw new IOException(FILE_NAME + " could not be read at startup and is not overwritten."
                     + " Fix or remove the file and restart the server.");
@@ -78,6 +100,12 @@ public final class SettingsStore {
         YamlConfiguration yaml = new YamlConfiguration();
         if (contents.ownerNameDisplay() != null) {
             yaml.set(KEY_OWNER_NAME_DISPLAY, contents.ownerNameDisplay());
+        }
+        if (contents.ownerNameHideWhenCovered() != null) {
+            yaml.set(KEY_OWNER_NAME_HIDE_WHEN_COVERED, contents.ownerNameHideWhenCovered());
+        }
+        if (contents.chestKeyConsumption() != null) {
+            yaml.set(KEY_CHEST_KEY_CONSUMPTION, contents.chestKeyConsumption());
         }
         writeAtomically(yaml.saveToString());
     }

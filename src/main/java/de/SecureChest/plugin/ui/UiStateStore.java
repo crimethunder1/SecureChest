@@ -50,7 +50,11 @@ public final class UiStateStore {
         ALL,
         CHESTS,
         BARRELS,
-        SHULKERS;
+        SHULKERS,
+        FURNACES,
+        DROPPERS_AND_DISPENSERS,
+        BREWING_STANDS,
+        CRAFTERS;
 
         public LockTypeFilter next() {
             LockTypeFilter[] values = values();
@@ -59,10 +63,14 @@ public final class UiStateStore {
 
         public String labelKey() {
             return switch (this) {
-                case ALL      -> "enum-lock-type-filter-all";
-                case CHESTS   -> "enum-lock-type-filter-chests";
-                case BARRELS  -> "enum-lock-type-filter-barrels";
-                case SHULKERS -> "enum-lock-type-filter-shulkers";
+                case ALL                     -> "enum-lock-type-filter-all";
+                case CHESTS                  -> "enum-lock-type-filter-chests";
+                case BARRELS                 -> "enum-lock-type-filter-barrels";
+                case SHULKERS                -> "enum-lock-type-filter-shulkers";
+                case FURNACES                -> "enum-lock-type-filter-furnaces";
+                case DROPPERS_AND_DISPENSERS -> "enum-lock-type-filter-droppers-and-dispensers";
+                case BREWING_STANDS          -> "enum-lock-type-filter-brewing-stands";
+                case CRAFTERS                -> "enum-lock-type-filter-crafters";
             };
         }
     }
@@ -70,7 +78,11 @@ public final class UiStateStore {
     public enum LogsActionFilter {
         ALL,
         UNAUTHORIZED_BREAK,
-        ADMIN_BREAK;
+        ADMIN_BREAK,
+        LOCK_REMOVE_AREA,
+        LOCK_TRANSFER_ADMIN,
+        TRUST_SET_ADMIN,
+        TRUST_REMOVE_ADMIN;
 
         public LogsActionFilter next() {
             LogsActionFilter[] values = values();
@@ -79,17 +91,25 @@ public final class UiStateStore {
 
         public String labelKey() {
             return switch (this) {
-                case ALL                -> "enum-logs-action-filter-all";
-                case UNAUTHORIZED_BREAK -> "enum-logs-action-filter-unauthorized-break";
-                case ADMIN_BREAK        -> "enum-logs-action-filter-admin-break";
+                case ALL                 -> "enum-logs-action-filter-all";
+                case UNAUTHORIZED_BREAK  -> "enum-logs-action-filter-unauthorized-break";
+                case ADMIN_BREAK         -> "enum-logs-action-filter-admin-break";
+                case LOCK_REMOVE_AREA    -> "enum-logs-action-filter-lock-remove-area";
+                case LOCK_TRANSFER_ADMIN -> "enum-logs-action-filter-lock-transfer-admin";
+                case TRUST_SET_ADMIN     -> "enum-logs-action-filter-trust-set-admin";
+                case TRUST_REMOVE_ADMIN  -> "enum-logs-action-filter-trust-remove-admin";
             };
         }
 
         public String databaseValue() {
             return switch (this) {
-                case UNAUTHORIZED_BREAK -> "UNAUTHORIZED_BREAK";
-                case ADMIN_BREAK        -> "ADMIN_BREAK";
-                default                 -> "ALL";
+                case UNAUTHORIZED_BREAK  -> "UNAUTHORIZED_BREAK";
+                case ADMIN_BREAK         -> "ADMIN_BREAK";
+                case LOCK_REMOVE_AREA    -> "LOCK_REMOVE_AREA";
+                case LOCK_TRANSFER_ADMIN -> "LOCK_TRANSFER_ADMIN";
+                case TRUST_SET_ADMIN     -> "TRUST_SET_ADMIN";
+                case TRUST_REMOVE_ADMIN  -> "TRUST_REMOVE_ADMIN";
+                default                  -> "ALL";
             };
         }
     }

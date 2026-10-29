@@ -12,8 +12,12 @@ import de.SecureChest.plugin.listener.ProtectionListener;
 import de.SecureChest.plugin.listener.TrustChatListener;
 import de.SecureChest.plugin.lock.LockService;
 import de.SecureChest.plugin.lock.SqlLockService;
+import de.SecureChest.plugin.names.BukkitPlayerNameSources;
+import de.SecureChest.plugin.names.PlayerNameRepository;
+import de.SecureChest.plugin.names.PlayerNameService;
 import de.SecureChest.plugin.ping.PingManager;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.settings.SettingsStore;
 import de.SecureChest.plugin.sign.SignManager;
@@ -54,6 +58,8 @@ public final class ChestSecurePlugin extends JavaPlugin {
     private Worlds worlds;
     private AreaService areaService;
     private OwnerNameDisplaySetting ownerNameDisplay;
+    private ChestKeyConsumptionSetting chestKeyConsumption;
+    private PlayerNameService playerNames;
 
     private final Map<UUID, PendingChatAction> pendingChatActions = new ConcurrentHashMap<>();
 
@@ -86,10 +92,24 @@ public final class ChestSecurePlugin extends JavaPlugin {
 
         SettingsStore settingsStore = new SettingsStore(
                 getDataFolder().toPath().resolve(SettingsStore.FILE_NAME), getLogger());
-        this.ownerNameDisplay = new OwnerNameDisplaySetting(settingsStore, () -> cfg().signsEnabled(), getLogger());
+        this.ownerNameDisplay = new OwnerNameDisplaySetting(settingsStore, () -> cfg().signsEnabled(),
+                () -> cfg().signsHideWhenCovered(), getLogger());
+        this.chestKeyConsumption = new ChestKeyConsumptionSetting(settingsStore, () -> cfg().consumeChestKey(),
+                getLogger());
         this.signManager = new SignManager(this);
 
-        SqlLockService sqlLockService = new SqlLockService(this, database, () -> signManager.spawnAllSigns());
+        this.playerNames = new PlayerNameService(
+                new PlayerNameRepository(this, database),
+                BukkitPlayerNameSources::onlineName,
+                BukkitPlayerNameSources::serverCacheName,
+                task -> getServer().getScheduler().runTaskAsynchronously(this, task),
+                task -> getServer().getScheduler().runTask(this, task),
+                owner -> signManager.refreshOwnerSigns(owner),
+                System::currentTimeMillis,
+                getLogger());
+        this.playerNames.loadAsync();
+
+        SqlLockService sqlLockService = new SqlLockService(this, database, this::onLockCacheWarmed);
         this.lockService = sqlLockService;
 
         AreaStore areaStore = new AreaStore(getDataFolder().toPath().resolve(AreaStore.FILE_NAME), getLogger());
@@ -113,6 +133,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TrustChatListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerQuitListener(this), this);
         getServer().getPluginManager().registerEvents(signManager, this);
+        signManager.startCoverCheck();
 
         final long VALIDATION_INTERVAL_TICKS = 20L * 60 * 5;
         getServer().getScheduler().runTaskTimer(this,
@@ -123,8 +144,19 @@ public final class ChestSecurePlugin extends JavaPlugin {
         getLogger().info("ChestSecure enabled.");
     }
 
+    private void onLockCacheWarmed() {
+        playerNames.afterLoad(() -> {
+            playerNames.backfillFromServerCache(PlayerNameService.playersOf(lockService.getAllCachedLocks()));
+            signManager.spawnAllSigns();
+        });
+    }
+
     @Override
     public void onDisable() {
+        if (signManager != null) {
+            signManager.stopCoverCheck();
+            signManager.removeAllSigns();
+        }
         if (pingManager != null) pingManager.stopAll();
         if (database != null) database.close();
         pendingChatActions.clear();
@@ -153,5 +185,7 @@ public final class ChestSecurePlugin extends JavaPlugin {
     public Worlds worlds()                     { return worlds; }
     public AreaService areas()                 { return areaService; }
     public OwnerNameDisplaySetting ownerNameDisplay() { return ownerNameDisplay; }
+    public ChestKeyConsumptionSetting chestKeyConsumption() { return chestKeyConsumption; }
+    public PlayerNameService names()           { return playerNames; }
     public Map<UUID, PendingChatAction> pendingChat() { return pendingChatActions; }
 }

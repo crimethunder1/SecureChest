@@ -28,6 +28,8 @@ public final class RecipeStore {
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_SHAPE = "shape";
     private static final String KEY_INGREDIENTS = "ingredients";
+    private static final String KEY_AMOUNT = "amount";
+    private static final int INVALID_AMOUNT = 0;
 
     private final Path file;
     private final Logger logger;
@@ -93,6 +95,7 @@ public final class RecipeStore {
             if (definition == null) continue;
             ConfigurationSection section = yaml.createSection(kind.configKey());
             section.set(KEY_ENABLED, definition.enabled());
+            section.set(KEY_AMOUNT, definition.amount());
             section.set(KEY_SHAPE, definition.shape());
             section.createSection(KEY_INGREDIENTS, definition.ingredients());
         }
@@ -124,7 +127,12 @@ public final class RecipeStore {
                     (symbol, material) -> ingredients.put(symbol, String.valueOf(material)));
         }
         return new RecipeDefinition(section.getBoolean(KEY_ENABLED, true), section.getStringList(KEY_SHAPE),
-                ingredients);
+                ingredients, readAmount(section.get(KEY_AMOUNT)));
+    }
+
+    private static int readAmount(Object amount) {
+        if (amount == null) return RecipeDefinition.DEFAULT_AMOUNT;
+        return amount instanceof Integer wholeNumber ? wholeNumber : INVALID_AMOUNT;
     }
 
     private static boolean isReadable(ConfigurationSection section) {

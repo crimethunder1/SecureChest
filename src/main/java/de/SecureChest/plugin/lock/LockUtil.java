@@ -9,8 +9,11 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Chest;
 import org.bukkit.block.data.type.Hopper;
 
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 public final class LockUtil {
@@ -19,16 +22,47 @@ public final class LockUtil {
             BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST
     };
 
+    private static final Set<Material> COPPER_CHEST_TYPES = Collections.unmodifiableSet(EnumSet.of(
+            Material.COPPER_CHEST, Material.EXPOSED_COPPER_CHEST, Material.WEATHERED_COPPER_CHEST,
+            Material.OXIDIZED_COPPER_CHEST, Material.WAXED_COPPER_CHEST, Material.WAXED_EXPOSED_COPPER_CHEST,
+            Material.WAXED_WEATHERED_COPPER_CHEST, Material.WAXED_OXIDIZED_COPPER_CHEST
+    ));
+
+    private static final Set<Material> CHEST_FAMILY_TYPES = combined(COPPER_CHEST_TYPES,
+            Material.CHEST, Material.TRAPPED_CHEST);
+
+    private static final Set<Material> LOCKABLE_TYPES = combined(CHEST_FAMILY_TYPES,
+            Material.BARREL, Material.HOPPER,
+            Material.FURNACE, Material.BLAST_FURNACE, Material.SMOKER,
+            Material.DROPPER, Material.DISPENSER, Material.BREWING_STAND, Material.CRAFTER);
+
     private LockUtil() {}
+
+    private static Set<Material> combined(Set<Material> base, Material... additional) {
+        EnumSet<Material> types = EnumSet.copyOf(base);
+        Collections.addAll(types, additional);
+        return Collections.unmodifiableSet(types);
+    }
+
+    public static boolean isChestFamily(Material material) {
+        return material != null && CHEST_FAMILY_TYPES.contains(material);
+    }
+
+    private static boolean formsDoubleChestWith(Material first, Material second) {
+        if (!isChestFamily(first) || !isChestFamily(second)) return false;
+        if (first == second) return true;
+        return COPPER_CHEST_TYPES.contains(first) && COPPER_CHEST_TYPES.contains(second);
+    }
 
     public static boolean isLockable(Block b) {
         if (b == null) return false;
-        Material m = b.getType();
-        if (m == Material.CHEST) return true;
-        if (m == Material.TRAPPED_CHEST) return true;
-        if (m == Material.BARREL) return true;
-        if (m == Material.HOPPER) return true;
-        return m.name().endsWith("SHULKER_BOX");
+        return isLockableType(b.getType());
+    }
+
+    public static boolean isLockableType(Material material) {
+        if (material == null) return false;
+        if (LOCKABLE_TYPES.contains(material)) return true;
+        return material.name().endsWith("SHULKER_BOX");
     }
 
     public static Block canonicalBlock(Block b) {
@@ -58,7 +92,7 @@ public final class LockUtil {
 
     public static Block findDoubleChestPartner(Block block) {
         Material type = block.getType();
-        if (type != Material.CHEST && type != Material.TRAPPED_CHEST) return null;
+        if (!isChestFamily(type)) return null;
 
         BlockData blockData = block.getBlockData();
         if (!(blockData instanceof Chest ownChestData)) return null;
@@ -69,7 +103,7 @@ public final class LockUtil {
         if (partnerFace == null) return null;
 
         Block neighbor = block.getRelative(partnerFace);
-        if (neighbor.getType() != type) return null;
+        if (!formsDoubleChestWith(type, neighbor.getType())) return null;
 
         BlockData neighborData = neighbor.getBlockData();
         if (!(neighborData instanceof Chest neighborChestData)) return null;
@@ -77,6 +111,12 @@ public final class LockUtil {
         if (neighborChestData.getType() == ownConnection) return null;
 
         return neighbor;
+    }
+
+    public static BlockFace doubleChestPartnerFace(Block block) {
+        if (!isChestFamily(block.getType())) return null;
+        if (!(block.getBlockData() instanceof Chest chestData)) return null;
+        return partnerFace(chestData.getFacing(), chestData.getType());
     }
 
     public static Block chestKeyHopperBindTarget(LockService locks, Block hopperBlock, UUID playerUuid) {
@@ -92,10 +132,14 @@ public final class LockUtil {
         return targetBlock;
     }
 
+    public static boolean isForeignLock(LockService locks, String lockId, UUID playerUuid) {
+        return locks.getLockFromId(lockId)
+                .map(entry -> !entry.owner().equals(playerUuid))
+                .orElse(false);
+    }
+
     public static boolean wouldFormDoubleChestWith(Block placedBlock, Block neighborBlock, BlockFace face) {
-        Material placedType = placedBlock.getType();
-        if (placedType != Material.CHEST && placedType != Material.TRAPPED_CHEST) return false;
-        if (neighborBlock.getType() != placedType) return false;
+        if (!formsDoubleChestWith(placedBlock.getType(), neighborBlock.getType())) return false;
 
         BlockData placedData = placedBlock.getBlockData();
         BlockData neighborData = neighborBlock.getBlockData();

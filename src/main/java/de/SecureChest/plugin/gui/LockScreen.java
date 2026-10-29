@@ -1,10 +1,10 @@
 package de.SecureChest.plugin.gui;
 
 import de.SecureChest.plugin.ChestSecurePlugin;
-import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.lock.AccessLevel;
 import de.SecureChest.plugin.lock.LockEntry;
 import de.SecureChest.plugin.lock.LockKey;
+import de.SecureChest.plugin.lock.LockUtil;
 import de.SecureChest.plugin.ui.UiStateStore;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -103,12 +103,12 @@ final class LockScreen {
         h.playClickSound(player);
     }
 
-    static boolean canSeeLockManage(boolean isOwner, boolean isAdmin, boolean isTrusted) {
-        return isOwner || isAdmin || isTrusted;
+    static boolean canSeeLockManage(boolean isOwner, boolean isTrusted) {
+        return isOwner || isTrusted;
     }
 
-    static boolean canManageLock(boolean isOwner, boolean isAdmin) {
-        return isOwner || isAdmin;
+    static boolean canManageLock(boolean isOwner) {
+        return isOwner;
     }
 
     void openLockManage(Player player, String lockId) {
@@ -121,16 +121,15 @@ final class LockScreen {
         }
 
         boolean isOwner   = lockEntry.owner().equals(player.getUniqueId());
-        boolean isAdmin   = player.hasPermission(Permissions.ADMIN);
         boolean isTrusted = lockEntry.trusted().containsKey(player.getUniqueId());
-        if (!canSeeLockManage(isOwner, isAdmin, isTrusted)) {
+        if (!canSeeLockManage(isOwner, isTrusted)) {
             player.sendMessage(Component.text(
                     plugin.msg().get("keine-berechtigung"), NamedTextColor.RED));
             mgr.openLocksList(player, 0);
             return;
         }
 
-        boolean canManage = canManageLock(isOwner, isAdmin);
+        boolean canManage = canManageLock(isOwner);
 
         String blockName  = lockEntry.blockType().name().replace('_', ' ');
         Location lockLoc  = new Location(Bukkit.getWorld(lockEntry.key().worldUuid()),
@@ -329,12 +328,17 @@ final class LockScreen {
         };
     }
 
-    private boolean matchesTypeFilter(Material type, UiStateStore.LockTypeFilter filter) {
+    static boolean matchesTypeFilter(Material type, UiStateStore.LockTypeFilter filter) {
         return switch (filter) {
-            case ALL      -> true;
-            case CHESTS   -> type == Material.CHEST || type == Material.TRAPPED_CHEST;
-            case BARRELS  -> type == Material.BARREL;
-            case SHULKERS -> type.name().endsWith("SHULKER_BOX");
+            case ALL                     -> true;
+            case CHESTS                  -> LockUtil.isChestFamily(type);
+            case BARRELS                 -> type == Material.BARREL;
+            case SHULKERS                -> type.name().endsWith("SHULKER_BOX");
+            case FURNACES                -> type == Material.FURNACE || type == Material.BLAST_FURNACE
+                                            || type == Material.SMOKER;
+            case DROPPERS_AND_DISPENSERS -> type == Material.DROPPER || type == Material.DISPENSER;
+            case BREWING_STANDS          -> type == Material.BREWING_STAND;
+            case CRAFTERS                -> type == Material.CRAFTER;
         };
     }
 

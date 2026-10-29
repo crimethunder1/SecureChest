@@ -10,11 +10,14 @@ import de.SecureChest.plugin.area.AreaChangeResult;
 import de.SecureChest.plugin.area.AreaCoordinateParser;
 import de.SecureChest.plugin.area.AreaValidationError;
 import de.SecureChest.plugin.lock.AccessLevel;
+import de.SecureChest.plugin.lock.LockEntry;
+import de.SecureChest.plugin.lock.LockUtil;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
 import de.SecureChest.plugin.util.ChestKeyAmountParser;
 import de.SecureChest.plugin.util.PlayerNameValidator;
 import io.papermc.paper.event.player.AsyncChatEvent;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -74,18 +77,17 @@ public final class TrustChatListener implements Listener {
                 return;
             }
 
-            if (!PlayerNameValidator.isValid(msg)) {
+            if (LockUtil.isForeignLock(plugin.locks(), at.lockId(), uuid)) {
                 plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
+                p.sendMessage(Component.text(plugin.msg().get("trust-vergeben-fehlgeschlagen"), NamedTextColor.RED));
+                plugin.gui().openLockManage(p, at.lockId());
                 return;
             }
-            OfflinePlayer online = Bukkit.getPlayerExact(msg);
-            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
-            if (target == null || target.getUniqueId() == null) {
-                plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text(plugin.msg().get("trust-spieler-nicht-gefunden", msg), NamedTextColor.RED));
-                return;
-            }
+
+            String roleLabel = plugin.msg().get(level == AccessLevel.VIEW ? "gui-role-viewer" : "gui-role-stocker");
+            OfflinePlayer target = findChatTarget(p, msg, () -> p.sendMessage(Component.text(
+                    plugin.msg().get("chat-prompt-add-trust", roleLabel), NamedTextColor.YELLOW)));
+            if (target == null) return;
 
             boolean ok = plugin.locks().setTrustById(p, at.lockId(), target.getUniqueId(), level);
             plugin.pendingChat().remove(uuid);
@@ -190,19 +192,22 @@ public final class TrustChatListener implements Listener {
             return;
         }
 
+        if (action instanceof PendingChatAction.AdminAddTrust adminAddTrust) {
+            if (!hasAdminPermission(p, uuid)) return;
+            handleAdminAddTrust(p, uuid, adminAddTrust, msg);
+            return;
+        }
+
+        if (action instanceof PendingChatAction.AdminTransferLock adminTransferLock) {
+            if (!hasAdminPermission(p, uuid)) return;
+            handleAdminTransferLock(p, uuid, adminTransferLock.lockId(), msg);
+            return;
+        }
+
         if (action instanceof PendingChatAction.TransferLock tl) {
-            if (!PlayerNameValidator.isValid(msg)) {
-                plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
-                return;
-            }
-            OfflinePlayer online = Bukkit.getPlayerExact(msg);
-            OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
-            if (target == null || target.getUniqueId() == null) {
-                plugin.pendingChat().remove(uuid);
-                p.sendMessage(Component.text(plugin.msg().get("trust-spieler-nicht-gefunden", msg), NamedTextColor.RED));
-                return;
-            }
+            OfflinePlayer target = findChatTarget(p, msg, () -> p.sendMessage(Component.text(
+                    plugin.msg().get("chat-prompt-transfer"), NamedTextColor.YELLOW)));
+            if (target == null) return;
             plugin.pendingChat().remove(uuid);
 
             String display = target.getName() != null ? target.getName() : msg;
@@ -234,6 +239,98 @@ public final class TrustChatListener implements Listener {
         plugin.pendingChat().remove(uuid);
         p.sendMessage(Component.text(plugin.msg().get("trust-keine-berechtigung"), NamedTextColor.RED));
         return false;
+    }
+
+    private boolean hasAdminPermission(Player p, UUID uuid) {
+        if (p.hasPermission(Permissions.ADMIN)) return true;
+        plugin.pendingChat().remove(uuid);
+        p.sendMessage(Component.text(plugin.msg().get("trust-keine-berechtigung"), NamedTextColor.RED));
+        return false;
+    }
+
+    private void handleAdminAddTrust(Player p, UUID uuid, PendingChatAction.AdminAddTrust addTrust, String msg) {
+        AccessLevel level = AccessLevel.fromString(addTrust.level());
+        if (level == null) {
+            plugin.pendingChat().remove(uuid);
+            p.sendMessage(Component.text(plugin.msg().get("trust-ungueltige-stufe"), NamedTextColor.RED));
+            return;
+        }
+        String roleLabel = plugin.msg().get(level == AccessLevel.VIEW ? "gui-role-viewer" : "gui-role-stocker");
+        Runnable prompt = () -> p.sendMessage(Component.text(
+                plugin.msg().get("chat-prompt-add-trust", roleLabel), NamedTextColor.YELLOW));
+        OfflinePlayer target = findChatTarget(p, msg, prompt);
+        if (target == null) return;
+        if (findLockOrStop(p, uuid, addTrust.lockId()) == null) return;
+
+        plugin.pendingChat().remove(uuid);
+        boolean ok = plugin.locks().setTrustById(p, addTrust.lockId(), target.getUniqueId(), level);
+        String name = target.getName() != null ? target.getName() : msg;
+        p.sendMessage(ok
+                ? Component.text(plugin.msg().get("trust-vergeben", name, roleLabel), NamedTextColor.GREEN)
+                : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
+        plugin.gui().openAdminLockManage(p, addTrust.lockId());
+    }
+
+    private void handleAdminTransferLock(Player p, UUID uuid, String lockId, String msg) {
+        Runnable prompt = () -> p.sendMessage(Component.text(
+                plugin.msg().get("chat-prompt-transfer"), NamedTextColor.YELLOW));
+        OfflinePlayer target = findChatTarget(p, msg, prompt);
+        if (target == null) return;
+        LockEntry lockEntry = findLockOrStop(p, uuid, lockId);
+        if (lockEntry == null) return;
+
+        String display = target.getName() != null ? target.getName() : msg;
+        if (lockEntry.owner().equals(target.getUniqueId())) {
+            p.sendMessage(Component.text(
+                    plugin.msg().get("admin-transfer-bereits-besitzer", display), NamedTextColor.RED));
+            prompt.run();
+            return;
+        }
+        plugin.pendingChat().remove(uuid);
+
+        long expiresAt = System.currentTimeMillis() + (plugin.cfg().confirmTimeoutSeconds() * 1000L);
+        plugin.confirms().set(uuid, new ConfirmRequest(
+                ConfirmType.ADMIN_TRANSFER_LOCK,
+                lockId + "|" + target.getUniqueId(),
+                "ADMIN_LOCK_MANAGE|" + lockId,
+                expiresAt
+        ));
+
+        List<String> confirmLines = new ArrayList<>(List.of(
+                plugin.msg().get("confirm-admin-transfer-question",
+                        plugin.names().resolve(lockEntry.owner()), display),
+                "",
+                plugin.msg().get("confirm-transfer-zeile4"),
+                plugin.msg().get("confirm-transfer-zeile5")));
+        if (!lockEntry.owner().equals(uuid)) {
+            confirmLines.add(plugin.msg().get("confirm-admin-owner-notified"));
+        }
+        plugin.gui().openConfirm(p, plugin.msg().get("confirm-admin-transfer-title"), confirmLines);
+    }
+
+    private OfflinePlayer findChatTarget(Player p, String msg, Runnable prompt) {
+        if (!PlayerNameValidator.isValid(msg)) {
+            p.sendMessage(Component.text(plugin.msg().get("trust-eingabe-ungueltig"), NamedTextColor.RED));
+            prompt.run();
+            return null;
+        }
+        OfflinePlayer online = Bukkit.getPlayerExact(msg);
+        OfflinePlayer target = (online != null) ? online : Bukkit.getOfflinePlayerIfCached(msg);
+        if (target == null || target.getUniqueId() == null) {
+            p.sendMessage(Component.text(plugin.msg().get("trust-spieler-nicht-gefunden", msg), NamedTextColor.RED));
+            prompt.run();
+            return null;
+        }
+        return target;
+    }
+
+    private LockEntry findLockOrStop(Player p, UUID uuid, String lockId) {
+        LockEntry lockEntry = plugin.locks().getLockFromId(lockId).orElse(null);
+        if (lockEntry == null) {
+            plugin.pendingChat().remove(uuid);
+            p.sendMessage(Component.text(plugin.msg().get("schloss-nicht-gefunden"), NamedTextColor.RED));
+        }
+        return lockEntry;
     }
 
     private void handleAreaName(Player p, UUID uuid, String msg) {

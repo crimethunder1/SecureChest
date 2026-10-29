@@ -74,13 +74,8 @@ public final class GuiHelper {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta  base = item.getItemMeta();
         if (base instanceof SkullMeta skull) {
-            org.bukkit.OfflinePlayer offline =
-                    Bukkit.getOfflinePlayerIfCached(playerUuid.toString());
-            if (offline == null) {
-                Player online = Bukkit.getPlayer(playerUuid);
-                if (online != null) offline = online;
-            }
-            if (offline != null) skull.setOwningPlayer(offline);
+            org.bukkit.OfflinePlayer offline = Bukkit.getOfflinePlayer(playerUuid);
+            skull.setOwningPlayer(offline);
             skull.displayName(Component.text(displayName));
             skull.lore(lore.stream().map(Component::text).toList());
             skull.getPersistentDataContainer().set(
@@ -105,11 +100,7 @@ public final class GuiHelper {
     }
 
     public String resolvePlayerName(UUID uuid) {
-        Player online = Bukkit.getPlayer(uuid);
-        if (online != null) return online.getName();
-        org.bukkit.OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(uuid.toString());
-        if (cached != null && cached.getName() != null) return cached.getName();
-        return uuid.toString().substring(0, 8) + "…";
+        return plugin.names().resolve(uuid);
     }
 
     public void playClickSound(Player player) {

@@ -15,14 +15,20 @@ public final class OwnerNameDisplaySetting {
 
     private final SettingsStore store;
     private final BooleanSupplier configValue;
+    private final BooleanSupplier hideWhenCoveredConfigValue;
     private final Logger logger;
     private volatile Boolean override;
+    private volatile Boolean hideWhenCoveredOverride;
 
-    public OwnerNameDisplaySetting(SettingsStore store, BooleanSupplier configValue, Logger logger) {
+    public OwnerNameDisplaySetting(SettingsStore store, BooleanSupplier configValue,
+                                   BooleanSupplier hideWhenCoveredConfigValue, Logger logger) {
         this.store = store;
         this.configValue = configValue;
+        this.hideWhenCoveredConfigValue = hideWhenCoveredConfigValue;
         this.logger = logger;
-        this.override = store.load().ownerNameDisplay();
+        SettingsStore.Contents contents = store.load();
+        this.override = contents.ownerNameDisplay();
+        this.hideWhenCoveredOverride = contents.ownerNameHideWhenCovered();
     }
 
     public static boolean effectiveValue(Boolean override, boolean configValue) {
@@ -37,13 +43,31 @@ public final class OwnerNameDisplaySetting {
         return override;
     }
 
+    public boolean isHideWhenCoveredEnabled() {
+        return effectiveValue(hideWhenCoveredOverride, hideWhenCoveredConfigValue.getAsBoolean());
+    }
+
+    public Boolean hideWhenCoveredOverride() {
+        return hideWhenCoveredOverride;
+    }
+
     public ChangeResult set(boolean enabled) {
         override = enabled;
         logger.info("Owner name display turned " + (enabled ? "on" : "off") + " for all locks.");
+        return save(enabled);
+    }
 
+    public ChangeResult setHideWhenCovered(boolean enabled) {
+        hideWhenCoveredOverride = enabled;
+        logger.info("Hiding covered owner names turned " + (enabled ? "on" : "off") + " for all locks.");
+        return save(enabled);
+    }
+
+    private ChangeResult save(boolean enabled) {
         String saveError = null;
         try {
-            store.save(new SettingsStore.Contents(enabled));
+            store.save(new SettingsStore.Contents(override, hideWhenCoveredOverride,
+                    store.current().chestKeyConsumption()));
         } catch (IOException ex) {
             saveError = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
             logger.warning("Saving " + SettingsStore.FILE_NAME + " failed: " + saveError

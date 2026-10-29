@@ -30,6 +30,7 @@ public final class PlayerQuitListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         UUID playerUuid = event.getPlayer().getUniqueId();
+        plugin.names().recordJoin(playerUuid, event.getPlayer().getName());
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             plugin.locks().preloadPlayerSettings(playerUuid);

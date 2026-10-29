@@ -76,6 +76,7 @@ class RecipeScreenTest {
         recipes = mock(RecipeRegistry.class);
         when(plugin.recipes()).thenReturn(recipes);
         items = mock(Items.class);
+        when(items.chestKey()).thenAnswer(invocation -> mock(ItemStack.class));
         when(plugin.items()).thenReturn(items);
         confirms = new ConfirmManager();
         when(plugin.confirms()).thenReturn(confirms);

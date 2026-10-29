@@ -50,7 +50,7 @@ class SettingsStoreTest {
     @Test
     @DisplayName("Round-Trip: true kommt unveraendert zurueck")
     void roundTrip_true() throws IOException {
-        store().save(new SettingsStore.Contents(true));
+        store().save(new SettingsStore.Contents(true, null, null));
 
         assertEquals(Boolean.TRUE, store().load().ownerNameDisplay());
     }
@@ -58,7 +58,7 @@ class SettingsStoreTest {
     @Test
     @DisplayName("Round-Trip: false kommt unveraendert zurueck")
     void roundTrip_false() throws IOException {
-        store().save(new SettingsStore.Contents(false));
+        store().save(new SettingsStore.Contents(false, null, null));
 
         assertEquals(Boolean.FALSE, store().load().ownerNameDisplay());
     }
@@ -66,7 +66,7 @@ class SettingsStoreTest {
     @Test
     @DisplayName("Gespeicherte Datei enthaelt den Schluessel owner_name_display")
     void save_schreibtSchluessel() throws IOException {
-        store().save(new SettingsStore.Contents(false));
+        store().save(new SettingsStore.Contents(false, null, null));
 
         String written = Files.readString(folder.resolve(SettingsStore.FILE_NAME));
         assertTrue(written.contains(SettingsStore.KEY_OWNER_NAME_DISPLAY + ": false"), written);
@@ -97,7 +97,7 @@ class SettingsStoreTest {
         assertTrue(store.isUnreadableAtLoad());
         verify(logger).warning(anyString());
         IOException refused = assertThrows(IOException.class,
-                () -> store.save(new SettingsStore.Contents(true)));
+                () -> store.save(new SettingsStore.Contents(true, null, null)));
         assertTrue(refused.getMessage().contains(SettingsStore.FILE_NAME));
         assertEquals(broken, Files.readString(file));
         assertEquals(List.of(SettingsStore.FILE_NAME), folderEntries());
@@ -150,8 +150,8 @@ class SettingsStoreTest {
     @DisplayName("Atomares Schreiben: vorhandene Datei wird vollstaendig ersetzt, keine Temp-Datei bleibt liegen")
     void save_ersetztDateiOhneTempReste() throws IOException {
         SettingsStore store = store();
-        store.save(new SettingsStore.Contents(true));
-        store.save(new SettingsStore.Contents(false));
+        store.save(new SettingsStore.Contents(true, null, null));
+        store.save(new SettingsStore.Contents(false, null, null));
 
         assertEquals(List.of(SettingsStore.FILE_NAME), folderEntries());
         assertEquals(Boolean.FALSE, store().load().ownerNameDisplay());
@@ -164,7 +164,7 @@ class SettingsStoreTest {
         Path nestedFile = folder.resolve("plugins").resolve("ChestSecure").resolve(SettingsStore.FILE_NAME);
         SettingsStore store = new SettingsStore(nestedFile, logger);
 
-        store.save(new SettingsStore.Contents(true));
+        store.save(new SettingsStore.Contents(true, null, null));
 
         assertTrue(Files.isRegularFile(nestedFile));
         assertEquals(Boolean.TRUE, new SettingsStore(nestedFile, logger).load().ownerNameDisplay());
@@ -178,9 +178,44 @@ class SettingsStoreTest {
         Files.writeString(target.resolve("inhalt.txt"), "bleibt");
         SettingsStore store = new SettingsStore(target, logger);
 
-        assertThrows(IOException.class, () -> store.save(new SettingsStore.Contents(true)));
+        assertThrows(IOException.class, () -> store.save(new SettingsStore.Contents(true, null, null)));
 
         assertEquals(List.of(SettingsStore.FILE_NAME), folderEntries());
         assertEquals("bleibt", Files.readString(target.resolve("inhalt.txt")));
+    }
+
+    @Test
+    @DisplayName("Round-Trip mit chest_key_consumption: alle drei Schluessel kommen unveraendert zurueck")
+    void roundTrip_dreiSchluessel() throws IOException {
+        store().save(new SettingsStore.Contents(true, false, true));
+
+        String written = Files.readString(folder.resolve(SettingsStore.FILE_NAME));
+        assertTrue(written.contains(SettingsStore.KEY_CHEST_KEY_CONSUMPTION + ": true"), written);
+        assertEquals(new SettingsStore.Contents(true, false, true), store().load());
+        verify(logger, never()).warning(anyString());
+    }
+
+    @Test
+    @DisplayName("current laedt beim ersten Aufruf und liefert danach den zuletzt gespeicherten Stand")
+    void current_laedtUndFolgtSave() throws IOException {
+        Files.writeString(folder.resolve(SettingsStore.FILE_NAME), "chest_key_consumption: false\n");
+        SettingsStore store = store();
+
+        assertEquals(new SettingsStore.Contents(null, null, false), store.current());
+        store.save(new SettingsStore.Contents(true, null, false));
+
+        assertEquals(new SettingsStore.Contents(true, null, false), store.current());
+    }
+
+    @Test
+    @DisplayName("current behaelt den gewuenschten Stand auch, wenn das Schreiben scheitert")
+    void current_nachFehlgeschlagenemSpeichern() throws IOException {
+        Files.writeString(folder.resolve(SettingsStore.FILE_NAME), "owner_name_display: [\n");
+        SettingsStore store = store();
+        store.load();
+
+        assertThrows(IOException.class, () -> store.save(new SettingsStore.Contents(null, null, true)));
+
+        assertEquals(new SettingsStore.Contents(null, null, true), store.current());
     }
 }

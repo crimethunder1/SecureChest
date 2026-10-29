@@ -140,6 +140,38 @@ class GuiListenerAdminActionsTest {
     }
 
     @Test
+    @DisplayName("Aktionen des Admin-Verwaltungsmenues fuer einzelne Sperren sind enthalten")
+    void adminVerwaltungActions_enthalten() {
+        for (String action : Set.of("admin_lock_remove", "admin_lock_transfer", "admin_trust_add",
+                "admin_trust_entry", "admin_lock_close")) {
+            assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action), "Fehlt in ADMIN_ONLY_ACTIONS: " + action);
+        }
+    }
+
+    @Test
+    @DisplayName("Jede Action, die das Admin-Verwaltungsmenue erzeugt, ist Admin-only")
+    void adminVerwaltungScreen_alleErzeugtenActionsAdminOnly() {
+        Set<String> actions = ScreenActionRecorder.adminLockScreenActions();
+
+        assertEquals(Set.of("admin_lock_remove", "admin_lock_transfer", "admin_trust_add",
+                        "admin_trust_entry", "admin_lock_close"), actions,
+                "Das Menue sollte genau diese Buttons inklusive Koepfen erzeugen: " + actions);
+        for (String action : actions) {
+            assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains(action),
+                    "Action des Admin-Verwaltungsmenues fehlt in ADMIN_ONLY_ACTIONS: " + action);
+        }
+    }
+
+    @Test
+    @DisplayName("Die Besitzer-Aktionen des Verwaltungsmenues bleiben ausserhalb des Admin-Sets")
+    void besitzerVerwaltungActions_nichtImSet() {
+        for (String action : Set.of("manage_lock", "back_lock_manage", "confirm_unlock_one", "transfer_lock_name",
+                "open_trust_nearby", "open_trust_role", "back_trust_nearby", "ping_lock")) {
+            assertFalse(GuiListener.ADMIN_ONLY_ACTIONS.contains(action), "Besitzer-Aktion im Admin-Set: " + action);
+        }
+    }
+
+    @Test
     @DisplayName("Schalter fuer die Besitzernamen ist Admin-only")
     void besitzernamenSchalter_enthalten() {
         assertTrue(GuiListener.ADMIN_ONLY_ACTIONS.contains("toggle_owner_name_display"));

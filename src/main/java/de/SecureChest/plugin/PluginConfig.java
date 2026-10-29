@@ -19,6 +19,7 @@ public final class PluginConfig {
     private boolean soundsEnabled;
     private boolean particlesEnabled;
     private boolean signsEnabled;
+    private boolean signsHideWhenCovered;
     private boolean notificationsEnabled;
     private int     notificationsMaxPerPlayer;
     private int     confirmTimeoutSeconds;
@@ -28,6 +29,7 @@ public final class PluginConfig {
     private boolean autoLockEnabled;
     private boolean autoLockRequireKey;
     private boolean autoLockSneakOnly;
+    private boolean consumeChestKey;
     private int     adminLogsBookEntries;
     private boolean adminLogsTeleportEnabled;
     private int     maxLocksPerPlayer;
@@ -60,6 +62,7 @@ public final class PluginConfig {
         soundsEnabled              = cfg.getBoolean("sounds.enabled",                 true);
         particlesEnabled           = cfg.getBoolean("particles.enabled",               true);
         signsEnabled               = cfg.getBoolean("signs.enabled",                   true);
+        signsHideWhenCovered       = cfg.getBoolean("signs.hide_when_covered",         true);
         notificationsEnabled       = cfg.getBoolean("notifications.enabled",           true);
         notificationsMaxPerPlayer  = cfg.getInt    ("notifications.max_per_player",    20);
         confirmTimeoutSeconds      = cfg.getInt    ("ui.confirm_timeout_seconds",       15);
@@ -69,6 +72,7 @@ public final class PluginConfig {
         autoLockEnabled            = cfg.getBoolean("auto_lock.enabled",               false);
         autoLockRequireKey         = cfg.getBoolean("auto_lock.require_key",            true);
         autoLockSneakOnly          = cfg.getBoolean("auto_lock.sneak_only",            false);
+        consumeChestKey            = cfg.getBoolean("locking.consume_chest_key",       false);
         adminLogsBookEntries       = cfg.getInt    ("admin.logs.book_entries",          200);
         adminLogsTeleportEnabled   = cfg.getBoolean("admin.logs.teleport_enabled",     false);
         maxLocksPerPlayer          = cfg.getInt    ("limits.max_locks_per_player",        1000);
@@ -108,6 +112,7 @@ public final class PluginConfig {
     public boolean soundsEnabled()            { return soundsEnabled; }
     public boolean particlesEnabled()         { return particlesEnabled; }
     public boolean signsEnabled()             { return signsEnabled; }
+    public boolean signsHideWhenCovered()     { return signsHideWhenCovered; }
     public boolean notificationsEnabled()     { return notificationsEnabled; }
     public int     notificationsMaxPerPlayer(){ return notificationsMaxPerPlayer; }
 
@@ -119,6 +124,8 @@ public final class PluginConfig {
     public boolean autoLockEnabled()          { return autoLockEnabled; }
     public boolean autoLockRequireKey()       { return autoLockRequireKey; }
     public boolean autoLockSneakOnly()        { return autoLockSneakOnly; }
+
+    public boolean consumeChestKey()          { return consumeChestKey; }
 
     public int     adminLogsBookEntries()     { return adminLogsBookEntries; }
     public boolean adminLogsTeleportEnabled() { return adminLogsTeleportEnabled; }

@@ -5,22 +5,30 @@ import de.SecureChest.plugin.MessageService;
 import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.area.Area;
 import de.SecureChest.plugin.area.AreaService;
+import de.SecureChest.plugin.lock.AccessLevel;
+import de.SecureChest.plugin.lock.LockEntry;
+import de.SecureChest.plugin.lock.LockKey;
+import de.SecureChest.plugin.lock.LockService;
 import de.SecureChest.plugin.recipe.RecipeDefinition;
 import de.SecureChest.plugin.recipe.RecipeKind;
 import de.SecureChest.plugin.recipe.RecipeRegistry;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.util.Items;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
 import org.mockito.MockedStatic;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -78,7 +86,9 @@ public final class ScreenActionRecorder {
                 List.of("NDN", "DHD", "NDN"),
                 Map.of("N", "NETHERITE_INGOT", "D", "DIAMOND", "H", "TRIPWIRE_HOOK")));
         when(plugin.recipes()).thenReturn(recipes);
-        when(plugin.items()).thenReturn(mock(Items.class));
+        Items items = mock(Items.class);
+        when(items.chestKey()).thenAnswer(invocation -> mock(ItemStack.class));
+        when(plugin.items()).thenReturn(items);
         RecipeScreen screen = new RecipeScreen(plugin, recordingHelper(actions), mock(GuiManager.class),
                 material -> true);
         Player player = adminPlayer();
@@ -86,6 +96,25 @@ public final class ScreenActionRecorder {
             screen.openRecipes(player);
             for (RecipeKind kind : RecipeKind.values()) screen.openEditor(player, kind);
         });
+        return actions;
+    }
+
+    public static Set<String> adminLockScreenActions() {
+        Set<String> actions = new TreeSet<>();
+        ChestSecurePlugin plugin = pluginWithAreas(List.of());
+        LockKey key = new LockKey(UUID.randomUUID(), 10, 64, -20);
+        LockEntry entry = mock(LockEntry.class);
+        when(entry.key()).thenReturn(key);
+        when(entry.blockType()).thenReturn(Material.CHEST);
+        when(entry.owner()).thenReturn(UUID.randomUUID());
+        when(entry.trusted()).thenReturn(Map.of(UUID.randomUUID(), AccessLevel.VIEW,
+                UUID.randomUUID(), AccessLevel.STOCKER));
+        LockService locks = mock(LockService.class);
+        when(locks.getLockFromId(key.asId())).thenReturn(Optional.of(entry));
+        when(plugin.locks()).thenReturn(locks);
+        AdminLockScreen screen = new AdminLockScreen(plugin, recordingHelper(actions));
+        Player player = adminPlayer();
+        withInventories(() -> screen.openLockManage(player, key.asId()));
         return actions;
     }
 
@@ -97,6 +126,7 @@ public final class ScreenActionRecorder {
         when(areaService.areas()).thenReturn(areas);
         when(plugin.areas()).thenReturn(areaService);
         when(plugin.ownerNameDisplay()).thenReturn(mock(OwnerNameDisplaySetting.class));
+        when(plugin.chestKeyConsumption()).thenReturn(mock(ChestKeyConsumptionSetting.class));
         UiStateStore uiStateStore = new UiStateStore();
         when(plugin.ui()).thenReturn(uiStateStore);
         return plugin;

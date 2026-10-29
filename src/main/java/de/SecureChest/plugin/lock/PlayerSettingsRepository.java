@@ -11,7 +11,7 @@ import java.util.logging.Level;
 
 public final class PlayerSettingsRepository {
 
-    private static final Set<String> ALLOWED_FIELDS = Set.of("quick_lock", "quick_remove");
+    private static final Set<String> ALLOWED_FIELDS = Set.of("quick_lock", "quick_remove", "show_owner_name");
 
     private final ChestSecurePlugin plugin;
     private final DatabaseManager db;
@@ -47,6 +47,50 @@ public final class PlayerSettingsRepository {
             plugin.getLogger().log(Level.SEVERE, "DB loadSetting failed for " + player, ex);
         }
         return false;
+    }
+
+    public Optional<Boolean> loadShowOwnerName(UUID player) {
+        if (Bukkit.isPrimaryThread()) {
+            plugin.getLogger().warning("[SecureChest] loadShowOwnerName on the main thread for " + player
+                    + ", the database is not read there.");
+            return Optional.empty();
+        }
+        try (Connection c = db.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT show_owner_name FROM player_settings WHERE player_uuid=?")) {
+            ps.setString(1, player.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return Optional.of(!rs.next() || rs.getInt(1) == 1);
+            }
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.SEVERE, "DB loadShowOwnerName failed for " + player, ex);
+        }
+        return Optional.empty();
+    }
+
+    public Map<UUID, Boolean> loadAllShowOwnerName() {
+        Map<UUID, Boolean> values = new HashMap<>();
+        if (Bukkit.isPrimaryThread()) {
+            plugin.getLogger().warning("[SecureChest] Owner name settings requested on the main thread, "
+                    + "the database is not read there.");
+            return values;
+        }
+        try (Connection c = db.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT player_uuid,show_owner_name FROM player_settings")) {
+            while (rs.next()) {
+                String uuidText = rs.getString(1);
+                try {
+                    values.put(UUID.fromString(uuidText), rs.getInt(2) == 1);
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("[SecureChest] Invalid UUID in player_settings skipped: " + uuidText);
+                }
+            }
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.SEVERE, "DB loading owner name settings failed, all names are shown", ex);
+            return new HashMap<>();
+        }
+        return values;
     }
 
     public void saveSetting(UUID player, String field, boolean value) {

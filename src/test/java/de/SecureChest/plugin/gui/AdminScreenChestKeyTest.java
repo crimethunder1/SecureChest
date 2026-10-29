@@ -4,6 +4,7 @@ import de.SecureChest.plugin.ChestSecurePlugin;
 import de.SecureChest.plugin.MessageService;
 import de.SecureChest.plugin.Permissions;
 import de.SecureChest.plugin.area.AreaService;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.settings.OwnerNameDisplaySetting;
 import de.SecureChest.plugin.ui.UiStateStore;
 import de.SecureChest.plugin.util.Items;
@@ -62,6 +63,7 @@ class AdminScreenChestKeyTest {
         when(areaService.areas()).thenReturn(List.of());
         when(plugin.areas()).thenReturn(areaService);
         when(plugin.ownerNameDisplay()).thenReturn(mock(OwnerNameDisplaySetting.class));
+        when(plugin.chestKeyConsumption()).thenReturn(mock(ChestKeyConsumptionSetting.class));
         Items items = mock(Items.class);
         chestKey = mock(ItemStack.class);
         when(chestKey.getMaxStackSize()).thenReturn(64);

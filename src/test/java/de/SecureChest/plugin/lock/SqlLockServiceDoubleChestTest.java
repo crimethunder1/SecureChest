@@ -1,5 +1,6 @@
 package de.SecureChest.plugin.lock;
 
+import de.SecureChest.plugin.ui.UndoManager;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -102,42 +103,6 @@ class SqlLockServiceDoubleChestTest {
     }
 
     @Test
-    @DisplayName("unlock() ueber die angebaute Haelfte entfernt die Sperre an der alten Position")
-    void unlock_angebauteHaelfte_entferntTatsaechlicheSperre() {
-        Block addedHalf = lockSingleChestThenAttachAtSmallerCoordinates();
-
-        assertTrue(service.unlock(alice, addedHalf));
-
-        assertTrue(cachedKeys().isEmpty());
-        assertFalse(service.isLocked(addedHalf));
-        assertFalse(service.isLocked(world.blockAt(0, 64, 0)));
-    }
-
-    @Test
-    @DisplayName("unlock() durch fremden Spieler aendert nichts")
-    void unlock_fremderSpieler_keineAenderung() {
-        Block addedHalf = lockSingleChestThenAttachAtSmallerCoordinates();
-
-        assertFalse(service.unlock(bob, addedHalf));
-        assertEquals(List.of(world.keyAt(0, 64, 0)), cachedKeys());
-    }
-
-    @Test
-    @DisplayName("setTrust() und removeTrust() ueber die angebaute Haelfte aendern die tatsaechliche Sperre")
-    void trust_angebauteHaelfte_aendertTatsaechlicheSperre() {
-        Block addedHalf = lockSingleChestThenAttachAtSmallerCoordinates();
-
-        assertTrue(service.setTrust(alice, addedHalf, bob.getUniqueId(), AccessLevel.VIEW));
-        assertEquals(List.of(world.keyAt(0, 64, 0)), cachedKeys());
-        LockEntry entry = service.getLockFromId(world.keyAt(0, 64, 0).asId()).orElseThrow();
-        assertEquals(AccessLevel.VIEW, entry.trusted().get(bob.getUniqueId()));
-
-        assertTrue(service.removeTrust(alice, addedHalf, bob.getUniqueId()));
-        assertEquals(List.of(world.keyAt(0, 64, 0)), cachedKeys());
-        assertFalse(entry.trusted().containsKey(bob.getUniqueId()));
-    }
-
-    @Test
     @DisplayName("Zwei Sperren aus Altdaten: kanonische gewinnt, Entfernen trifft genau die gepruefte Sperre")
     void zweiSperren_kanonischeGewinnt_entfernenTrifftGepruefteSperre() {
         Block aliceChest = world.setChest(0, 64, 0, Material.CHEST, BlockFace.NORTH, Chest.Type.SINGLE);
@@ -150,7 +115,8 @@ class SqlLockServiceDoubleChestTest {
         assertEquals(bob.getUniqueId(), service.getLock(aliceChest).orElseThrow().owner());
         assertEquals(bob.getUniqueId(), service.getLock(bobChest).orElseThrow().owner());
 
-        assertTrue(service.unlock(bob, aliceChest));
+        when(fixture.plugin.undos()).thenReturn(new UndoManager(5));
+        assertTrue(service.unlockByIdWithUndo(bob, service.getLock(aliceChest).orElseThrow().key().asId()));
         assertEquals(List.of(world.keyAt(0, 64, 0)), cachedKeys());
         assertEquals(alice.getUniqueId(), service.getLock(bobChest).orElseThrow().owner());
     }

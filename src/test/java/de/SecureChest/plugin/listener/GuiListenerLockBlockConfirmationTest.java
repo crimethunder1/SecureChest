@@ -8,6 +8,7 @@ import de.SecureChest.plugin.gui.ScreenActionRecorder;
 import de.SecureChest.plugin.lock.LockEntry;
 import de.SecureChest.plugin.lock.LockKey;
 import de.SecureChest.plugin.lock.LockService;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.ui.ConfirmManager;
 import de.SecureChest.plugin.ui.ConfirmRequest;
 import de.SecureChest.plugin.ui.ConfirmType;
@@ -75,6 +76,7 @@ class GuiListenerLockBlockConfirmationTest {
         when(plugin.gui()).thenReturn(mock(GuiManager.class));
         confirms = new ConfirmManager();
         when(plugin.confirms()).thenReturn(confirms);
+        when(plugin.chestKeyConsumption()).thenReturn(mock(ChestKeyConsumptionSetting.class));
 
         player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerUuid);

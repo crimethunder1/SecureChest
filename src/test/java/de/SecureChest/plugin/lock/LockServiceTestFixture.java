@@ -8,6 +8,8 @@ import de.SecureChest.plugin.area.AreaService;
 import de.SecureChest.plugin.area.AreaStore;
 import de.SecureChest.plugin.area.RecordingAreaEnvironment;
 import de.SecureChest.plugin.db.DatabaseManager;
+import de.SecureChest.plugin.names.PlayerNameService;
+import de.SecureChest.plugin.settings.ChestKeyConsumptionSetting;
 import de.SecureChest.plugin.sign.SignManager;
 import de.SecureChest.plugin.util.Worlds;
 import org.bukkit.Bukkit;
@@ -69,7 +71,9 @@ final class LockServiceTestFixture implements AutoCloseable {
         config = mock(PluginConfig.class);
         when(plugin.cfg()).thenReturn(config);
         when(plugin.signs()).thenReturn(mock(SignManager.class));
+        when(plugin.names()).thenReturn(mock(PlayerNameService.class));
         when(plugin.getLogger()).thenReturn(mock(Logger.class));
+        when(plugin.chestKeyConsumption()).thenReturn(mock(ChestKeyConsumptionSetting.class));
 
         MessageService messages = mock(MessageService.class);
         when(messages.get(anyString())).thenReturn("message");

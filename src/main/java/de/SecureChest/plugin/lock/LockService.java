@@ -20,16 +20,11 @@ public interface LockService {
 
     Collection<LockEntry> getAllCachedLocks();
 
+    Collection<LockEntry> getCachedLocksInChunk(UUID worldUuid, int chunkX, int chunkZ);
+
     boolean lock(Player owner, Block block);
 
-    boolean unlock(Player caller, Block block);
-
-    boolean unlockById(Player caller, String lockId);
-
     boolean unlockByIdWithUndo(Player actor, String lockId);
-
-    @Deprecated
-    boolean unlockAll(UUID owner);
 
     boolean unlockAllWithUndo(Player actor, UUID owner);
 
@@ -45,11 +40,7 @@ public interface LockService {
 
     AccessLevel getAccessLevel(Player player, Block block);
 
-    boolean setTrust(Player owner, Block block, UUID target, AccessLevel level);
-
     boolean setTrustById(Player owner, String lockId, UUID target, AccessLevel level);
-
-    boolean removeTrust(Player owner, Block block, UUID target);
 
     boolean removeTrustById(Player owner, String lockId, UUID target);
 
@@ -76,6 +67,9 @@ public interface LockService {
     void setQuickLock(UUID player, boolean value);
     void setQuickRemove(UUID player, boolean value);
 
+    boolean getShowOwnerName(UUID player);
+    void setShowOwnerName(UUID player, boolean value);
+
     void forceRemoveLockAt(LockKey key);
 
     void forceRemoveHopperAt(LockKey key);
@@ -83,6 +77,8 @@ public interface LockService {
     LockRemovalBatch removeOutsideArea(Collection<LockEntry> locks, Collection<SecureHopperEntry> secureHoppers);
 
     Collection<SecureHopperEntry> getAllCachedHoppers();
+
+    Collection<SecureHopperEntry> getCachedHoppersInChunk(UUID worldUuid, int chunkX, int chunkZ);
 
     void logUnauthorizedBreak(Player actor, Block target);
     void logAdminBreak(Player actor, Block target);

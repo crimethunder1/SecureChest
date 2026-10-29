@@ -16,6 +16,7 @@ public final class RecipeEditorModel {
     public static final int GRID_SIZE = 3;
     public static final int CELL_COUNT = GRID_SIZE * GRID_SIZE;
     public static final String MATERIAL_SYMBOLS = "ABCDEFGHI";
+    public static final int LARGE_AMOUNT_STEP = 8;
 
     private static final char EMPTY_SYMBOL = ' ';
     private static final Set<Material> AIR_MATERIALS = EnumSet.of(Material.AIR, Material.CAVE_AIR, Material.VOID_AIR);
@@ -23,6 +24,7 @@ public final class RecipeEditorModel {
     private final RecipeKind kind;
     private final String[] cells = new String[CELL_COUNT];
     private boolean enabled = true;
+    private int amount = RecipeDefinition.DEFAULT_AMOUNT;
     private Material selection;
 
     public RecipeEditorModel(RecipeKind kind) {
@@ -38,6 +40,7 @@ public final class RecipeEditorModel {
         RecipeEditorModel model = new RecipeEditorModel(kind);
         if (definition == null) return model;
         model.enabled = definition.enabled();
+        model.amount = definition.amount();
         List<String> shape = definition.shape();
         for (int row = 0; row < Math.min(GRID_SIZE, shape.size()); row++) {
             String shapeRow = shape.get(row);
@@ -69,6 +72,15 @@ public final class RecipeEditorModel {
 
     public void toggleEnabled() {
         enabled = !enabled;
+    }
+
+    public int amount() {
+        return amount;
+    }
+
+    public void changeAmount(int change) {
+        amount = Math.max(RecipeDefinition.MINIMUM_AMOUNT, Math.min(RecipeDefinition.MAXIMUM_AMOUNT,
+                amount + change));
     }
 
     public Material selection() {
@@ -130,7 +142,7 @@ public final class RecipeEditorModel {
             }
             shape.add(shapeRow.toString());
         }
-        return new RecipeDefinition(enabled, shape, ingredients);
+        return new RecipeDefinition(enabled, shape, ingredients, amount);
     }
 
     private String cellFor(String ingredient) {

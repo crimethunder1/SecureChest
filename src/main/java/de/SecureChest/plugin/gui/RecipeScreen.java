@@ -28,6 +28,7 @@ final class RecipeScreen {
     static final int[] GRID_SLOTS = {10, 11, 12, 19, 20, 21, 28, 29, 30};
     static final int RESULT_SLOT = 23;
     static final int SELECTION_SLOT = 25;
+    static final int AMOUNT_SLOT = 32;
     static final int BACK_SLOT = 45;
     static final int TOGGLE_SLOT = 47;
     static final int SAVE_SLOT = 49;
@@ -149,6 +150,7 @@ final class RecipeScreen {
             case INGREDIENT_SYMBOL_NOT_IN_SHAPE   -> "rezept-fehler-zeichen-nicht-in-shape";
             case INGREDIENT_MATERIAL_INVALID      -> "rezept-fehler-material-ungueltig";
             case INGREDIENT_MATERIAL_AIR          -> "rezept-fehler-material-luft";
+            case AMOUNT_OUT_OF_RANGE              -> "rezept-fehler-anzahl";
             case REGISTRATION_FAILED              -> "rezept-fehler-registrierung";
         };
     }
@@ -182,8 +184,14 @@ final class RecipeScreen {
         for (int index = 0; index < RecipeEditorModel.CELL_COUNT; index++) {
             inv.setItem(GRID_SLOTS[index], buildCell(model, index));
         }
-        inv.setItem(RESULT_SLOT, resultItem(model.kind()));
+        ItemStack result = resultItem(model.kind());
+        result.setAmount(model.amount());
+        inv.setItem(RESULT_SLOT, result);
         inv.setItem(SELECTION_SLOT, buildSelection(model));
+        inv.setItem(AMOUNT_SLOT, h.buildButton(Material.PAPER, text("gui-recipe-edit-amount-name", model.amount()),
+                lines("gui-recipe-edit-amount-lore", RecipeEditorModel.LARGE_AMOUNT_STEP,
+                        RecipeDefinition.MINIMUM_AMOUNT, RecipeDefinition.MAXIMUM_AMOUNT),
+                "recipe_amount", ""));
 
         inv.setItem(BACK_SLOT, h.buildButton(Material.ARROW, text("gui-back-name"),
                 lines("gui-back-recipes-lore"), "back_recipes", ""));
