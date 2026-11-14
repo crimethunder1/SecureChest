@@ -93,6 +93,58 @@ public final class PlayerSettingsRepository {
         return values;
     }
 
+    public Map<UUID, Map<UUID, AccessLevel>> loadAllDefaultTrust() {
+        Map<UUID, Map<UUID, AccessLevel>> values = new HashMap<>();
+        if (Bukkit.isPrimaryThread()) {
+            plugin.getLogger().warning("[SecureChest] Default trust requested on the main thread, "
+                    + "the database is not read there.");
+            return values;
+        }
+        try (Connection c = db.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT owner_uuid,target_uuid,level FROM default_trust")) {
+            while (rs.next()) {
+                AccessLevel level = AccessLevel.fromString(rs.getString(3));
+                if (level == null) continue;
+                try {
+                    values.computeIfAbsent(UUID.fromString(rs.getString(1)), key -> new HashMap<>())
+                            .put(UUID.fromString(rs.getString(2)), level);
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("[SecureChest] Invalid UUID in default_trust skipped.");
+                }
+            }
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.SEVERE, "DB loading default trust failed", ex);
+            return new HashMap<>();
+        }
+        return values;
+    }
+
+    public void saveDefaultTrust(UUID owner, UUID target, AccessLevel level) {
+        try (Connection c = db.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "INSERT OR REPLACE INTO default_trust(owner_uuid,target_uuid,level) VALUES(?,?,?)")) {
+            ps.setString(1, owner.toString());
+            ps.setString(2, target.toString());
+            ps.setString(3, level.name());
+            ps.executeUpdate();
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.SEVERE, "DB saveDefaultTrust failed for " + owner, ex);
+        }
+    }
+
+    public void deleteDefaultTrust(UUID owner, UUID target) {
+        try (Connection c = db.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "DELETE FROM default_trust WHERE owner_uuid=? AND target_uuid=?")) {
+            ps.setString(1, owner.toString());
+            ps.setString(2, target.toString());
+            ps.executeUpdate();
+        } catch (SQLException ex) {
+            plugin.getLogger().log(Level.SEVERE, "DB deleteDefaultTrust failed for " + owner, ex);
+        }
+    }
+
     public void saveSetting(UUID player, String field, boolean value) {
         requireAllowedField(field);
         ensureSettingsRow(player);

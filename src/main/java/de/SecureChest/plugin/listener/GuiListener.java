@@ -136,6 +136,9 @@ public final class GuiListener implements Listener {
                 plugin.gui().openSettings(player);
             }
             case "toggle_show_owner_name" -> toggleShowOwnerName(player);
+            case "open_default_trust" -> plugin.gui().openDefaultTrust(player);
+            case "default_trust_add" -> startDefaultTrustInput(player, actionContext);
+            case "default_trust_entry" -> handleDefaultTrustEntry(player, actionContext, event.getClick());
 
             case "confirm_unlock_all_self" -> {
                 int timeoutSeconds = plugin.cfg().confirmTimeoutSeconds();
@@ -858,6 +861,42 @@ public final class GuiListener implements Listener {
                     NamedTextColor.RED));
         }
         plugin.gui().openAdmin(player);
+    }
+
+    void startDefaultTrustInput(Player player, String actionContext) {
+        AccessLevel level = AccessLevel.fromString(actionContext);
+        if (level == null) {
+            player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
+            return;
+        }
+        player.closeInventory();
+        plugin.pendingChat().put(player.getUniqueId(), new PendingChatAction.AddDefaultTrust(level.name()));
+        player.sendMessage(Component.text(
+                plugin.msg().get("chat-prompt-add-default-trust", accessLevelLabel(level)), NamedTextColor.YELLOW));
+    }
+
+    void handleDefaultTrustEntry(Player player, String actionContext, ClickType click) {
+        UUID targetUuid;
+        try {
+            targetUuid = UUID.fromString(actionContext);
+        } catch (IllegalArgumentException ignored) {
+            player.sendMessage(Component.text(plugin.msg().get("ungueltige-daten"), NamedTextColor.RED));
+            return;
+        }
+        UUID owner = player.getUniqueId();
+        AccessLevel currentLevel = plugin.locks().getDefaultTrust(owner).get(targetUuid);
+        boolean actionSuccessful;
+        if (click.isRightClick()) {
+            actionSuccessful = plugin.locks().removeDefaultTrust(owner, targetUuid);
+        } else if (click.isLeftClick() && currentLevel != null) {
+            actionSuccessful = plugin.locks().setDefaultTrust(owner, targetUuid, toggledAccessLevel(currentLevel));
+        } else {
+            return;
+        }
+        player.sendMessage(actionSuccessful
+                ? Component.text(plugin.msg().get("gui-vertrauen-aktualisiert"), NamedTextColor.GREEN)
+                : Component.text(plugin.msg().get("gui-aktion-fehlgeschlagen"), NamedTextColor.RED));
+        plugin.gui().openDefaultTrust(player);
     }
 
     void toggleShowOwnerName(Player player) {

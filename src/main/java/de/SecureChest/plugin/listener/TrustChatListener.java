@@ -101,6 +101,30 @@ public final class TrustChatListener implements Listener {
             return;
         }
 
+        if (action instanceof PendingChatAction.AddDefaultTrust adt) {
+            AccessLevel level = AccessLevel.fromString(adt.level());
+            if (level == null) {
+                plugin.pendingChat().remove(uuid);
+                p.sendMessage(Component.text(plugin.msg().get("trust-ungueltige-stufe"), NamedTextColor.RED));
+                return;
+            }
+            String roleLabel = plugin.msg().get(level == AccessLevel.VIEW ? "gui-role-viewer" : "gui-role-stocker");
+            OfflinePlayer target = findChatTarget(p, msg, () -> p.sendMessage(Component.text(
+                    plugin.msg().get("chat-prompt-add-default-trust", roleLabel), NamedTextColor.YELLOW)));
+            if (target == null) return;
+
+            boolean ok = plugin.locks().setDefaultTrust(uuid, target.getUniqueId(), level);
+            plugin.pendingChat().remove(uuid);
+
+            String name = target.getName() != null ? target.getName() : msg;
+            p.sendMessage(ok
+                    ? Component.text(plugin.msg().get("default-trust-vergeben", name, roleLabel), NamedTextColor.GREEN)
+                    : Component.text(plugin.msg().get("default-trust-fehlgeschlagen"), NamedTextColor.RED));
+
+            plugin.gui().openDefaultTrust(p);
+            return;
+        }
+
         if (action instanceof PendingChatAction.GlobalUnlock) {
             if (!p.hasPermission(Permissions.ADMIN)) {
                 plugin.pendingChat().remove(uuid);

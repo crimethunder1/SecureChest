@@ -1,5 +1,5 @@
 name: ChestSecure
-version: 1.7.0
+version: 1.7.1
 main: de.SecureChest.plugin.ChestSecurePlugin
 api-version: "26.2"
 author: "crimethunder"

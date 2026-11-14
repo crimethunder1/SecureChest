@@ -7,6 +7,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,6 +44,12 @@ public interface LockService {
     boolean setTrustById(Player owner, String lockId, UUID target, AccessLevel level);
 
     boolean removeTrustById(Player owner, String lockId, UUID target);
+
+    Map<UUID, AccessLevel> getDefaultTrust(UUID owner);
+
+    boolean setDefaultTrust(UUID owner, UUID target, AccessLevel level);
+
+    boolean removeDefaultTrust(UUID owner, UUID target);
 
     List<Location> listLocks(UUID owner);
 

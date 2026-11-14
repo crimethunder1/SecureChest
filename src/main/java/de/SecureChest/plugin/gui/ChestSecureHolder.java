@@ -22,7 +22,8 @@ public final class ChestSecureHolder implements InventoryHolder {
         AREAS,
         RECIPES,
         RECIPE_EDIT,
-        ADMIN_LOCK_MANAGE
+        ADMIN_LOCK_MANAGE,
+        DEFAULT_TRUST
     }
 
     private final GuiId id;

@@ -686,3 +686,29 @@ confirm-admin-remove-trust-question: "&7Zugriff von &f{0} &7auf die Sperre von &
 admin-transfer-bereits-besitzer: "{0} ist bereits Besitzer dieser Sperre. Bitte einen anderen Namen eingeben."
 notification-admin-lock-removed: "Ein Admin hat deine Sperre ({0}) bei {1} entfernt."
 notification-admin-lock-transferred: "Ein Admin hat deine Sperre ({0}) bei {1} an {2} übertragen."
+gui-back-settings-lore:
+  - "&7Zurück zu den Einstellungen"
+gui-settings-default-trust-name: "&fStandard-Zugriff"
+gui-settings-default-trust-lore:
+  - "&7Spieler, die alle deine Sperren immer ansehen oder auffüllen dürfen"
+  - "&7Aktuell eingetragen: &f{0}"
+gui-default-trust-title: "&6⚿ &lStandard-Zugriff"
+gui-default-trust-info-name: "&fStandard-Zugriff"
+gui-default-trust-info-lore:
+  - "&7Gilt für alle deine Sperren, auch bestehende"
+  - "&7Ein Vertrauen an einer einzelnen Sperre hat Vorrang"
+gui-default-trust-add-viewer-name: "&aViewer hinzufügen"
+gui-default-trust-add-viewer-lore:
+  - "&7Darf hineinschauen, aber nichts entnehmen"
+gui-default-trust-add-stocker-name: "&aStocker hinzufügen"
+gui-default-trust-add-stocker-lore:
+  - "&7Darf Items entnehmen und einlegen"
+gui-default-trust-entry-lore:
+  - "&7Zugriff: &f{0}"
+  - "&eLinksklick: ändern auf {1}"
+  - "&cRechtsklick: entfernen"
+gui-default-trust-count-none: "&7Kein Standard-Zugriff gesetzt"
+gui-default-trust-count: "&7Spieler mit Standard-Zugriff: &f{0}"
+chat-prompt-add-default-trust: "Schreibe den Namen des Spielers, der Standard-Zugriff als {0} bekommt.  Schreibe 'cancel' zum Abbrechen."
+default-trust-vergeben: "{0} hat jetzt Standard-Zugriff als {1}."
+default-trust-fehlgeschlagen: "Der Standard-Zugriff konnte nicht gesetzt werden."

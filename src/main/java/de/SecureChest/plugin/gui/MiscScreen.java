@@ -102,6 +102,10 @@ final class MiscScreen {
                 qrOn ? text("gui-settings-quick-remove-on")
                      : text("gui-settings-quick-remove-off")));
 
+        inv.setItem(31, h.buildButton(Material.PLAYER_HEAD, text("gui-settings-default-trust-name"),
+                lines("gui-settings-default-trust-lore", plugin.locks().getDefaultTrust(player.getUniqueId()).size()),
+                "open_default_trust", ""));
+
         inv.setItem(40, h.buildButton(Material.BARRIER, text("gui-settings-unlock-all-name"),
                 lines("gui-settings-unlock-all-lore"),
                 "confirm_unlock_all_self", ""));

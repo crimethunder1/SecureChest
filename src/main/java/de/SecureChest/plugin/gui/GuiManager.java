@@ -22,6 +22,7 @@ public final class GuiManager {
     private final AreaScreen  areas;
     private final RecipeScreen recipes;
     private final AdminLockScreen adminLocks;
+    private final DefaultTrustScreen defaultTrust;
 
     public GuiManager(ChestSecurePlugin plugin) {
         GuiHelper helper = new GuiHelper(plugin);
@@ -30,6 +31,7 @@ public final class GuiManager {
         this.admin = new AdminScreen(plugin, helper, this);
         this.adminLocks = new AdminLockScreen(plugin, helper);
         this.areas = new AreaScreen(plugin, helper, this);
+        this.defaultTrust = new DefaultTrustScreen(plugin, helper);
         this.recipes = new RecipeScreen(plugin, helper, this, Material::isItem);
     }
 
@@ -45,6 +47,8 @@ public final class GuiManager {
     public void openLockManage(Player player, String lockId)            { locks.openLockManage(player, lockId); }
     public void openTrustNearby(Player player, String lockId)           { locks.openTrustNearby(player, lockId); }
     public void openTrustRole(Player player, String lockId, UUID target){ locks.openTrustRole(player, lockId, target); }
+
+    public void openDefaultTrust(Player player)                         { defaultTrust.open(player); }
 
     public void openAdmin(Player player)                                { admin.openAdmin(player); }
     public void openLogs(Player player, int page)                       { admin.openLogs(player, page); }

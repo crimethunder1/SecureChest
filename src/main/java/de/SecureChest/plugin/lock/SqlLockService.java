@@ -31,6 +31,8 @@ public final class SqlLockService implements LockService {
     private final Map<UUID, Boolean>             quickRemoveCache = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean>             showOwnerNameCache = new ConcurrentHashMap<>();
 
+    private final Map<UUID, Map<UUID, AccessLevel>> defaultTrustCache = new ConcurrentHashMap<>();
+
     private volatile boolean cacheFullyLoaded;
 
     private final Runnable                 postWarmCallback;
@@ -57,6 +59,7 @@ public final class SqlLockService implements LockService {
                 loadAllSecureHoppers();
                 cacheFullyLoaded = true;
                 loadAllShowOwnerName();
+                loadAllDefaultTrust();
                 Runnable cb = postWarmCallback;
                 if (cb != null) {
                     Bukkit.getScheduler().runTask(plugin, cb);
@@ -110,6 +113,17 @@ public final class SqlLockService implements LockService {
                 LockKey bound = new LockKey(UUID.fromString(rs.getString(6)), rs.getInt(7), rs.getInt(8), rs.getInt(9));
                 cacheManager.putHopper(hk.asId(), new SecureHopperEntry(hk, owner, bound));
             }
+        }
+    }
+
+    private void loadAllDefaultTrust() {
+        try {
+            Map<UUID, Map<UUID, AccessLevel>> loaded = settingsRepo.loadAllDefaultTrust();
+            loaded.forEach((owner, targets) -> defaultTrustCache
+                    .computeIfAbsent(owner, key -> new ConcurrentHashMap<>()).putAll(targets));
+            plugin.getLogger().info("Default trust: " + loaded.size() + " owners with default access loaded.");
+        } catch (RuntimeException ex) {
+            plugin.getLogger().log(Level.SEVERE, "Loading the default trust failed, no default access applies", ex);
         }
     }
 
@@ -822,7 +836,35 @@ public final class SqlLockService implements LockService {
         if (entry == null) return true;
         if (player.hasPermission(Permissions.ADMIN) && usingAdminKey) return true;
         if (entry.owner().equals(player.getUniqueId())) return true;
-        return entry.trusted().containsKey(player.getUniqueId());
+        return effectiveLevel(entry, player.getUniqueId()) != null;
+    }
+
+    private AccessLevel effectiveLevel(LockEntry entry, UUID player) {
+        return AccessResolver.resolve(entry.trusted().get(player), defaultTrustCache.get(entry.owner()), player);
+    }
+
+    @Override
+    public Map<UUID, AccessLevel> getDefaultTrust(UUID owner) {
+        Map<UUID, AccessLevel> targets = defaultTrustCache.get(owner);
+        return targets == null ? Map.of() : Map.copyOf(targets);
+    }
+
+    @Override
+    public boolean setDefaultTrust(UUID owner, UUID target, AccessLevel level) {
+        if (owner == null || target == null || level == null || owner.equals(target)) return false;
+        defaultTrustCache.computeIfAbsent(owner, key -> new ConcurrentHashMap<>()).put(target, level);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                () -> settingsRepo.saveDefaultTrust(owner, target, level));
+        return true;
+    }
+
+    @Override
+    public boolean removeDefaultTrust(UUID owner, UUID target) {
+        Map<UUID, AccessLevel> targets = defaultTrustCache.get(owner);
+        if (targets == null || targets.remove(target) == null) return false;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                () -> settingsRepo.deleteDefaultTrust(owner, target));
+        return true;
     }
 
     @Override
@@ -842,7 +884,7 @@ public final class SqlLockService implements LockService {
         if (entry == null) return null;
         if (player.hasPermission(Permissions.ADMIN)) return AccessLevel.STOCKER;
         if (entry.owner().equals(player.getUniqueId())) return AccessLevel.STOCKER;
-        return entry.trusted().get(player.getUniqueId());
+        return effectiveLevel(entry, player.getUniqueId());
     }
 
     @Override

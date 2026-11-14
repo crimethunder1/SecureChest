@@ -142,6 +142,15 @@ public final class DatabaseManager {
             addColumnIfMissing(c, "player_settings", "show_owner_name", "INTEGER NOT NULL DEFAULT 1");
 
             st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS default_trust (" +
+                " owner_uuid TEXT NOT NULL," +
+                " target_uuid TEXT NOT NULL," +
+                " level TEXT NOT NULL," +
+                " PRIMARY KEY (owner_uuid, target_uuid)" +
+                ");"
+            );
+
+            st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS notifications (" +
                 " id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 " owner_uuid TEXT NOT NULL," +

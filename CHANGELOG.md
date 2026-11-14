@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.1
+
+### Added
+
+* Default access. In the settings in `/cs`, every player can give other players Viewer or Stocker access to all of their locks at once, including locks that already exist and ones created later. A trust set on a single lock takes priority over the default. The default access is stored in the new table `default_trust` in `chestsecure.db`.
+
+### Fixed
+
+* Secure Hoppers can move items between locked containers of their owner again. The transfer check no longer cancels a move when the container is locked by the hopper's owner but is not the container the hopper is bound to.
+* Owner names are only visible from close by. The view range of the text above locks is smaller, and names that were created with the old range are replaced when they are refreshed.
+
 ## 1.7.0
 
 Requires Paper 26.2 and Java 25. Minecraft 1.21 is no longer supported, please stay on version 1.6.0 there. ChestSecure is built and tested for Paper 26.2. Other server forks may work but are not supported.
