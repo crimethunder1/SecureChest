@@ -53,6 +53,7 @@ public final class SignManager implements Listener {
     static final int CHANGE_BATCH_SIZE = 50;
     static final int COVER_CHECK_BATCH_SIZE = 50;
     static final long COVER_CHECK_INTERVAL_TICKS = 100L;
+    static final float TEXT_VIEW_RANGE = 0.12f;
 
     private record TextChunk(UUID worldUuid, int chunkX, int chunkZ) {
 
@@ -567,7 +568,13 @@ public final class SignManager implements Listener {
     private boolean isUnchanged(GroupText previous, NameGroup group, String ownerName) {
         return Objects.equals(previous.ownerName(), ownerName)
                 && previous.group().textPosition().equals(group.textPosition())
-                && isLive(previous.entityId());
+                && isLive(previous.entityId())
+                && hasCurrentViewRange(previous.entityId());
+    }
+
+    private boolean hasCurrentViewRange(UUID entityId) {
+        return !(Bukkit.getEntity(entityId) instanceof TextDisplay display)
+                || display.getViewRange() == TEXT_VIEW_RANGE;
     }
 
     private UUID spawnText(NameGroup group, String ownerName) {
@@ -585,7 +592,7 @@ public final class SignManager implements Listener {
                 entity.setPersistent(false);
                 entity.setDefaultBackground(true);
                 entity.setSeeThrough(false);
-                entity.setViewRange(0.45f);
+                entity.setViewRange(TEXT_VIEW_RANGE);
             });
             return td.getUniqueId();
         } catch (Exception ex) {

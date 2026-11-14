@@ -145,29 +145,38 @@ class ProtectionListenerMachineTransferTest {
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = Material.class, names = {"FURNACE", "BLAST_FURNACE", "SMOKER", "BREWING_STAND"})
-    @DisplayName("Secure Hopper, der an einen anderen Behaelter gebunden ist, darf nicht einfuellen")
-    void secureHopperBoundElsewhereCannotFeed(Material type) {
-        Block target = machine(0, 64, 0, type, true);
-        Block otherContainer = machine(1, 63, 0, Material.BARREL, true);
+    @DisplayName("Secure Hopper, der an einen Behaelter eines anderen Besitzers gebunden ist, darf nicht in fremde Sperren einfuellen")
+    void secureHopperCannotFeedForeignLock(Material type) {
+        Player bob = fixture.player("Bob", false);
+        Block target = world.setBlock(0, 64, 0, type);
+        assertTrue(service.lock(bob, target));
+        Block ownContainer = machine(1, 63, 0, Material.BARREL, true);
         Block side = hopper(1, 64, 0, BlockFace.DOWN);
-        assertTrue(service.bindSecureHopper(alice, side, otherContainer));
+        assertTrue(service.bindSecureHopper(alice, side, ownContainer));
 
         verify(move(hopperInventory(side), machineInventory(target))).setCancelled(true);
     }
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = Material.class, names = {"FURNACE", "BLAST_FURNACE", "SMOKER", "BREWING_STAND"})
-    @DisplayName("Trichter darunter darf weder Ergebnis noch Brennstoff herausholen, auch kein Secure Hopper mit anderem Ziel")
+    @DisplayName("Secure Hopper darf zwischen allen gesperrten Behaeltern seines Besitzers Items bewegen")
+    void secureHopperMayMoveBetweenOwnLocks(Material type) {
+        Block target = machine(0, 64, 0, type, true);
+        Block otherContainer = machine(1, 63, 0, Material.BARREL, true);
+        Block side = hopper(1, 64, 0, BlockFace.DOWN);
+        assertTrue(service.bindSecureHopper(alice, side, otherContainer));
+
+        verify(move(hopperInventory(side), machineInventory(target)), never()).setCancelled(anyBoolean());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = Material.class, names = {"FURNACE", "BLAST_FURNACE", "SMOKER", "BREWING_STAND"})
+    @DisplayName("Normaler Trichter darunter darf weder Ergebnis noch Brennstoff herausholen")
     void hopperBelowCannotExtract(Material type) {
         Block source = machine(0, 64, 0, type, true);
         Block plainBelow = hopper(0, 63, 0, BlockFace.DOWN);
         verify(move(machineInventory(source), hopperInventory(plainBelow))).setCancelled(true);
 
-        Block secondSource = machine(5, 64, 0, type, true);
-        Block ownBarrel = machine(6, 63, 0, Material.BARREL, true);
-        Block secureBelow = hopper(5, 63, 0, BlockFace.EAST);
-        assertTrue(service.bindSecureHopper(alice, secureBelow, ownBarrel));
-        verify(move(machineInventory(secondSource), hopperInventory(secureBelow))).setCancelled(true);
     }
 
     @ParameterizedTest(name = "{0}")

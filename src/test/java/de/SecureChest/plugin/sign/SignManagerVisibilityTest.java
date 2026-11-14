@@ -178,6 +178,7 @@ class SignManagerVisibilityTest {
         when(world.spawn(any(Location.class), eq(TextDisplay.class), anyConfigurator())).thenAnswer(invocation -> {
             SpawnedText text = new SpawnedText(invocation.getArgument(0, Location.class));
             TextDisplay display = mock(TextDisplay.class);
+            when(display.getViewRange()).thenReturn(SignManager.TEXT_VIEW_RANGE);
             text.display = display;
             when(display.getUniqueId()).thenReturn(text.id);
             when(display.isValid()).thenAnswer(validity -> text.valid);

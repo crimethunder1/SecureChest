@@ -137,6 +137,7 @@ class SignManagerChunkLoadTest {
 
     private TextDisplay display(UUID entityId) {
         TextDisplay display = mock(TextDisplay.class);
+        when(display.getViewRange()).thenReturn(SignManager.TEXT_VIEW_RANGE);
         when(display.getUniqueId()).thenReturn(entityId);
         when(display.isValid()).thenReturn(true);
         bukkit.when(() -> Bukkit.getEntity(entityId)).thenReturn(display);

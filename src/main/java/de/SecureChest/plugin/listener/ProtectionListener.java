@@ -724,19 +724,20 @@ public final class ProtectionListener implements Listener {
             return;
         }
 
-        if (sourceIsLocked) {
-            String sourceLockId = plugin.locks().getLock(sourceBlock).map(entry -> entry.key().asId()).orElse(null);
-            if (!hopperEntry.boundLock().asId().equals(sourceLockId)) {
-                event.setCancelled(true);
-                return;
-            }
+        if (sourceIsLocked && !mayTransfer(hopperEntry, sourceBlock)) {
+            event.setCancelled(true);
+            return;
         }
-        if (destinationIsLocked) {
-            String destinationLockId = plugin.locks().getLock(destinationBlock).map(entry -> entry.key().asId()).orElse(null);
-            if (!hopperEntry.boundLock().asId().equals(destinationLockId)) {
-                event.setCancelled(true);
-            }
+        if (destinationIsLocked && !mayTransfer(hopperEntry, destinationBlock)) {
+            event.setCancelled(true);
         }
+    }
+
+    private boolean mayTransfer(SecureHopperEntry hopperEntry, Block lockedBlock) {
+        LockEntry lock = plugin.locks().getLock(lockedBlock).orElse(null);
+        if (lock == null) return false;
+        return hopperEntry.boundLock().asId().equals(lock.key().asId())
+                || hopperEntry.owner().equals(lock.owner());
     }
 
     private Block inventoryToBlock(Inventory inventory) {
